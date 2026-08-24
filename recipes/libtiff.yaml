@@ -1,0 +1,20 @@
+name: libtiff
+version: 4.7.2
+source:
+  url: https://download.osgeo.org/libtiff/tiff-4.7.2.tar.gz
+build: cmake
+deps:
+  - zlib
+  - libjpeg-turbo
+cmake:
+  defines:
+    BUILD_SHARED_LIBS: "ON"
+    tiff-tools: "OFF"
+    tiff-tests: "OFF"
+    tiff-docs: "OFF"
+    tiff-contrib: "OFF"
+    tiff-jbig: "OFF"
+    tiff-lerc: "OFF"
+    tiff-lzma: "OFF"
+    tiff-zstd: "OFF"
+    tiff-webp: "OFF"

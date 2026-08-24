@@ -1,0 +1,18 @@
+name: gdk-pixbuf
+version: 2.44.7
+source:
+  url: https://download.gnome.org/sources/gdk-pixbuf/2.44/gdk-pixbuf-2.44.7.tar.xz
+build: meson
+deps:
+  - glib
+  - libpng
+  - libjpeg-turbo
+  - libtiff
+meson:
+  options:
+    - -Dgtk_doc=false
+    - -Dintrospection=enabled
+    - -Dman=false
+    - -Dtests=true
+test:
+  enabled: true

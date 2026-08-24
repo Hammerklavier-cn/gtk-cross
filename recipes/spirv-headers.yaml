@@ -1,0 +1,5 @@
+name: spirv-headers
+version: 1.4.357.0
+source:
+  url: https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
+build: cmake

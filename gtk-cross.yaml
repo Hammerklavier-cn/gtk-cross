@@ -1,0 +1,15 @@
+# gtk-cross 项目配置
+# 每个 target（构建档案/profile）映射到一个 toolchain 定义（toolchains/*.yaml），
+# 命名约定 = 工具链标识（宿主-工具链[-运行时]），与 toolchains/*.yaml 文件名一致，
+# 便于未来区分 msvc、linux 交叉等工具链；产物安装到 <prefix>（该 profile 的 sysroot）。
+default_target: msys2-mingw64
+targets:
+  msys2-mingw64:
+    toolchain: msys2-mingw64
+    prefix: out/msys2-mingw64
+  # 同为 win64 输出平台，宿主工具链/CRT 运行时不同（UCRT），产物完全隔离
+  msys2-ucrt64:
+    toolchain: msys2-ucrt64
+    prefix: out/msys2-ucrt64
+downloads_dir: downloads
+build_dir: build

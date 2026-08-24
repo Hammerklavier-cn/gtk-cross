@@ -1,0 +1,26 @@
+# Windows x86_64 原生工具链（MSYS2 mingw64 环境）
+# 用途：Windows 宿主上原生构建 win64 目标。
+# 约定：所有构建命令经由 MSYS2 bash（MSYSTEM=MINGW64）执行，
+#       binutils/GCC/运行时库等来自 mingw-w64-x86_64-* 系统包（视为"交叉编译器"部分），
+#       其余 target 侧依赖全部自建。
+name: msys2-mingw64
+host: windows
+platform: win64
+description: "MSYS2 mingw64 native (x86_64-w64-mingw32, GCC 16)"
+msys2_root: C:/msys64
+msystem: MINGW64
+host_triple: x86_64-w64-mingw32
+# 构建工具（都应在 mingw64 bash 的 PATH 中可找到）
+tools:
+  cc: gcc
+  cxx: g++
+  pkg_config: pkg-config
+  meson: meson
+  ninja: ninja
+  cmake: cmake
+  make: make
+  perl: perl
+# 在 bash 内执行的默认环境（所有构建共享）：sysroot bin 前置，隔离 pkg-config
+env:
+  PKG_CONFIG_LIBDIR: "$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig"
+  PKG_CONFIG_PATH: ""

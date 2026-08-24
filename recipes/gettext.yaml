@@ -1,0 +1,14 @@
+name: gettext
+version: 0.24
+source:
+  url: https://ftp.gnu.org/pub/gnu/gettext/gettext-0.24.tar.gz
+build: autotools
+deps:
+  - libiconv
+autotools:
+  source_dir: gettext-runtime
+  # 注意：不能加 --disable-nls。该选项会让 intl/Makefile 得到 USE_NLS=no，
+  # libintl 变成 noinst_LTLIBRARIES（只构建不安装），sysroot 里就没有 libintl。
+  configure:
+    - --enable-shared
+    - --disable-static

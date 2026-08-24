@@ -1,0 +1,15 @@
+name: spirv-tools
+version: 1.4.357.0
+source:
+  url: https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
+build: cmake
+deps:
+  - spirv-headers
+# tag 归档不含 git submodule，从已构建的 spirv-headers 源码树填充
+submodules:
+  external/spirv-headers: spirv-headers
+cmake:
+  defines:
+    SPIRV_SKIP_TESTS: "ON"
+    SPIRV_WERROR: "OFF"
+    SPIRV_SKIP_EXECUTABLES: "ON"

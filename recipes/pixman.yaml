@@ -1,0 +1,13 @@
+name: pixman
+version: 0.46.4
+source:
+  # 上游 cairographics.org / gitlab.freedesktop.org 归档不可达（登录墙），
+  # 用 Debian pool 的原味 orig tar 包（gzip, "pixman-0.46.4.tar"）
+  url: https://deb.debian.org/debian/pool/main/p/pixman/pixman_0.46.4.orig.tar.gz
+build: meson
+meson:
+  options:
+    - -Dtests=disabled
+    - -Ddemos=disabled
+    - -Dgtk=disabled
+    - -Dlibpng=disabled

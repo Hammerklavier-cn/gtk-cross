@@ -1,0 +1,28 @@
+name: cairo
+version: 1.18.4
+source:
+  # 上游 cairographics.org 不可达，用 Debian pool 的原味 orig tar 包
+  url: https://deb.debian.org/debian/pool/main/c/cairo/cairo_1.18.4.orig.tar.xz
+build: meson
+deps:
+  - pixman
+  - freetype
+  - fontconfig
+  - libpng
+  # 依赖 glib-base 而非 glib：cairo-gobject 只需 gobject 库本身；若依赖 glib
+  # 会形成 glib -> gobject-introspection -> cairo -> glib 环（GI 的测试/工具
+  # 需要 cairo）
+  - glib-base
+meson:
+  options:
+    - -Dtests=disabled
+    - -Ddwrite=disabled
+    - -Dxlib=disabled
+    - -Dxcb=disabled
+    # 修复 pango/GTK 字体度量段错误（0xc0000005）：cairo 的 Win32 静态互斥体
+    # （CRITICAL_SECTION）由 cairo_win32_tls_callback（.CRT$XLD）初始化，
+    # GCC 分支的 DEFINE_TLS_CALLBACK 缺少 MSVC 分支 /INCLUDE:_tls_used 的
+    # 等价物；bfd ld 不生成 PE TLS directory，回调不被调用，互斥体全零，
+    # EnterCriticalSection 崩溃（cairo-win32-font.c 的 font_face 哈希表锁）。
+    # 与 glib 的 TLS 修复同族，同式修复。
+    - -Dc_link_args=-Wl,--undefined=_tls_used

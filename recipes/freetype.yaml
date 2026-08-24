@@ -1,0 +1,21 @@
+name: freetype
+version: 2.14.3
+source:
+  url: https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz
+  sha256: 36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f
+  mirrors:
+    # savannah 官方站长期过载（502 常见）；Debian 的 +dfsg 官方重打包仅移除
+    # 少量非自由文档，目录名与构建等价，由 deb.debian.org CDN 提供回退
+    - url: https://deb.debian.org/debian/pool/main/f/freetype/freetype_2.14.3+dfsg.orig.tar.xz
+      sha256: dc1bec263a6fffa436029efe6428f601d6b1a0b800837508ee3e49bbab8f1006
+build: cmake
+deps:
+  - zlib
+cmake:
+  defines:
+    BUILD_SHARED_LIBS: "ON"
+    FT_DISABLE_BROTLI: "TRUE"
+    FT_DISABLE_BZIP2: "TRUE"
+    FT_DISABLE_HARFBUZZ: "TRUE"
+    FT_DISABLE_PNG: "TRUE"
+    FT_ENABLE_ZLIB: "TRUE"

@@ -1,0 +1,44 @@
+name: gtk
+version: 4.22.4
+source:
+  url: https://download.gnome.org/sources/gtk/4.22/gtk-4.22.4.tar.xz
+build: meson
+deps:
+  - glib
+  - cairo
+  - pango
+  - gdk-pixbuf
+  - graphene
+  - json-glib
+  - libepoxy
+  - fontconfig
+  - freetype
+  - harfbuzz
+  - gobject-introspection
+  # vulkan=enabled 依赖 vulkan.pc；不声明则从头构建的计划不含 Vulkan 栈
+  # （增量构建时靠手工预建绕过过，从头构建会挂）
+  - vulkan-loader
+  # vulkan=enabled 时 meson 硬性要求 glslc（shaderc 提供，装到 $SYSROOT/bin
+  # 即位于构建 PATH 前置，meson find_program 可找到）；缺它 setup 直接报错
+  - shaderc
+meson:
+  options:
+    - -Dbuild-tests=true
+    - -Dbuild-testsuite=false
+    - -Dbuild-demos=false
+    - -Dbuild-examples=false
+    - -Ddocumentation=false
+    - -Dman-pages=false
+    - -Dintrospection=enabled
+    - -Dvulkan=enabled
+    - -Dmedia-gstreamer=disabled
+    - -Dx11-backend=false
+    - -Dwayland-backend=false
+    - -Dbroadway-backend=false
+    - -Dsysprof=disabled
+    - -Dcloudproviders=disabled
+    - -Dtracker=disabled
+    - -Dcolord=disabled
+    - -Dprint-cups=disabled
+test:
+  enabled: true

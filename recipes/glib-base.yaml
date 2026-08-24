@@ -1,0 +1,32 @@
+name: glib-base
+version: 2.88.3
+source:
+  url: https://download.gnome.org/sources/glib/2.88/glib-2.88.3.tar.xz
+build: meson
+deps:
+  - zlib
+  - libffi
+  - pcre2
+  - libiconv
+  - gettext
+# 引导阶段（与 gvsbuild 的 glib-base/GLib 两段式同构）：先以 introspection=disabled
+# 构建完整 glib，供 gobject-introspection 编译（g-ir-scanner 需要已安装的 glib）；
+# 之后 glib recipe 再开 introspection 重建覆盖安装。同一 tarball，锁文件各记一条。
+meson:
+  options:
+    - -Dtests=false
+    - -Dgtk_doc=false
+    - -Dintrospection=disabled
+    - -Dselinux=disabled
+    - -Dlibmount=disabled
+    - -Ddtrace=disabled
+    - -Dnls=enabled
+    - -Dglib_debug=disabled
+    - -Dlibelf=disabled
+    - -Dsystemtap=disabled
+    - -Dsysprof=disabled
+    # 修复 "TLS callback not invoked"：GCC 分支的 G_DEFINE_TLS_CALLBACK 缺少
+    # MSVC 分支的 /INCLUDE:_tls_used 等价物；GNU bfd ld 仅在 _tls_used 被引用时
+    # 才生成 PE TLS directory 并收集 .CRT$XL* 回调。引导阶段的 DLL 即需生效
+    # （gobject-introspection 的测试要加载它）。
+    - -Dc_link_args=-Wl,--undefined=_tls_used

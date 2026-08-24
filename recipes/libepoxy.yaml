@@ -1,0 +1,10 @@
+name: libepoxy
+version: 1.5.10
+source:
+  # github release 404；freedesktop GitLab 归档有登录墙，用 Debian pool orig 包
+  url: https://deb.debian.org/debian/pool/main/libe/libepoxy/libepoxy_1.5.10.orig.tar.gz
+build: meson
+meson:
+  options:
+    - -Dtests=false
+    - -Ddocs=false

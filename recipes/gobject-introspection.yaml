@@ -1,0 +1,20 @@
+name: gobject-introspection
+version: 1.86.0
+source:
+  url: https://download.gnome.org/sources/gobject-introspection/1.86/gobject-introspection-1.86.0.tar.xz
+build: meson
+deps:
+  - glib-base
+  - libffi
+  - cairo
+meson:
+  options:
+    - -Dtests=true
+    - -Dgtk_doc=false
+    - -Ddoctool=disabled
+test:
+  enabled: true
+  known_failures:
+    # - gobject-introspection:warn-callback-invalid-destroy
+    # - gobject-introspection:warn-invalid-array
+    # - gobject-introspection:warn-invalid-allow-none

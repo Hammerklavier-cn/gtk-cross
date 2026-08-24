@@ -1,0 +1,34 @@
+name: appstream
+version: 1.1.6
+source:
+  # GitHub releases 资产名不可用，用 Debian pool 原味 orig 包
+  url: https://deb.debian.org/debian/pool/main/a/appstream/appstream_1.1.6.orig.tar.xz
+build: meson
+deps:
+  - glib
+  - curl
+  - libxml2
+  - libxmlb
+  - libfyaml
+  - gettext
+meson:
+  options:
+    - -Dsystemd=false
+    - -Dapidocs=false
+    - -Dinstall-docs=false
+    - -Ddocs=false
+    - -Dman=false
+    - -Dqt=false
+    - -Dvapi=false
+    - -Dgir=false
+    - -Dstemming=false
+    - -Dsvg-support=false
+    - -Dzstd-support=false
+    - -Dapt-support=false
+    - -Dcompose=false
+    - -Ddisplay-detection=none
+    - -Dblake3-support=false
+    - -Dbash-completion=false
+    - -Dstatic-analysis=false
+    - -Dmaintainer=false
+    - -Dtools=false

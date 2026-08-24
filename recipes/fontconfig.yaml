@@ -1,0 +1,13 @@
+name: fontconfig
+version: 2.18.3
+source:
+  url: https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/2.18.3/fontconfig-2.18.3.tar.gz
+build: meson
+deps:
+  - expat
+  - freetype
+meson:
+  options:
+    - -Ddoc=disabled
+    - -Dtests=disabled
+    - -Dtools=disabled

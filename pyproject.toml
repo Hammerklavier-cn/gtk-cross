@@ -1,0 +1,18 @@
+[project]
+name = "gtkcross"
+version = "0.1.0"
+description = "从源码构建 GTK4/libadwaita 及全部依赖的可复现构建框架"
+requires-python = ">=3.9"
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+gtkcross = "gtkcross.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["gtkcross", "gtkcross.engines"]

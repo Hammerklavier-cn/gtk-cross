@@ -1,0 +1,9 @@
+name: libiconv
+version: 1.19
+source:
+  url: https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.19.tar.gz
+build: autotools
+autotools:
+  configure:
+    - --enable-shared
+    - --disable-static

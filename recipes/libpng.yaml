@@ -1,0 +1,15 @@
+name: libpng
+version: 1.6.58
+source:
+  url: https://download.sourceforge.net/libpng/libpng-1.6.58.tar.xz
+build: cmake
+deps:
+  - zlib
+cmake:
+  defines:
+    PNG_SHARED: "ON"
+    PNG_STATIC: "OFF"
+    PNG_EXECUTABLES: "OFF"
+    PNG_TESTS: "ON"
+test:
+  enabled: true

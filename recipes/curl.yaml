@@ -1,0 +1,23 @@
+name: curl
+version: 8.21.0
+source:
+  url: https://github.com/curl/curl/releases/download/curl-8_21_0/curl-8.21.0.tar.gz
+build: cmake
+deps:
+  - zlib
+cmake:
+  defines:
+    BUILD_SHARED_LIBS: "ON"
+    BUILD_CURL_EXE: "OFF"
+    BUILD_TESTING: "OFF"
+    BUILD_EXAMPLES: "OFF"
+    # schannel 后端避免 openssl/libssh2 大链
+    CURL_USE_SCHANNEL: "ON"
+    CURL_USE_OPENSSL: "OFF"
+    CURL_USE_LIBSSH2: "OFF"
+    CURL_USE_LIBPSL: "OFF"
+    CURL_BROTLI: "OFF"
+    CURL_ZSTD: "OFF"
+    CURL_DISABLE_LDAP: "ON"
+    ENABLE_ARES: "OFF"
+    ENABLE_IDN2: "OFF"

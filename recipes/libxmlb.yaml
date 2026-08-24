@@ -1,0 +1,13 @@
+name: libxmlb
+version: 0.3.28
+source:
+  url: https://github.com/hughsie/libxmlb/releases/download/0.3.28/libxmlb-0.3.28.tar.xz
+build: meson
+deps:
+  - glib
+meson:
+  options:
+    - -Dgtkdoc=false
+    - -Dintrospection=false
+    - -Dtests=false
+    - -Dcli=false

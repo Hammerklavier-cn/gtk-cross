@@ -1,0 +1,20 @@
+name: libxml2
+version: 2.15.3
+source:
+  url: https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz
+build: cmake
+deps:
+  - zlib
+  - libiconv
+cmake:
+  defines:
+    BUILD_SHARED_LIBS: "ON"
+    LIBXML2_WITH_PYTHON: "OFF"
+    LIBXML2_WITH_ICU: "OFF"
+    LIBXML2_WITH_LZMA: "OFF"
+    LIBXML2_WITH_ZSTD: "OFF"
+    LIBXML2_WITH_HTTP: "OFF"
+    LIBXML2_WITH_FTP: "OFF"
+    LIBXML2_WITH_ICONV: "ON"
+    LIBXML2_WITH_ZLIB: "ON"
+    LIBXML2_WITH_TESTS: "OFF"

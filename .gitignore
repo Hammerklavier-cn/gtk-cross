@@ -1,0 +1,11 @@
+# bytecode & venv
+__pycache__/
+*.pyc
+.venv/
+
+# 构建产物（每 target 一个 sysroot）
+build/
+out/
+downloads/
+gtkcross-build.log
+gtkcross-events.log

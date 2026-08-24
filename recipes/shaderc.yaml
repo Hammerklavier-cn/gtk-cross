@@ -1,0 +1,21 @@
+name: shaderc
+version: 2026.3
+source:
+  url: https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz
+build: cmake
+deps:
+  - glslang
+  - spirv-tools
+  - spirv-headers
+# tag 归档不含 third_party submodule，从已构建依赖源码树填充
+submodules:
+  third_party/glslang: glslang
+  third_party/spirv-tools: spirv-tools
+  third_party/spirv-headers: spirv-headers
+cmake:
+  defines:
+    SHADERC_SKIP_TESTS: "ON"
+    SHADERC_SKIP_EXAMPLES: "ON"
+    SHADERC_SKIP_COPYRIGHT_CHECK: "ON"
+    SHADERC_ENABLE_INSTALL: "ON"
+    SHADERC_ALLOW_EXTERNAL_LIBRARY: "ON"

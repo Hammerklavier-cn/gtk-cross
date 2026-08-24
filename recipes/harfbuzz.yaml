@@ -1,0 +1,27 @@
+name: harfbuzz
+version: 14.3.1
+source:
+  url: https://github.com/harfbuzz/harfbuzz/releases/download/14.3.1/harfbuzz-14.3.1.tar.xz
+build: meson
+# 覆盖段（与 glib-base/glib 两段式同构）：harfbuzz-base 已以
+# introspection=disabled 构建安装，本段开 introspection 重建覆盖安装，
+# 产出 HarfBuzz-0.0.gir（gir 基于 hb-gobject 绑定，故 gobject=enabled）
+# 供 pango 开 introspection 生成 Pango-1.0.gir 时 include。
+# 依赖 gobject-introspection（提供 g-ir-scanner 工具）与 glib（GObject/GLib
+# 的 gir 文件）；同一 tarball，锁文件各记一条。
+deps:
+  - harfbuzz-base
+  - freetype
+  - glib
+  - gobject-introspection
+meson:
+  options:
+    - -Dcairo=disabled
+    # GTK4 需要 hb-glib.h（gtkmain.c 直接 include），必须启用 glib 支持
+    - -Dglib=enabled
+    - -Dgobject=enabled
+    - -Dicu=disabled
+    - -Dfreetype=enabled
+    - -Dintrospection=enabled
+    - -Ddocs=disabled
+    - -Dtests=disabled

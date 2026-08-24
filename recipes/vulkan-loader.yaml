@@ -1,0 +1,14 @@
+name: vulkan-loader
+version: 1.4.357.0
+source:
+  url: https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
+build: cmake
+deps:
+  - vulkan-headers
+cmake:
+  defines:
+    BUILD_TESTS: "OFF"
+    BUILD_WSI_X11_SUPPORT: "OFF"
+    BUILD_WSI_WAYLAND_SUPPORT: "OFF"
+    BUILD_WSI_DIRECTFB_SUPPORT: "OFF"
+    BUILD_WSI_XCB_SUPPORT: "OFF"

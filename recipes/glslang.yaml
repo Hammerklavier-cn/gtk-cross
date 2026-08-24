@@ -1,0 +1,17 @@
+name: glslang
+version: 1.4.357.0
+source:
+  url: https://github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
+build: cmake
+deps:
+  - spirv-tools
+  - spirv-headers
+cmake:
+  defines:
+    BUILD_TESTING: "OFF"
+    ENABLE_CTEST: "OFF"
+    ENABLE_OPT: "ON"
+    ALLOW_EXTERNAL_SPIRV_TOOLS: "ON"
+    ENABLE_GLSLANG_BINARIES: "OFF"
+    ENABLE_GLSLANG_JS: "OFF"
+    ENABLE_GLSLANG_WEB: "OFF"
