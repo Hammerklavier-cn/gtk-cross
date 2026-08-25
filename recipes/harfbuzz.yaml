@@ -22,6 +22,8 @@ meson:
     - -Dgobject=enabled
     - -Dicu=disabled
     - -Dfreetype=enabled
+    # 与 harfbuzz-base 同步：pango 的 USE_HB_DWRITE 依赖 hb_directwrite_face_create
+    - -Ddirectwrite=enabled
     - -Dintrospection=enabled
     - -Ddocs=disabled
     - -Dtests=disabled

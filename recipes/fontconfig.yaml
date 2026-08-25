@@ -11,3 +11,9 @@ meson:
     - -Ddoc=disabled
     - -Dtests=disabled
     - -Dtools=disabled
+patches:
+  # conf.d 默认片段（hinting/lcdfilter 等）经 link_confs.py 以符号链接安装，
+  # Windows 无符号链接权限（winerror 1314）或 NotImplementedError 时上游直接
+  # break，conf.d 只剩 README——字体 hinting/lcd 过滤配置整体缺失。
+  # 改为回退复制文件（对齐 MSYS2 官方包 conf.d 为实体文件的做法）
+  - fontconfig-0001-link-confs-copy-fallback.patch

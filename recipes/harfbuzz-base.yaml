@@ -17,6 +17,9 @@ meson:
     - -Dgobject=disabled
     - -Dicu=disabled
     - -Dfreetype=enabled
+    # pango 的 USE_HB_DWRITE 需要 hb_directwrite_face_create（DirectWrite 整形），
+    # 对齐 MSYS2 官方包（其 libharfbuzz 链接 DWrite.dll）
+    - -Ddirectwrite=enabled
     # test it
     - -Dintrospection=disabled
     - -Ddocs=disabled

@@ -125,21 +125,52 @@ test:
 
 - **glib（已修复并复验）**："TLS callback not invoked" 消失，306 项测试
   全过，原 12 项已知失败全部移除。
-- **cairo（修复已入库，待重建复验）**：`cairo_win32_tls_callback`
+- **cairo（已修复并复验，2026-08-25）**：`cairo_win32_tls_callback`
   （`.CRT$XLD`，负责初始化 Win32 静态互斥体/CRITICAL_SECTION）不被调用，
   互斥体全零，字体度量路径 `EnterCriticalSection` 即 0xc0000005——崩溃栈
   `gtk_label_measure → pango_context_get_metrics →
 cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
-  libcairo-2.dll 的 PE TLS Directory 为 0，MSYS2 官方包非 0。
-- **pango 6 项（修复前登记，待重跑收缩）**：test-bidi/test-font/testiter/
-  test-ellipsize/test-font-data 的 0xc0000005 与 test-pangocairo-threads
-  退出码异常，根因均为上述 cairo TLS 问题。
-- **libadwaita 67 项（修复前登记，待重跑收缩）**：根因是测试环境而非产物
-  缺陷——`meson test` 继承登录 shell 的 `XDG_DATA_DIRS`，schema source 为
-  NULL（libadwaita 上游本不携带 gschema，非安装缺失）；框架注入
-  `XDG_DATA_DIRS=$SYSROOT/share` 后应大面积转好。
+  libcairo-2.dll 的 PE TLS Directory 为 0，MSYS2 官方包非 0。重建后
+  pango 原 0xc0000005 崩溃消失，test-ellipsize/testiter 转好。
+- **pango 5 项（非崩溃性失败，已登记）**：重建后实测剩余 test-bidi/
+  test-break/test-font/test-font-data/test-pangocairo-threads，均为断言/
+  字体缺失类失败（缺 Cantarell/emoji 字体、hinted 度量不等），非产物崩溃。
+- **libadwaita（已修复并复验，2026-08-25）**：原 67 项失败根因是测试环境
+  而非产物缺陷——`meson test` 继承登录 shell 的 `XDG_DATA_DIRS`，schema
+  source 为 NULL（libadwaita 上游本不携带 gschema，非安装缺失）；框架注入
+  `XDG_DATA_DIRS=$SYSROOT/share` 后 68 项全部通过，登记已清空。
 - gvsbuild 对照：其用 MSVC（无此问题）且 glib 默认 `-Dtests=false`；我们不引入
   额外验证，仅如实记录失败集。
+
+### 字体渲染（DirectWrite 链，2026-08-25 启用）
+
+此前 cairo `-Ddwrite=disabled` 级联导致 pango 文本走 GDI 栅格化
+（pangowin32 无 dwrite fontmap、harfbuzz 无 DirectWrite 整形），150% 缩放
+（144dpi）下字体边缘发虚。现已对齐 MSYS2 官方包：
+
+- cairo `-Ddwrite=enabled`（产出 cairo-dwrite-font.pc）
+- harfbuzz / harfbuzz-base `-Ddirectwrite=enabled`
+  （pango 的 `USE_HB_DWRITE` 依赖 `hb_directwrite_face_create`）
+- fontconfig 补丁 `fontconfig-0001-link-confs-copy-fallback.patch`：
+  上游 link_confs.py 在 Windows 无符号链接权限（winerror 1314）时静默
+  break，conf.d 只剩 README、hinting/lcdfilter 配置整体缺失；改为回退复制
+  文件，conf.d 补齐 24 个默认片段。
+
+### GTK4 Win32 运行时已知限制（上游行为，非本框架构建缺陷）
+
+- **分数缩放**：Win32 后端 scale 仅取整数（`dpix / 96` 整除），150% 缩放下
+  scale=1、字体按 144dpi 渲染（`gtk-xft-dpi=147456`），UI 与字体密度不匹配。
+  可选 `GDK_WIN32_PER_MONITOR_HIDPI=1` 开 per-monitor 感知，但整数 scale
+  逻辑不变。MSYS2 官方包行为相同。
+- **GL 渲染器窗口四周黑边**：GL/WGL 只能画在子窗口重定向表面（无 alpha），
+  libadwaita CSD 阴影/圆角区域按不透明黑色合成；cairo 渲染器走
+  `CreateSwapChainForComposition`（premultiplied alpha）无此问题。缓解：
+  `GSK_RENDERER=cairo`。
+- **强制 Vulkan 失败回退 GL**：GTK 4.22 非 Wayland 平台从不自动选 Vulkan
+  （`Not using Vulkan: platform is not Wayland`）；强制 `GSK_RENDERER=vulkan`
+  时 Vulkan 经 cloaked 子窗口 + DComp 呈现，AMD 驱动（RX 7700 XT，ICD 经
+  显卡适配器注册表键注册）`vkCreateSwapchainKHR` 返回 VK_ERROR_UNKNOWN，
+  GTK 回退 GL——Inspector 显示 GL 属预期行为。
 
 ## 版本与来源说明
 

@@ -16,7 +16,9 @@ deps:
 meson:
   options:
     - -Dtests=disabled
-    - -Ddwrite=disabled
+    # DirectWrite 字体后端默认启用（对齐 MSYS2 官方包）：产出 cairo-dwrite-font.pc，
+    # pango 据此启用 pangowin32-dwrite-fontmap（DirectWrite 度量/栅格化）；
+    # 若禁用则文本走 GDI 栅格化，150% 缩放（144dpi）下字体边缘发虚
     - -Dxlib=disabled
     - -Dxcb=disabled
     # 修复 pango/GTK 字体度量段错误（0xc0000005）：cairo 的 Win32 静态互斥体

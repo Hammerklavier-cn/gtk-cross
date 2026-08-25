@@ -1,0 +1,29 @@
+--- a/conf.d/link_confs.py
++++ b/conf.d/link_confs.py
+@@ -4,6 +4,7 @@
+ import sys
+ import argparse
+ import platform
++import shutil
+ from pathlib import PurePath
+ 
+ if __name__=='__main__':
+@@ -36,10 +37,14 @@
+         try:
+             os.symlink(os.path.relpath(src, start=args.confpath), dst)
+         except NotImplementedError:
+-            # Not supported on this version of Windows
+-            break
++            # Not supported on this version of Windows: copy the file
++            # instead, so conf.d still gets populated
++            shutil.copyfile(src, dst)
+         except OSError as e:
+             # Symlink privileges are not available
+             if platform.system().lower() == 'windows' and e.winerror == 1314:
+-                break
+-            raise
++                # No symlink privilege (non-developer-mode Windows):
++                # copy the file instead, so conf.d still gets populated
++                shutil.copyfile(src, dst)
++            else:
++                raise
