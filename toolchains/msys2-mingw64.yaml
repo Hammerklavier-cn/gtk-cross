@@ -24,3 +24,7 @@ tools:
 env:
   PKG_CONFIG_LIBDIR: "$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig"
   PKG_CONFIG_PATH: ""
+  # Python 子进程强制 UTF-8 I/O（理由见 msys2-ucrt64.yaml 同名项）：缺此变量时
+  # glib:mkenums.py / glib:codegen.py 会因 testprogramrunner 严格 utf-8 解码
+  # 子进程按本机代码页编码的 stderr 而失败。
+  PYTHONUTF8: "1"

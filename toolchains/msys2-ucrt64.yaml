@@ -26,3 +26,11 @@ tools:
 env:
   PKG_CONFIG_LIBDIR: "$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig"
   PKG_CONFIG_PATH: ""
+  # Python 子进程强制 UTF-8 I/O。glib 的 glib-mkenums / gdbus-codegen 是 Python
+  # 脚本，其 stderr 由 testprogramrunner.py 以严格 encoding="utf-8" 解码；若子
+  # 进程按本机代码页（此处 cp936/GBK）编码非 ASCII 输出，父进程 _readerthread
+  # 解出 UnicodeDecodeError 后线程静默死亡 → info.stderr 为 None →
+  # `info.stderr.strip()` AttributeError，表现为 glib:mkenums.py /
+  # glib:codegen.py 的"偶发"失败（实为环境依赖的确定性失败）。上游 glib
+  # .gitlab-ci.yml 同样设置 PYTHONUTF8=1。
+  PYTHONUTF8: "1"
