@@ -80,8 +80,13 @@ class MesonEngine(Engine):
         self.tc.expect(f"meson install -C {posix(self.build_dir)}", cwd=self.ws)
 
     def test_command(self) -> str | None:
+        # recipe test.env: 以 `env K=V` 前缀注入测试进程环境（shell 层继承，
+        # 不覆盖 meson.build 里 test_env 显式设置的变量）
+        env = self.recipe.test.get("env") or {}
+        prefix = " ".join(f"{k}={v}" for k, v in env.items())
+        prefix = f"env {prefix} " if prefix else ""
         return (
-            f"meson test -C {posix(self.build_dir)} --print-errorlogs "
+            f"{prefix}meson test -C {posix(self.build_dir)} --print-errorlogs "
             f"-j {self.jobs}"
         )
 
