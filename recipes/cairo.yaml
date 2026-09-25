@@ -16,6 +16,11 @@ deps:
 meson:
   options:
     - -Dtests=disabled
+    # 启用 FreeType/FontConfig 字体后端（Windows 上默认 auto→disabled）：
+    # 产出 cairo-ft.pc，pango 的 fc 字体后端（PANGOCAIRO_BACKEND=fc）依赖它；
+    # pango 测试参考度量基于 FreeType 栅格化路径（对齐 MSYS2 官方包）
+    - -Dfontconfig=enabled
+    - -Dfreetype=enabled
     # DirectWrite 字体后端默认启用（对齐 MSYS2 官方包）：产出 cairo-dwrite-font.pc，
     # pango 据此启用 pangowin32-dwrite-fontmap（DirectWrite 度量/栅格化）；
     # 若禁用则文本走 GDI 栅格化，150% 缩放（144dpi）下字体边缘发虚

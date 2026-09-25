@@ -15,20 +15,35 @@ meson:
     - -Dgtk_doc=false
     - -Dintrospection=enabled
     - -Dman-pages=false
+    # Windows 上 fontconfig/freetype 选项默认 auto→disabled（meson.build 的
+    # disable_auto_if），导致无 pangoft2/fc 字体后端；显式启用以对齐 MSYS2
+    # 官方包（其 libpangoft2-1.0-0.dll 即此配置）。测试参考数据（boxes.ttf
+    # 度量、Cantarell 变体）按 fontconfig/FreeType 渲染路径编写，win32/
+    # DirectWrite 后端度量不同且不响应 cairo hint 选项。运行时默认后端
+    # 仍为 win32/DirectWrite，字体模糊修复不受影响。
+    - -Dfontconfig=enabled
+    - -Dfreetype=enabled
+patches:
+  # tests/test-font.c 的 /pango/font/custom：fontconfig 返回的 FC_FILE 用
+  # '/' 分隔，而 g_test_build_filename 在 Windows 产出混合分隔符（盘符后
+  # 跟 '\'），逐字比较必败；折叠分隔符后再断言（上游仅 Linux CI 通过）。
+  - pango-0001-test-font-compare-normalized-path.patch
 test:
   enabled: true
-  # cairo TLS 修复（-Wl,--undefined=_tls_used）复验通过：原 0xc0000005 崩溃
-  # 消失，test-ellipsize/testiter 2026-08-25 重跑实测转好、移出登记。
-  # 剩余 5 项为非崩溃性失败（DirectWrite 栈下依旧，如实登记）：
-  #  - test-font：缺 Cantarell 字体（couldn't load font "Cantarell" 回退 Sans），
-  #    features-and-variants 断言 desc 不等
-  #  - test-font-data：boxes 字体 hinted/unhinted 度量断言不等
-  #  - test-bidi/test-break：TAP 提前终止（expected 8, got 4），emoji 彩色
-  #    字体缺失（couldn't load font "emoji"）
-  #  - test-pangocairo-threads：exit 1
+  # 测试进程强制 fc 后端（见上）；经 engines 的 test.env 注入（meson test
+  # 继承该变量，test_env 未设置 PANGOCAIRO_BACKEND 故不覆盖）。
+  env:
+    PANGOCAIRO_BACKEND: fc
+  # fc 后端（fontconfig/FreeType）2026-09-25 实测复验：原 win32/DirectWrite
+  # 下的 5 项失败（test-bidi/test-break/test-pangocairo-threads/test-font-data/
+  # test-font）中 4 项转好移出登记；test-font 剩 3 个 roundtrip 子测试仍失败
+  # （见下）。test-fonts 为 fc 后端启用后新参与运行的测试。
+  #  - test-font：roundtrip small-caps/all-small-caps/unicase 需系统级
+  #    Cantarell 变体字体（上游 Linux CI 预装）；本机无系统 Cantarell，
+  #    "Cantarell Small-Caps 11" 回退到系统 Sans 后 describe 不含变体。
+  #    /pango/font/custom 的路径分隔符比较 bug 已由补丁修复。
+  #  - test-fonts：fontsets/cantarell2 对 DejaVu Sans/Mono 的 fontconfig
+  #    排序平序（tie）在本机 fontconfig 版本下顺序不同，纯平台差异。
   known_failures:
-    - pango:test-bidi
-    - pango:test-break
-    - pango:test-pangocairo-threads
-    - pango:test-font-data
     - pango:test-font
+    - pango:test-fonts

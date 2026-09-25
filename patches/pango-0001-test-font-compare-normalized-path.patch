@@ -1,0 +1,19 @@
+--- a/tests/test-font.c
++++ b/tests/test-font.c
+@@ -1187,7 +1187,15 @@ test_font_custom (void)
+       pattern = pango_fc_font_get_pattern (PANGO_FC_FONT (font));
+       if (FcPatternGetString (pattern, FC_FILE, 0, (FcChar8 **)&filename) != FcResultMatch)
+         filename = "tough luck";
+ 
+-      g_assert_cmpstr (filename, ==, path);
++      /* fontconfig normalizes separators to '/', while g_test_build_filename
++       * yields mixed separators on Windows (drive prefix + '\'); fold
++       * separators before comparing */
++      {
++        char *norm = g_strdup (path);
++        g_strdelimit (norm, "\\", '/');
++        g_assert_cmpstr (filename, ==, norm);
++        g_free (norm);
++      }
+     }
+ #endif
