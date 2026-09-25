@@ -28,13 +28,13 @@ target（构建档案）命名约定 = 工具链标识（`宿主-工具链[-运�
 
 ```bash
 # MSYS2 环境，Python 3.12+（需安装 PyYAML 和 setuptools）
-python -m gtkcross doctor -t msys2-mingw64      # 环境自检
-python -m gtkcross build gtk -t msys2-mingw64   # 构建单包（自动拉取依赖链）
-python -m gtkcross build libadwaita -t msys2-mingw64 -j8   # 全链（幂等，stamp 续跑）
-python -m gtkcross graph -t msys2-mingw64       # 依赖图
-python -m gtkcross list -t msys2-mingw64        # recipe 清单
+python -m gtkcross doctor -t msys2-ucrt64      # 环境自检
+python -m gtkcross build gtk -t msys2-ucrt64   # 构建单包（自动拉取依赖链）
+python -m gtkcross build libadwaita -t msys2-ucrt64 -j8   # 全链（幂等，stamp 续跑）
+python -m gtkcross graph -t msys2-ucrt64       # 依赖图
+python -m gtkcross list -t msys2-ucrt64        # recipe 清单
 # 不带 -t 时回退到 gtk-cross.yaml 的 default_target（当前 msys2-mingw64）
-# msys2-ucrt64：以上命令把 -t 换成 -t msys2-ucrt64（需 ucrt64 工具链包）
+# msys2-mingw64：以上命令把 -t 换成 -t msys2-mingw64（需 mingw64 工具链包）
 ```
 
 构建产物在 `out/<target>/`（bin/lib/include/pkgconfig 齐全），构建中间态在
