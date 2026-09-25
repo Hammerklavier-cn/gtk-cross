@@ -209,7 +209,8 @@ class Builder:
         out = (r.stdout or b"").decode(errors="replace")
         res = self._parse_test_output(out)
         fails = res.get("ERROR", []) + res.get("FAIL", [])
-        known = t.get("known_failures", [])
+        # `known_failures:` 仅有注释时 YAML 解析为 None 而非缺键
+        known = t.get("known_failures") or []
         if not fails:
             if r.returncode != 0:
                 # 非零退出码但未解析出失败行（输出可能被截断/格式未知）
