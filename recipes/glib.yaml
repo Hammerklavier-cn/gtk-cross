@@ -25,10 +25,13 @@ meson:
     - -Dc_link_args=-Wl,--undefined=_tls_used
 test:
   enabled: true
-  # 间歇性失败（负载相关，无法稳定复现）：mkenums.py / codegen.py 均为大量
-  # spawn 子进程的 Python 测试；失败运行中 TAP 子测试全部 ok、stderr 为空、
-  # 仅进程退出码 1（无 traceback），单独跑与重跑均通过。登记为已知失败避免
-  # 从头构建被偶发挡住；若未来持续失败需重新排查。
-  known_failures:
-    - glib:mkenums.py
-    - glib:codegen.py
+  # mkenums.py / codegen.py 原登记为"负载相关偶发"，2026-09-26 排查确证实为
+  # 环境依赖的确定性失败：glib-mkenums / gdbus-codegen 是 Python 脚本，其
+  # stderr 被 testprogramrunner.py 以严格 encoding="utf-8" 解码；未设
+  # PYTHONUTF8 时子进程按本机代码页（cp936/GBK）编码非 ASCII 输出（如
+  # gdbus-codegen 报错文案里的弯引号），父进程 _readerthread 抛
+  # UnicodeDecodeError 后线程静默死亡 → info.stderr 为 None →
+  # `info.stderr.strip()` AttributeError。
+  # 修复：toolchain env 统一设 PYTHONUTF8=1（与上游 glib .gitlab-ci.yml 一致），
+  # 已实测 306 项全过，两项移出 known_failures。
+  known_failures: []
