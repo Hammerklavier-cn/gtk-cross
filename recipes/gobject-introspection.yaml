@@ -15,6 +15,11 @@ meson:
 test:
   enabled: true
   known_failures:
+    # test_get_source_root_dirs_different_drives 用假盘符 X:/Y: 断言
+    # commonpath 分叉；本机 Y: 是真实映射盘（WebDAV），os.path.realpath
+    # 把 'Y:/bar' 解析为 UNC 目标（//host@SSL/DavWWWRoot/...），断言必然
+    # 失败——测试机环境问题而非构建缺陷，登记忽略。
+    - gobject-introspection:test_scanner.py
     # - gobject-introspection:warn-callback-invalid-destroy
     # - gobject-introspection:warn-invalid-array
     # - gobject-introspection:warn-invalid-allow-none
