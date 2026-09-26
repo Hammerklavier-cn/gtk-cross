@@ -89,6 +89,24 @@ class Toolchain:
         # 时灵时不灵的全局开关比不加更糟，且多份 C++ 运行时在跨 DLL 场景有
         # 风险，故不启用。这些运行时 DLL 由 MSYS2 工具链提供，非本项目产物。
         lines.append('export LDFLAGS="-L$SYSROOT/lib"')
+        # 让 gcc 的 *内建* 库搜索目录包含 $SYSROOT/lib。LDFLAGS 里的 -L 做不到
+        # 这件事，而 g-ir-scanner 只读内建目录：
+        #   giscanner/ccompiler.py resolve_windows_libs() 走 GCC 分支时，
+        #   libsearch = options.library_paths + `gcc -print-search-dirs` 的
+        #   libraries: 各目录，然后按 lib<name>.dll.a / lib<name>.a / ... 逐个
+        #   os.path.exists() 探测。
+        # 而 options.library_paths 来自扫描器的 --library-path 参数（对应 -L），
+        # 上游 gobject-introspection 的 meson.build 并不传它（实测 .dat 里只有
+        # --library= 与 --pkg=），故 libsearch 实际只剩 gcc 内建目录。
+        # 实测：`gcc -L<anything> -print-search-dirs` 与不加 -L 的输出**完全相同**，
+        # 所以仅靠 LDFLAGS 无法让扫描器看到 sysroot 里的 libglib-2.0.dll.a，
+        # 会报 "ERROR: can't resolve libraries to shared libraries: glib-2.0,
+        # gobject-2.0"；LIBRARY_PATH 是唯一能进入该列表的环境变量。
+        # 本机 ucrt64 之所以曾通过，是因为系统恰好装了 glib2
+        # （C:/msys64/ucrt64/lib/libglib-2.0.dll.a 正好落在 gcc 内建目录里），
+        # 属侥幸；干净环境（CI 镜像、本机 mingw64）必失败。
+        # 只加自己的 sysroot，不引入系统路径，不损 hermetic（且与 -L 同源）。
+        lines.append('export LIBRARY_PATH="$SYSROOT/lib"')
         # Login bash (-l) sources /etc/profile.d/000-msys2.sh which exports
         # XDG_DATA_DIRS pointing at the MSYS2 prefixes.  On Windows GLib uses
         # a non-empty XDG_DATA_DIRS *exclusively* (g_build_system_data_dirs)
