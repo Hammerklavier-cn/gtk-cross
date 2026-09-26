@@ -1,0 +1,33 @@
+--- a/conf.d/link_confs.py
++++ b/conf.d/link_confs.py
+@@ -3,7 +3,7 @@
+ import os
+ import sys
+ import argparse
+-import platform
++import shutil
+ from pathlib import PurePath
+ 
+ if __name__=='__main__':
+@@ -33,13 +33,11 @@
+             os.remove(dst)
+         except FileNotFoundError:
+             pass
+-        try:
+-            os.symlink(os.path.relpath(src, start=args.confpath), dst)
+-        except NotImplementedError:
+-            # Not supported on this version of Windows
+-            break
+-        except OSError as e:
+-            # Symlink privileges are not available
+-            if platform.system().lower() == 'windows' and e.winerror == 1314:
+-                break
+-            raise
++        # Install a real file instead of a symlink.  Upstream links each
++        # snippet and `break`s on the first failure, which on Windows (no
++        # symbolic-link privilege) leaves conf.d holding nothing but README.
++        # Even where links can be created they are a liability here: fontconfig
++        # reads these entries back, and its directory scan stops at the first
++        # entry it cannot open or parse, silently dropping every rule that
++        # sorts after it.  Plain copies match what the MSYS2 packages ship.
++        shutil.copyfile(src, dst)

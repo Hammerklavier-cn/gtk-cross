@@ -15,8 +15,15 @@ meson:
     - -Dtests=disabled
     - -Dtools=disabled
 patches:
-  # conf.d 默认片段（hinting/lcdfilter 等）经 link_confs.py 以符号链接安装，
-  # Windows 无符号链接权限（winerror 1314）或 NotImplementedError 时上游直接
-  # break，conf.d 只剩 README——字体 hinting/lcd 过滤配置整体缺失。
-  # 改为回退复制文件（对齐 MSYS2 官方包 conf.d 为实体文件的做法）
-  - fontconfig-0001-link-confs-copy-fallback.patch
+  # conf.d 默认片段（hinting/lcdfilter 等）经 link_confs.py 安装，上游用
+  # 符号链接且首次失败即 break：Windows 无符号链接权限（NotImplementedError
+  # / winerror 1314）时 conf.d 只剩 README。即便链接创建成功也不可靠——
+  # fontconfig 会回读这些条目，目录扫描遇到第一个打不开/解析失败的条目就
+  # 中止，后续规则被静默丢弃。改为安装实体文件（对齐 MSYS2 官方包）。
+  - fontconfig-0001-install-conf-d-as-regular-files.patch
+  # fonts.conf 的 <include ignore_missing="yes">conf.d</include> 上游会去掉前缀
+  # 变相对路径，改由 fontconfig 搜索路径（FONTCONFIG_PATH + 编译内置默认值）
+  # 解析；一旦落点不是本配置所在目录就会静默解析为空（ignore_missing="yes"
+  # 不报错），conf.d 全部规则失效。写入绝对路径，使安装配置自足。
+  # 见 pango-0002 / test-ellipsize / test-font-data 的 CI 失败。
+  - fontconfig-0002-absolute-confdir-in-fonts-conf.patch

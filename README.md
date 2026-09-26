@@ -242,10 +242,15 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 - cairo `-Ddwrite=enabled`（产出 cairo-dwrite-font.pc）
 - harfbuzz / harfbuzz-base `-Ddirectwrite=enabled`
   （pango 的 `USE_HB_DWRITE` 依赖 `hb_directwrite_face_create`）
-- fontconfig 补丁 `fontconfig-0001-link-confs-copy-fallback.patch`：
+- fontconfig 补丁 `fontconfig-0001-install-conf-d-as-regular-files.patch`：
   上游 link_confs.py 在 Windows 无符号链接权限（winerror 1314）时静默
-  break，conf.d 只剩 README、hinting/lcdfilter 配置整体缺失；改为回退复制
+  break，conf.d 只剩 README、hinting/lcdfilter 配置整体缺失；改为安装实体
   文件，conf.d 补齐 24 个默认片段。
+- fontconfig 补丁 `fontconfig-0002-absolute-confdir-in-fonts-conf.patch`：
+  安装的 `fonts.conf` 里 `<include ignore_missing="yes">conf.d</include>` 上游
+  会被截成相对路径，改由 fontconfig 搜索路径解析。一旦落点不是本配置所在
+  目录就静默解析为空（`ignore_missing="yes"` 不报错），conf.d 全部规则失效，
+  字体回退与度量随之改变。写入绝对路径，使安装配置自足。
 
 ### GTK4 Win32 运行时已知限制（上游行为，非本框架构建缺陷）
 

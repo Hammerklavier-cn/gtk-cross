@@ -1,0 +1,26 @@
+--- a/meson.build
++++ b/meson.build
+@@ -452,11 +452,19 @@
+ conf.set_quoted('FONTCONFIG_PATH', fc_baseconfigdir)
+ 
+ fonts_conf.set('FC_CACHEDIR', fc_cachedir)
++# Keep the absolute path.  Upstream strips the fc_baseconfigdir prefix so the
++# installed fonts.conf stays relocatable; that turns its
++# <include ignore_missing="yes">conf.d</include> into a relative path which has
++# to be found through the fontconfig search path (FONTCONFIG_PATH plus the
++# compiled-in default).  When that lookup lands anywhere other than this
++# configuration's own directory the include resolves to nothing, and because it
++# is ignore_missing="yes" there is no error: none of the standard conf.d rules
++# are applied, generic families stop resolving and font metrics change.
++# The absolute path makes the installed configuration self-sufficient, which is
++# what the built-in fallback configuration already does (it embeds CONFIGDIR
++# unmodified), and matches the rest of this sysroot, whose pkg-config files and
++# compiled-in FONTCONFIG_PATH are absolute as well.
+ fonts_conf.set('CONFIGDIR', fc_configdir)
+-# strip off fc_baseconfigdir prefix if that is the prefix
+-if fc_configdir.startswith(fc_baseconfigdir + '/')
+-  fonts_conf.set('CONFIGDIR', fc_configdir.split(fc_baseconfigdir + '/')[1])
+-endif
+ 
+ gperf = find_program('gperf', required: false)
+ gperf_len_type = ''

@@ -186,6 +186,13 @@ jobs:
         shell: msys2 {0}
         continue-on-error: true
         run: |
+          # 诊断步骤必须尽力收集，不能因单个探针失败就中止。msys2 的动作以
+          # `bash -leo pipefail` 运行：set -e 加上 pipefail 会让 `ls` 一个不存在
+          # 的文件（exit 2）终止整个步骤——首次运行正是如此，在 `ls
+          # /etc/fonts/fonts.conf` 处就退出，导致最关键的两项（pango-list 字体数、
+          # conf.d 状态）完全没有打印。故此处显式关闭 errexit，其余探针再用
+          # `|| true` 兜底。
+          set +e
           target="${{ matrix.target }}"
           out="ci-diagnostics"
           rm -rf "$out"; mkdir -p "$out"
@@ -234,6 +241,20 @@ jobs:
             echo "    (conf.d 不存在！)"
           fi
           echo "SystemRoot=$SYSTEMROOT  PWD=$PWD  (路径形式差异会影响 /etc/fonts 的解析)"
+
+          # 最有判别力的一项：让 fontconfig 自报它实际加载了哪些配置。启用
+          # FC_DEBUG=1024（FC_DBG_CONFIG）后，fontconfig 会打印 "Scanning config
+          # dir <path>" 与每个 "Loading config file from <path>"；只要 conf.d 的
+          # 默认片段出现在输出里，就说明规则已生效；反之是解析到了别处或该目录
+          # 为空——这比推断可靠，也直接指向 fontconfig-0002 修的那个问题。
+          echo "===== fontconfig 实际加载的配置 (FC_DEBUG=1024) ====="
+          if [ -x "$sysroot/bin/pango-list.exe" ]; then
+            FC_DEBUG=1024 "$sysroot/bin/pango-list.exe" 2>&1 \
+              | grep -aE "Scanning config dir|Loading config file from" \
+              | sed 's/^/    /' | head -40 || true
+          else
+            echo "    (pango-list.exe 不存在)"
+          fi
 
           # 3) 把失败测试行的摘要直接打到控制台
           echo "===== 失败测试摘要 ====="
