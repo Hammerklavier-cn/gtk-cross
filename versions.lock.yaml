@@ -39,13 +39,13 @@ gettext:
   url: https://ftp.gnu.org/pub/gnu/gettext/gettext-0.24.tar.gz
   version: '0.24'
 glib:
-  sha256: ab24d24e698dfa1e408b7bcdb508f4aafc906185a8b8ce72fdf79bbbdc9b383b
-  url: https://download.gnome.org/sources/glib/2.88/glib-2.88.3.tar.xz
-  version: 2.88.3
+  sha256: 17d15cac2af80a33271127408e0abc2748eb297c595c2a26409e81e14e7d1b8f
+  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.0.tar.xz
+  version: 2.90.0
 glib-base:
-  sha256: ab24d24e698dfa1e408b7bcdb508f4aafc906185a8b8ce72fdf79bbbdc9b383b
-  url: https://download.gnome.org/sources/glib/2.88/glib-2.88.3.tar.xz
-  version: 2.88.3
+  sha256: 17d15cac2af80a33271127408e0abc2748eb297c595c2a26409e81e14e7d1b8f
+  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.0.tar.xz
+  version: 2.90.0
 glslang:
   sha256: 81038794e20494556edbcc0fc70fa984d71d1b440f9c49adf2cbaaa60a519757
   url: https://github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
@@ -59,9 +59,9 @@ graphene:
   url: https://download.gnome.org/sources/graphene/1.10/graphene-1.10.8.tar.xz
   version: 1.10.8
 gtk:
-  sha256: 51bd9f60c7d23a665a556c7364c21fb2e4e282566b3e7e092455e8f910330893
-  url: https://download.gnome.org/sources/gtk/4.22/gtk-4.22.4.tar.xz
-  version: 4.22.4
+  sha256: 28ba4ac1c04f86eac09b79a163cb163a4c2b54442d9f7eccc04679062a581044
+  url: https://download.gnome.org/sources/gtk/4.24/gtk-4.24.0.tar.xz
+  version: 4.24.0
 harfbuzz:
   sha256: 9dae9538aae2ffdf70cec31f2c27bf68e2aaeeae3112688467697d5faf6194f7
   url: https://github.com/harfbuzz/harfbuzz/releases/download/14.3.1/harfbuzz-14.3.1.tar.xz

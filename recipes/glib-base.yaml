@@ -1,7 +1,8 @@
 name: glib-base
-version: 2.88.3
+version: 2.90.0
 source:
-  url: https://download.gnome.org/sources/glib/2.88/glib-2.88.3.tar.xz
+  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.0.tar.xz
+  sha256: 17d15cac2af80a33271127408e0abc2748eb297c595c2a26409e81e14e7d1b8f
 build: meson
 # 动态：introspection 链（g-ir-scanner 需 DLL 导入库；typelib 运行期 dlopen）
 default_library: shared

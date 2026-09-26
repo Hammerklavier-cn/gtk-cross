@@ -108,9 +108,9 @@ out/<target>/               可复现 sysroot
 
 ```yaml
 name: glib
-version: 2.88.3
+version: 2.90.0
 source:
-  url: https://download.gnome.org/sources/glib/2.88/glib-2.88.3.tar.xz
+  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.0.tar.xz
 build: meson # meson | cmake | autotools
 deps: [zlib, libffi, pcre2, libiconv, gettext]
 meson:
@@ -146,7 +146,7 @@ test:
 
 | recipe               | 测试数 | 失败 | 备注                        |
 | -------------------- | ------ | ---- | --------------------------- |
-| glib                 | 306    | 0    |                             |
+| glib                 | 309    | 0    |                             |
 | libadwaita           | 408    | 0    |                             |
 | pango                | 348    | 4    | 均属已登记的 2 项（见下）   |
 | gobject-introspection| 63     | 0    |                             |
@@ -198,8 +198,9 @@ test:
 仅在 `_tls_used` 被引用时才生成 PE TLS directory 并收集回调，否则 Loader
 不调用回调。统一修复：recipe 加 `-Dc_link_args=-Wl,--undefined=_tls_used`。
 
-- **glib（已修复并复验）**："TLS callback not invoked" 消失，306 项测试
-  全过，原 12 项已知失败全部移除。
+- **glib（已修复并复验）**："TLS callback not invoked" 消失，309 项测试
+  全过，原 12 项已知失败全部移除。glib 2.90.0 仍含 `G_DEFINE_TLS_CALLBACK`，
+  故该修复在升级后必须保留。
 - **cairo（已修复并复验，2026-08-25）**：`cairo_win32_tls_callback`
   （`.CRT$XLD`，负责初始化 Win32 静态互斥体/CRITICAL_SECTION）不被调用，
   互斥体全零，字体度量路径 `EnterCriticalSection` 即 0xc0000005——崩溃栈
@@ -251,15 +252,31 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
   scale=1、字体按 144dpi 渲染（`gtk-xft-dpi=147456`），UI 与字体密度不匹配。
   可选 `GDK_WIN32_PER_MONITOR_HIDPI=1` 开 per-monitor 感知，但整数 scale
   逻辑不变。MSYS2 官方包行为相同。
-- **GL 渲染器窗口四周黑边**：GL/WGL 只能画在子窗口重定向表面（无 alpha），
-  libadwaita CSD 阴影/圆角区域按不透明黑色合成；cairo 渲染器走
-  `CreateSwapChainForComposition`（premultiplied alpha）无此问题。缓解：
-  `GSK_RENDERER=cairo`。
-- **强制 Vulkan 失败回退 GL**：GTK 4.22 非 Wayland 平台从不自动选 Vulkan
-  （`Not using Vulkan: platform is not Wayland`）；强制 `GSK_RENDERER=vulkan`
-  时 Vulkan 经 cloaked 子窗口 + DComp 呈现，AMD 驱动（RX 7700 XT，ICD 经
-  显卡适配器注册表键注册）`vkCreateSwapchainKHR` 返回 VK_ERROR_UNKNOWN，
-  GTK 回退 GL——Inspector 显示 GL 属预期行为。
+- **GL/Vulkan 渲染器窗口四周黑边（上游 #7567）**：根因是
+  **DirectComposition (DComp)**——GL/Vulkan 渲染器把画面经
+  `CreateWindowEx(WS_POPUP)` 子窗口 + `IDCompositionDevice_CreateSurfaceFromHwnd`
+  提交给 DComp，而由 HWND 生成的表面**没有 alpha 通道**，CSD 的阴影边距与
+  圆角之外那些"本该透明/半透明"的像素被当作**不透明黑**输出，看起来就是
+  一圈巨大黑边。cairo 渲染器不走这条路（自己建
+  `CreateSwapChainForComposition` + `DXGI_ALPHA_MODE_PREMULTIPLIED` 的
+  带 alpha swapchain），所以正常。
+  GTK **4.24.0 已修复**：DComp 由"默认开"改为"`GDK_DEBUG=dcomp` 才开"
+  （commit `914cb8d`，NEWS 记 `#7567`），GL/Vulkan 因此不再被默认选用、
+  一律回退 cairo——MSYS2 官方包即此行为。本框架自 2026-09-26 起构建
+  4.24.0，默认无黑边。
+  - 反向验证：`GDK_DEBUG=dcomp` 会让 GL 重新被选中（黑边复现），证明门控生效。
+  - 此时 GL：`GskGLRenderer`；默认：`GskCairoRenderer`（`GSK_DEBUG=renderer` 可观察）。
+  - 4.22.4 及更早版本无此修复（逐 tag 核对：4.20/4.22 系列均无该门控），
+    只能运行时限 `GDK_DISABLE=dcomp` 或 `GSK_RENDERER=cairo` 规避。
+  - 上游指出待 D3D12 渲染器落地并成为 Win32 默认后才考虑重新默认开启 DComp；
+    4.24.0 仍无 D3D12 渲染器，故 GPU 渲染目前需显式 `GDK_DEBUG=dcomp` 且仍有黑边。
+- **强制 Vulkan 失败回退 GL**：GTK 非 Wayland 平台从不自动选 Vulkan
+  （`Not using Vulkan: platform is not Wayland`；4.24 下措辞为
+  `GdkWin32Display prefers OpenGL`）。强制 `GSK_RENDERER=vulkan` 时，
+  DComp 未启用（默认）会直接报 `Vulkan requires Direct Composition` 并回退
+  cairo；若同时 `GDK_DEBUG=dcomp`，Vulkan 经 cloaked 子窗口 + DComp 呈现，
+  AMD 驱动（RX 7700 XT，ICD 经显卡适配器注册表键注册）
+  `vkCreateSwapchainKHR` 返回 VK_ERROR_UNKNOWN，GTK 再回退——均属预期行为。
 
 ## 版本与来源说明
 
@@ -283,12 +300,12 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 | pcre2          | 10.47     |     | pixman                | 0.46.4    |
 | libiconv       | 1.19      |     | libjpeg-turbo         | 3.2.0     |
 | gettext        | 0.24      |     | libtiff               | 4.7.2     |
-| glib           | 2.88.3    |     | cairo                 | 1.18.4    |
+| glib           | 2.90.0    |     | cairo                 | 1.18.4    |
 | expat          | 2.8.3     |     | pango                 | 1.58.2    |
 | freetype       | 2.14.3    |     | gdk-pixbuf            | 2.44.7    |
 | harfbuzz       | 14.3.1    |     | graphene              | 1.10.8    |
 | fribidi        | 1.0.16    |     | json-glib             | 1.10.8    |
-| libepoxy       | 1.5.10    |     | gtk                   | 4.22.4    |
+| libepoxy       | 1.5.10    |     | gtk                   | 4.24.0    |
 | libadwaita     | 1.9.3     |     | gobject-introspection | 1.86.0    |
 | vulkan-headers | 1.4.357.0 |     | vulkan-loader         | 1.4.357.0 |
 | spirv-headers  | 1.4.357.0 |     | spirv-tools           | 1.4.357.0 |
@@ -303,7 +320,7 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 > 等 appdata API，供 libadwaita-rs 绑定链接）；其完整测试套件 408 项全过。
 > 另修复 Windows TLS callback 家族 bug：glib 与 cairo 均加
 > `-Dc_link_args=-Wl,--undefined=_tls_used`（均已重建复验），glib 测试
-> 306 项全过、原 12 项已知失败全部移除；框架 prelude 统一注入
+> 309 项全过、原 12 项已知失败全部移除；框架 prelude 统一注入
 > `XDG_DATA_DIRS=$SYSROOT/share`，修复 GSettings schema 查找。
 > glib 与 gobject-introspection 存在循环依赖（glib 开 introspection 需要
 > g-ir-scanner，而 GI 又依赖 glib）：参照 gvsbuild 拆为 glib-base（GI 关，
@@ -329,6 +346,15 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 > **GTK Inspector**（`GTK_DEBUG=interactive`，其 `init_vulkan()` 也枚举实例
 > 扩展）直接闪退。补丁把互斥体创建移到 `loader_initialize()`
 > （经 `LOADER_PLATFORM_THREAD_ONCE` 恰好执行一次）。
+>
+> 升级到 GTK 4.24.0（2026-09-26）：为解决 Win32 黑边（上游 #7567，根因见
+> 「GTK4 Win32 运行时已知限制」），glib 2.88.3 → 2.90.0（4.24.0 要求
+> `>= 2.89.3`，此为唯一未满足项）、gtk 4.22.4 → 4.24.0，两者均与 MSYS2
+> 当前包一致。**依赖与构建选项零改动**：glib 的 11 个选项、gtk 的 18 个选项
+> 在两个版本中均存在（glib 仅把 `meson_options.txt` 改名 `meson.options`，
+> 不影响 `-D` 传参）；glib 2.90.0 仍含 `G_DEFINE_TLS_CALLBACK` 与
+> `girepository` 子目录，故 TLS 修复与两段式引导结构不变；gtk 4.24.0 未引入
+> 新必需依赖（`accesskit` 默认 disabled）。升级后 glib 测试数 306 → 309。
 
 ## 当前已完成链（msys2-mingw64 / msys2-ucrt64，39 recipes）
 

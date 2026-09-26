@@ -1,7 +1,8 @@
 name: gtk
-version: 4.22.4
+version: 4.24.0
 source:
-  url: https://download.gnome.org/sources/gtk/4.22/gtk-4.22.4.tar.xz
+  url: https://download.gnome.org/sources/gtk/4.24/gtk-4.24.0.tar.xz
+  sha256: 28ba4ac1c04f86eac09b79a163cb163a4c2b54442d9f7eccc04679062a581044
 build: meson
 # 动态：introspection 链（Gdk/Gsk/Gtk/GdkWin32 gir；上游 libgtk-4 本就是
 # shared_library，静态化无意义）
