@@ -278,6 +278,65 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
   cairo；若同时 `GDK_DEBUG=dcomp`，Vulkan 经 cloaked 子窗口 + DComp 呈现，
   AMD 驱动（RX 7700 XT，ICD 经显卡适配器注册表键注册）
   `vkCreateSwapchainKHR` 返回 VK_ERROR_UNKNOWN，GTK 再回退——均属预期行为。
+- **拖动改变窗口大小卡顿（上游行为，4.22 / 4.24 均存在）**：与构建方式无关
+  ——MSYS2 官方包、gvsbuild、本框架自建三者表现一致，故非本框架缺陷。根因是
+  GDK 的 Win32 缩放路径**每一步都对整个窗口重排 + 重快照**（成本随窗口内容/
+  面积增长），且 Windows 后端**没有 vblank 等待**：
+
+  - `WM_MOUSEMOVE` → `gdk_win32_surface_do_move_resize_drag()`
+    （`gdk/win32/gdksurface-win32.c`）→ `SetWindowPos()`，末尾
+    `gdk_surface_request_layout()` 请求帧时钟的 layout 阶段。随后 GTK 侧
+    **对整窗重新快照**：`gtk_widget_queue_draw()`（`gtk/gtkwidget.c`，置
+    `draw_needed` 并丢弃 `render_node`）→ `gdk_surface_queue_render()`
+    （`gdk/gdksurface.c`，传入**空** region）→ 帧时钟 paint 阶段
+    `surface_render_cb()`（`gtk/gtknative.c`）里
+    `gtk_widget_snapshot (widget, snapshot)` 对**根 widget（整个窗口）**
+    重建快照，再交 `gsk_renderer_render()` 渲染。即：新露出的往往只是一条
+    窄边带，但每一步都要按整窗内容重排 + 重快照，成本随窗口内容/面积增长。
+  - 注意不要高估后端的脏区作用：`gsk_renderer_render()`
+    （`gsk/gskrenderer.c`）确实有脏区判决——`region == NULL`、无
+    `prev_node` 或 `GSK_DEBUG=full-redraw` 时取整窗，否则走
+    `gsk_render_node_diff()` 只并上两次 render node 的差异区域。但该判决
+    作用在**快照之后**：耗时的整窗 `gtk_widget_snapshot()` 已经先执行了，
+    所以实测成本仍随面积线性增长（这正是下面表格所示）。
+  - Windows 是 GDK 里**唯一没有 vsync 同步**的后端：帧时钟是纯定时器驱动的
+    `_gdk_frame_clock_idle_new()`，全树无 `DwmFlush` / `WaitForVBlank` /
+    `SetMaximumFrameLatency`，只用 `DwmGetCompositionTimingInfo` 事后估算。
+    Wayland / X11 / macOS 均有各自的 vsync 驱动帧时钟。
+  - CSD 的拖动/缩放**不经 Windows 模态循环**（`WM_ENTERSIZEMOVE`）：实测
+    真实拖动全程 `GetGUIThreadInfo().hwndMoveSize` 恒为 0 而 `hwndCapture`
+    非 0，即 GTK 自己 `SetCapture()` 后在 `WM_MOUSEMOVE` 里驱动。故
+    `gdk/win32/gdkevents-win32.c` 里 `SetTimer(..., 10, modal_timer_proc)`
+    的"模态定时器泵"**不在此路径上**（其注释"让 Windows 去缩放"是过时注释，
+    与 `gdk_win32_toplevel_begin_resize()` 的实际实现不符）。
+  - 实测：真实鼠标拖动注入（光标 15–20 万次/秒 ≫ 真实手速），显示器
+    3840×2160 @160Hz → 帧预算 6.25ms。尺寸变化频率与 CPU：
+
+    | 窗口宽 | 尺寸变化率 | 中位间隔 | p95    | CPU(cairo) | CPU(GL) |
+    | ------ | ---------- | -------- | ------ | ---------- | ------- |
+    | 320px  | 95 /s      | 6.3ms    | 12.1ms | 19%        | 33%     |
+    | 760px  | 158–164 /s | 6.3ms    | 7.8ms  | 37%        | 38%     |
+    | 2200px | 87 /s      | 14.1ms   | 16.4ms | **71%**    | 28%     |
+
+    760px 时中位间隔 6.3ms ≈ 刷新间隔 6.25ms（已锁在刷新率上限）；窗口一放大
+    就掉到 87/s、14.1ms ≈ 2 个刷新周期，即"重排+全窗重绘"超过 6.25ms 帧预算、
+    只能隔帧更新。**同一时间光标移动几十万次而窗口仅更新几十次**，这就是
+    拖动时窗口跟不上光标的直接原因。帧间隔分布落在刷新间隔整数倍上且抖动仅
+    0.05–0.2ms（帧时钟与刷新对齐良好），排除"帧时钟乱序"这一解释。
+
+  - **与渲染器无关**：`GDK_DEBUG=dcomp`（切到 GL）确实生效、CPU 由 71% 降至
+    28%，但尺寸变化率**两边同为 87/s**——瓶颈在"每步重排 + 面积相关的全窗
+    重绘"，不在光栅化。故用 GL 治不了卡顿，且会带回黑边（见上条）。
+  - `GDK_DEBUG=no-vsync` 亦无效（小窗口仍 ~160/s，大窗口仍 ~88/s）。
+  - 缓解：缩小窗口（成本随面积线性下降，87→158/s）；真正的修法在上游——
+    把每步的整窗重快照/重渲染改为只重绘新露出的条带，并把每个
+    `WM_MOUSEMOVE` 的 `SetWindowPos` 合并到帧时钟每帧一次。
+  - 取证注意（两个易踩的坑）：① `GSK_RENDERER=gl` 时进程有**两个**可见顶层
+    窗口（`gdkSurfaceToplevel` 与 GL 重定向窗口 `GdkWin32GL`），枚举顺序里
+    后者在前；若按"第一个可见窗口"选取会拖错窗口（表现为 0 帧、看似极快）。
+    必须按 class 名精确选取 `gdkSurfaceToplevel`，并置前台避免 DWM 对后台
+    窗口节流。② 探针无法把窗口放大到超过屏幕（本机逻辑 2560×1440 / 150%
+    缩放），>2593px 的测量会被钳制而失效。
 
 ## 版本与来源说明
 
