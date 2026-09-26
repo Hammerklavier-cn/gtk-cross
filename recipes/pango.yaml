@@ -30,6 +30,12 @@ patches:
   # '/' 分隔，而 g_test_build_filename 在 Windows 产出混合分隔符（盘符后
   # 跟 '\'），逐字比较必败；折叠分隔符后再断言（上游仅 Linux CI 通过）。
   - pango-0001-test-font-compare-normalized-path.patch
+  # tests/meson.build 硬编码 FONTCONFIG_FILE=/etc/fonts/fonts.conf（Linux 专有
+  # 路径）。Windows 下该文件不存在，fontconfig 报 "Cannot load default config
+  # file" 并退回内建 fallback；fallback 不含本前缀安装的 conf.d 规则，度量/
+  # hint 设置与上游测试基线不一致。改为指向本前缀 fontconfig 安装的
+  # fonts.conf（fontconfig.pc 的 confdir 变量），使测试自足、不依赖系统包。
+  - pango-0002-tests-use-installed-fontconfig.patch
 test:
   enabled: true
   # 测试进程强制 fc 后端（见上）；经 engines 的 test.env 注入（meson test

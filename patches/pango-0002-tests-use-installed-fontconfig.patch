@@ -1,0 +1,23 @@
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -17,7 +17,19 @@
+ test_env.set('G_TEST_SRCDIR', meson.current_source_dir())
+ test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
+ test_env.set('LC_ALL', 'en_US.UTF-8')
+-test_env.set('FONTCONFIG_FILE', '/etc/fonts/fonts.conf')
++# Upstream hardcodes a Linux-only path.  On Windows it resolves against the
++# current drive and does not exist, so fontconfig loads no configuration at
++# all and reports "Cannot load default config file"; without the standard
++# conf.d rules the generic families cannot be resolved, so test-ellipsize
++# aborts and test-font-data computes different ink boxes.  Use the
++# configuration installed by the fontconfig we depend on: it exists on every
++# platform this project builds for, and keeps the tests independent of any
++# system-wide fontconfig.
++if host_system == 'windows' and fontconfig_dep.type_name() == 'pkgconfig'
++  test_env.set('FONTCONFIG_FILE', fontconfig_dep.get_variable(pkgconfig: 'confdir') / 'fonts.conf')
++else
++  test_env.set('FONTCONFIG_FILE', '/etc/fonts/fonts.conf')
++endif
+ 
+ tests = [
+   [ 'test-coverage' ],
