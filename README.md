@@ -141,13 +141,14 @@ test:
 
 ### 当前验证结果（msys2-ucrt64，2026-09-26）
 
-全链 39 recipe 构建 + 测试通过，产物 `bin/*.dll` 由静态化前的 51 个降至 **28 个**
-（均为 introspection 链必需，见「静态优先」）。
+libadwaita 依赖闭包内的 **33 recipe** 构建 + 测试通过（仓库共 39 个 recipe——
+libadwaita 1.10.0 起 appstream 链已脱离闭包，见下），产物 `bin/*.dll` 由静态化前
+的 51 个降至 **28 个**（均为 introspection 链必需，见「静态优先」）。
 
 | recipe               | 测试数 | 失败 | 备注                        |
 | -------------------- | ------ | ---- | --------------------------- |
 | glib                 | 309    | 0    |                             |
-| libadwaita           | 408    | 0    |                             |
+| libadwaita           | 430    | 0    |                             |
 | pango                | 348    | 4    | 均属已登记的 2 项（见下）   |
 | gobject-introspection| 63     | 0    |                             |
 | libpng（ctest）      | 37     | 0    | 经补丁恢复（原被静默跳过）  |
@@ -228,7 +229,7 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
   而非产物缺陷——`meson test` 继承登录 shell 的 `XDG_DATA_DIRS`，schema
   source 为 NULL（libadwaita 上游本不携带 gschema，非安装缺失）；框架注入
   `XDG_DATA_DIRS=$SYSROOT/share` 后全部通过，登记已清空（2026-09-26 复验
-  408 项全过）。
+  430 项全过；1.10.0 升级使 junit 由 408 增至 430）。
 - gvsbuild 对照：其用 MSVC（无此问题）且 glib 默认 `-Dtests=false`；我们不引入
   额外验证，仅如实记录失败集。
 
@@ -282,12 +283,15 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 
 - 版本对齐 MSYS2 当前包（`pacman -Si mingw-w64-x86_64-<pkg>`）与 gvsbuild，
   定期以 MSYS2 仓库为参照升级；`versions.lock.yaml` 锁定每个 recipe 的 sha256。
-- 上游归档不可达时的替代源（已注明在 recipe 注释）：
-  gitlab.freedesktop.org 归档有登录墙 → 改用 Debian pool orig 包
-  （pixman/cairo/libepoxy/appstream）；cairographics.org 不可达 → Debian pool。
-- appstream 依赖链（libadwaita 的 about dialog 未删除 appdata API）：libxml2 →
-  libxmlb → libfyaml → curl（schannel 后端，避开 openssl/libssh2 大链）→ appstream，
-  全部从源码构建。
+- appstream 链（libxml2 → libxmlb → libfyaml → curl → appstream，另有 xz）自
+  libadwaita **1.10.0 起已脱离依赖闭包**：upstream 把 appstream 换成 vendored 的
+  **ministream**（tarball 内含完整源码，以 `install-profile=vendored-no-excludelibs`
+  + `default_library=static` 内置静态链接，不安装、不产出额外 DLL，测试数 408 → 430）。
+  这些 recipe 仍保留在仓库中（可独立构建），但 `build libadwaita` 不再触及；
+  `patches/libadwaita-0001-remove-appstream.patch` 随之彻底失去用途。
+  原 appstream 链的替代源记录：gitlab.freedesktop.org 归档有登录墙 → 改用
+  Debian pool orig 包（pixman/cairo/libepoxy/appstream）；cairographics.org
+  不可达 → Debian pool。
 - 变更 recipe 版本后需同步 `versions.lock.yaml`（sha256），并清空对应
   `build/<target>/<recipe>` 重建（stamp 不感知版本变化）。
 
@@ -306,7 +310,7 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 | harfbuzz       | 14.3.1    |     | graphene              | 1.10.8    |
 | fribidi        | 1.0.16    |     | json-glib             | 1.10.8    |
 | libepoxy       | 1.5.10    |     | gtk                   | 4.24.0    |
-| libadwaita     | 1.9.3     |     | gobject-introspection | 1.86.0    |
+| libadwaita     | 1.10.0    |     | gobject-introspection | 1.86.0    |
 | vulkan-headers | 1.4.357.0 |     | vulkan-loader         | 1.4.357.0 |
 | spirv-headers  | 1.4.357.0 |     | spirv-tools           | 1.4.357.0 |
 | glslang        | 1.4.357.0 |     | shaderc               | 2026.3    |
@@ -317,7 +321,8 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 
 > 升级说明：本轮新增 appstream 链（libxml2/libxmlb/libfyaml/curl/appstream），
 > libadwaita 不再采用移除 appstream 的补丁（保留 `adw_*_new_from_appdata`
-> 等 appdata API，供 libadwaita-rs 绑定链接）；其完整测试套件 408 项全过。
+> 等 appdata API，供 libadwaita-rs 绑定链接）；其完整测试套件当时 408 项全过
+> （1.10.0 起该链已脱离闭包，见下）。
 > 另修复 Windows TLS callback 家族 bug：glib 与 cairo 均加
 > `-Dc_link_args=-Wl,--undefined=_tls_used`（均已重建复验），glib 测试
 > 309 项全过、原 12 项已知失败全部移除；框架 prelude 统一注入
@@ -355,8 +360,32 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 > 不影响 `-D` 传参）；glib 2.90.0 仍含 `G_DEFINE_TLS_CALLBACK` 与
 > `girepository` 子目录，故 TLS 修复与两段式引导结构不变；gtk 4.24.0 未引入
 > 新必需依赖（`accesskit` 默认 disabled）。升级后 glib 测试数 306 → 309。
+>
+> 升级到 libadwaita 1.10.0（2026-09-26）：与 MSYS2 包一致（要求
+> glib `>= 2.89.3`、gtk `>= 4.23.1`，二者均已满足）。变化有三：
+> ①**options 去掉 `gtk_doc`**（1.10.0 已删除该选项，继续传会让 meson 直接报错），
+> 其余 5 个（tests/introspection/documentation/vapi/examples）均保留；
+> ②**appstream 换成 vendored ministream**：1.10.0 用 `dependency('ministream')`
+> 取代 appstream，tarball 内含 `subprojects/ministream` 完整源码，依赖以
+> `install-profile=vendored-no-excludelibs` + `default_library=static` 内置静态
+> 链接、不安装不产出 DLL，故 recipe 的 appstream 依赖与补丁一并移除，
+> 依赖闭包由 39 降为 33；③**stylesheet 补丁上游化**：
+> `libadwaita-0001-stylesheet-tarball-css-check.patch` 已删——1.10.0 的
+> `src/stylesheet/meson.build` 判定条件本就是 `if not fs.exists('gtk.css')`，
+> 与我们补丁改后的内容完全一致。测试数 408 → 430，全过。
+>
+> libadwaita 版本升级的一个坑（本地已踩到）：`g-ir-scanner` 在 **compile
+> 阶段**就要链接 `-ladwaita-1`，此时 install 尚未执行，命中的是 sysroot 里
+> **上一版的旧导入库**。1.10.0 新增符号 `adw_css_class_binding_get_type` 不在
+> 1.9.3 的 `libadwaita-1.dll.a` 中，于是 `Adw-1.gir` 生成失败（undefined
+> reference）。全量重建（`out/` 为空）不暴露此问题，**增量升级必须先删除
+> sysroot 中的旧产物**（`lib/libadwaita-1.dll.a`、`bin/libadwaita-1-0.dll`、
+> `include/libadwaita-1/`、`lib/pkgconfig/libadwaita-1.pc`、`share/gir-1.0/Adw-1.gir`、
+> `lib/girepository-1.0/Adw-1.typelib`）再构建。
 
 ## 当前已完成链（msys2-mingw64 / msys2-ucrt64，39 recipes）
+
+libadwaita 依赖闭包为 **33 recipe**；下列 appstream 链不在闭包内（见版本说明）。
 
 zlib → libffi → pcre2 → libiconv → gettext → glib-base
 └→ expat / freetype → fontconfig → harfbuzz(-base) → fribidi → pixman → libpng →
@@ -364,7 +393,8 @@ libjpeg-turbo → libtiff → cairo → gobject-introspection → glib（两段�
 pango → gdk-pixbuf → graphene → json-glib → libepoxy → directx-headers →
 vulkan-loader → gtk → libadwaita
 ├→ vulkan-headers → vulkan-loader；spirv-headers → spirv-tools → glslang → shaderc
-└→ libxml2 → xz(liblzma) → libxmlb → libfyaml → curl（schannel）→ appstream → libadwaita
+└→ 独立（不在 libadwaita 闭包内）：libxml2 → xz(liblzma) → libxmlb → libfyaml →
+   curl（schannel）→ appstream
 
 （GTK4 构建配置：win32 后端；vulkan=enabled、introspection=enabled；禁
 gstreamer/x11/wayland/demos。SPIRV-Tools/shaderc 的 tag 归档不含 git

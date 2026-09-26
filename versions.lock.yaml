@@ -75,9 +75,9 @@ json-glib:
   url: https://download.gnome.org/sources/json-glib/1.10/json-glib-1.10.8.tar.xz
   version: 1.10.8
 libadwaita:
-  sha256: fc59b37028fe0126308e7b805d2f6e4e80227080a1797715e5e6286b8111e723
-  url: https://download.gnome.org/sources/libadwaita/1.9/libadwaita-1.9.3.tar.xz
-  version: 1.9.3
+  sha256: b1bf56239269d101a6391ad4553c910eff9cc6170b803916405477ef60a66c84
+  url: https://download.gnome.org/sources/libadwaita/1.10/libadwaita-1.10.0.tar.xz
+  version: 1.10.0
 libepoxy:
   sha256: a7ced37f4102b745ac86d6a70a9da399cc139ff168ba6b8002b4d8d43c900c15
   url: https://deb.debian.org/debian/pool/main/libe/libepoxy/libepoxy_1.5.10.orig.tar.gz

@@ -1,8 +1,8 @@
 name: libadwaita
-version: 1.9.3
+version: 1.10.0
 source:
-  url: https://download.gnome.org/sources/libadwaita/1.9/libadwaita-1.9.3.tar.xz
-  sha256: fc59b37028fe0126308e7b805d2f6e4e80227080a1797715e5e6286b8111e723
+  url: https://download.gnome.org/sources/libadwaita/1.10/libadwaita-1.10.0.tar.xz
+  sha256: b1bf56239269d101a6391ad4553c910eff9cc6170b803916405477ef60a66c84
 build: meson
 # 动态：introspection 链（Adw-1.gir）
 default_library: shared
@@ -11,22 +11,22 @@ deps:
   - glib
   - graphene
   - pango
+  # adw-about-dialog.c 直接 dependency('fribidi')，显式声明以免依赖
+  # pango → fribidi 的传递顺序
+  - fribidi
   - gobject-introspection
-  - appstream
+  # 1.10.0 起 upstream 把 appstream 换成 vendored 的 ministream
+  # （tarball 内含 subprojects/ministream 完整源码，依赖以
+  # install-profile=vendored-no-excludelibs + default_library=static 内置链接，
+  # 不安装也不产出额外 DLL），故不再依赖 appstream recipe。
 meson:
   options:
     - -Dtests=true
     - -Dintrospection=enabled
-    - -Dgtk_doc=false
+    # 1.10.0 已删除 gtk_doc 选项（传未知选项 meson 直接报错）
     - -Ddocumentation=false
     - -Dvapi=false
     - -Dexamples=false
-patches:
-  # src/stylesheet/meson.build 判 'base.css' 是否存在（该文件从不生成），
-  # 导致 tarball 构建误走 sass 路径并拉入 sassc/libsass 子工程（多出
-  # libsass DLL + sassc.exe）；改为判实际预生成的 gtk.css。
-  - libadwaita-0001-stylesheet-tarball-css-check.patch
 test:
   enabled: true
-  # 2026-08-25 重跑实测：XDG_DATA_DIRS 注入修复后 68 项全部通过，
-  # 原 67 项（schema source 为 NULL 所致）全部移出登记。
+  known_failures: []
