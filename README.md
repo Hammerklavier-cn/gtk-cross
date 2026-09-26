@@ -72,7 +72,10 @@ target（构建档案）命名约定 = 工具链标识（`宿主-工具链[-运�
 > ucrtbase.dll，后者 Windows 10+ 自带）：工具链分别来自 `mingw-w64-x86_64-*`
 > 与 `mingw-w64-ucrt-x86_64-*` 系统包，PATH 中的子系统目录由 toolchain 的
 > `msystem` 派生（框架无硬编码），产物隔离在 `out/msys2-mingw64` /
-> `out/msys2-ucrt64`。msys2-ucrt64 的 known_failures 尚未全链验证。
+> `out/msys2-ucrt64`。两个 target 的已知失败**可以不同**：recipe 的
+> `targets:` 块按目标覆盖（`Recipe.for_target`），因为 CRT 能力本身不同——
+> 最典型的是 msvcrt 没有 `en_US.UTF-8` 这个 POSIX 区域名（见下文 libadwaita
+> 的 mingw64 条目）。
 
 ## 快速开始（msys2-mingw64 / msys2-ucrt64）
 
@@ -240,6 +243,20 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
   source 为 NULL（libadwaita 上游本不携带 gschema，非安装缺失）；框架注入
   `XDG_DATA_DIRS=$SYSROOT/share` 后全部通过，登记已清空（2026-09-26 复验
   430 项全过；1.10.0 升级使 junit 由 408 增至 430）。
+- **libadwaita 全套 68 项（仅 msys2-mingw64，已按 target 登记）**：ucrt64 全过，
+  mingw64 68/68 `ERROR exit status 3`，stderr 只有一行
+  `Gtk-WARNING: Failed to set locale to en_US.UTF-8`。根因是 CRT 差异，与产物
+  无关：GTK 的 `gtk_test_init`（`gtk/gtktestutils.c`）硬编码
+  `setlocale (LC_ALL, "en_US.UTF-8")`，失败即 `g_warning`；libadwaita 的
+  `tests/meson.build` 又把 `G_DEBUG` 设为 `gc-friendly,fatal-warnings`，这条
+  warning 于是被提升为致命 → GLib `g_abort()` → CRT 退出码 3。UCRT 认识该
+  POSIX 区域名，msvcrt 只认 `English_United States.1252` 之类，所以同一份代码
+  在两个 target 上结论相反。实测：`objdump -p` 显示
+  `out/msys2-mingw64/bin/libglib-2.0-0.dll` 链 `msvcrt.dll`、ucrt64 的 python
+  链 `api-ms-win-crt-*`；同一条 setlocale 探针在 ucrt64 返回 `'en_US.UTF-8'`、
+  在 mingw64 失败。故只在 mingw64 登记（recipe `targets: msys2-mingw64:`
+  覆盖），测试照旧运行，新增或转好的测试仍会以 `tests-unexpected` /
+  `tests-known-absent` 报出。
 - gvsbuild 对照：其用 MSVC（无此问题）且 glib 默认 `-Dtests=false`；我们不引入
   额外验证，仅如实记录失败集。
 
