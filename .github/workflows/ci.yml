@@ -1,0 +1,177 @@
+# CI：Windows 宿主、MSYS2 两个目标档案的完整编译检查。
+#
+# 范围（当前阶段）：只覆盖 msys2-ucrt64 / msys2-mingw64。其余目标（Linux
+# 交叉等）待本机 Linux 环境验证完善后再补。
+#
+# 说明：本框架的构建命令自己会 spawn `C:/msys64/usr/bin/bash.exe -lc`（见
+# gtkcross/toolchain.py bash_argv()），并把工具链 PATH / MSYSTEM / SYSROOT /
+# PKG_CONFIG_LIBDIR 等注入子 shell。而 toolchains/*.yaml 里 `msys2_root:
+# C:/msys64` 是**硬编码**的，故 CI 必须让 MSYS2 落在 C:\msys64——见下面
+# setup-msys2 步骤的 `release: false`。
+#
+# “完整编译”= 仓库内全部 recipe（不写死名字，从 `gtkcross list` 动态枚举，
+# 新增 recipe 自动纳入）。9 个 recipe 声明了 test.enabled，构建流程会在
+# install 后自动运行其自带测试并按 known_failures 判定——这是本项目的既定
+# 验收标准，故“编译检查”隐含包含这些测试。
+
+name: CI
+
+on:
+  push:
+    # 仓库默认分支是 main；master 一并监听以防分支改名/镜像场景
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# PR 上的重复推送取消旧运行；main 上的运行不取消（避免打断长构建）
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: windows-latest
+    # GitHub 单作业硬上限 360 分钟；全链干净构建在 4 核 runner 上约 1.5–3 h，
+    # 留出余量但确保失败时能及时看到结果
+    timeout-minutes: 330
+    strategy:
+      # 两个目标互不依赖：一个失败不取消另一个，便于一次看清两边状态
+      fail-fast: false
+      matrix:
+        include:
+          - target: msys2-ucrt64
+            msystem: UCRT64
+            mprefix: mingw-w64-ucrt-x86_64
+          - target: msys2-mingw64
+            msystem: MINGW64
+            mprefix: mingw-w64-x86_64
+
+    env:
+      # 与本项目 toolchain env 一致：Python 子进程强制 UTF-8 I/O。
+      # 缺失时 glib 的 glib-mkenums / gdbus-codegen（Python 脚本）在非 UTF-8
+      # 代码页下会让 testprogramrunner 的严格 utf-8 解码抛错，表现为
+      # glib:mkenums.py / glib:codegen.py 无谓失败。
+      PYTHONUTF8: "1"
+
+    steps:
+      # setup-msys2 文档记录的已知坑：本仓库没有 .gitattributes，而 runner 的
+      # git 默认 core.autocrlf 会把文本文件（含 patches/*.patch）检出为 CRLF。
+      # 实测 GNU patch 仍能应用（会打印 Stripping trailing CRs），但为与本地
+      # 检出一致、不依赖该容错行为，按上游建议在 checkout 之前关闭自动换行。
+      - name: 关闭 Git 自动换行（MSYS2 工具链已知坑）
+        run: git config --global core.autocrlf input
+
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 安装到默认 C:\msys64，与本项目 toolchains/*.yaml 的 msys2_root 一致。
+      #
+      # base-devel 的依赖是 `base binutils bison diffutils dos2unix flex make
+      # patch`——注意它**不含 perl 与 git**，二者必须显式列出：
+      #   * perl：工具链 tools.perl 声明并在 doctor 中检查，autotools/cmake
+      #     的 configure 会实际调用（本机日志中有 `checking for perl` 与
+      #     `/usr/bin/perl`，共 54 处）。
+      #   * git：cmake 项目在 build 阶段探测 `Found Git`（本机日志确认），
+      #     缺失时个别项目会退到不同代码路径、产物与本地不一致。
+      # 其余包提供 cc/cxx、pkg-config、meson、ninja、cmake，以及构建期需要的
+      # msgfmt（gettext-tools，glib 翻译）与 gperf，外加运行框架本身的 Python。
+      - name: 安装 MSYS2 工具链
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          # 关键：release: false —— 复用 runner 镜像预装的 C:\msys64。
+          #
+          # setup-msys2 默认 release: true，会把 MSYS2 全新装到
+          # $RUNNER_TEMP\msys64（即 D:\a\_temp\msys64）。但本项目
+          # toolchains/*.yaml 里 msys2_root 是**硬编码的 C:/msys64**
+          # （gtkcross/toolchain.py bash_argv() 直接拼
+          # <msys2_root>/usr/bin/bash.exe），届时框架会去 spawn runner 预装的
+          # 那只 bash，那里并没有我们在此安装的 meson/ninja/gcc，doctor 必然失败。
+          # release: false 走的是 setup-msys2 的 `msysRootDir = C:\msys64` 分支，
+          # update/install 均作用于该目录，与项目配置一致。
+          # （不能用 location: C:\ 配合 release: true：那分支遇到已存在的
+          #  C:\msys64 会直接 setFailed "already exists"。）
+          release: false
+          # 全量 pacman -Syu：避免半升级（-Sy 不带 -u）导致包依赖不一致
+          update: true
+          # 缓存 pacman 包，缩短后续运行
+          cache: true
+          install: >-
+            base-devel
+            perl
+            git
+            ${{ matrix.mprefix }}-gcc
+            ${{ matrix.mprefix }}-binutils
+            ${{ matrix.mprefix }}-pkgconf
+            ${{ matrix.mprefix }}-meson
+            ${{ matrix.mprefix }}-ninja
+            ${{ matrix.mprefix }}-cmake
+            ${{ matrix.mprefix }}-gettext-tools
+            ${{ matrix.mprefix }}-gperf
+            ${{ matrix.mprefix }}-python
+            ${{ matrix.mprefix }}-python-yaml
+            ${{ matrix.mprefix }}-python-setuptools
+
+      # 源码缓存：downloads/ 下的 tarball 由 versions.lock.yaml 锁定，
+      # 锁定文件不变即可复用，省去每次数百 MB 重下载。
+      - name: 缓存下载的源码包
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: downloads-${{ matrix.target }}-${{ hashFiles('versions.lock.yaml') }}
+          restore-keys: |
+            downloads-${{ matrix.target }}-
+
+      - name: 工具链自检（doctor）
+        shell: msys2 {0}
+        run: |
+          python --version
+          python -m gtkcross doctor -t ${{ matrix.target }}
+
+      - name: 完整编译全部 recipe
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          # 从 `list` 动态枚举全部 recipe（输出首行是表头，跳过）。
+          # 注意进程替换 `<(...)` 的退出码会被忽略，故下面显式校验非空——
+          # 否则枚举失效时会静默地“构建 0 个包”并通过，CI 形同虚设。
+          mapfile -t NAMES < <(python -m gtkcross list | tail -n +2 | awk '{print $1}' | sort -u)
+          if [ "${#NAMES[@]}" -eq 0 ]; then
+            echo "::error::recipe 枚举为空，gtkcross list 可能失败或输出格式已变"
+            exit 1
+          fi
+          echo "目标      : ${{ matrix.target }}"
+          echo "recipe 数 : ${#NAMES[@]}"
+          echo "并行度    : $(nproc)"
+          echo "磁盘      :"; df -h . | sed 's/^/  /'
+          python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} -j"$(nproc)"
+
+      # 产物统计：本项目核心目标是尽量少产 DLL（静态优先），把计数打出来，
+      # 便于在 CI 日志里一眼看出静态化是否回退。仅诊断，不参与判定。
+      - name: sysroot 产物统计
+        if: always()
+        shell: msys2 {0}
+        run: |
+          root="out/${{ matrix.target }}"
+          if [ -d "$root" ]; then
+            echo "DLL: $(find "$root/bin" -name '*.dll' 2>/dev/null | wc -l)"
+            echo ".a : $(find "$root/lib" -name '*.a'  2>/dev/null | wc -l)"
+          else
+            echo "sysroot 未生成：$root"
+          fi
+
+      # 事件日志很小（约数十 KB）且记录了失败点/测试异常，失败时上传便于排查。
+      # 构建立即输出到控制台，故不上传体积巨大的 gtkcross-build.log。
+      - name: 上传事件日志（仅失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtkcross-events-${{ matrix.target }}
+          path: gtkcross-events.log
+          if-no-files-found: ignore
+          retention-days: 7
