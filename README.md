@@ -316,8 +316,19 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 > 静态化（2026-09-26）：`default_library: static` 全链只出 `.a`，DLL 由 51 降至
 > 28（均为 introspection 链必需，见「静态优先」）。新增 `directx-headers`
 > recipe（gdk/win32 的 d3d12 路径依赖）、`libpng-0001-*` 补丁（恢复被
-> `PNG_SHARED` 门控掉的 37 项测试）；libffi/libiconv/gettext 保持动态
-> （理由见「为什么保留少量 DLL」）。
+> `PNG_SHARED` 门控掉的 37 项测试）、`vulkan-loader-0001-*` 补丁（Windows
+> 静态 loader，见下）；libffi/libiconv/gettext 保持动态（理由见「为什么保留
+> 少量 DLL」）。
+>
+> 静态 vulkan loader 的坑：上游 Windows 下只给共享库，且互斥体（`loader_lock`
+> / `loader_preload_icd_lock` / `global_loader_settings_lock`）只在 `DllMain`
+> 里创建。静态库不能带 `DllMain`（它会变成宿主 DLL 的入口点），编译掉之后
+> 三个 `CRITICAL_SECTION` 就再无人初始化——首次 `vkEnumerateInstance*` 便锁
+> 未初始化对象而 SIGSEGV（栈：`RtlEnterCriticalSection →
+> update_global_loader_settings`）。表现是 `GSK_RENDERER=vulkan` 或打开
+> **GTK Inspector**（`GTK_DEBUG=interactive`，其 `init_vulkan()` 也枚举实例
+> 扩展）直接闪退。补丁把互斥体创建移到 `loader_initialize()`
+> （经 `LOADER_PLATFORM_THREAD_ONCE` 恰好执行一次）。
 
 ## 当前已完成链（msys2-mingw64 / msys2-ucrt64，39 recipes）
 

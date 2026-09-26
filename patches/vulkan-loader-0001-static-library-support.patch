@@ -1,3 +1,29 @@
+From: gtk-cross <noreply@localhost>
+Subject: [PATCH] Support building the Vulkan loader as a Windows static library
+
+Upstream only offered a static loader for Apple (APPLE_STATIC_LOADER); on
+Windows the `vulkan` target was unconditionally SHARED, so a host such as
+GTK's Vulkan renderer could not link it without shipping vulkan-1.dll.
+
+Honour BUILD_SHARED_LIBS to build libvulkan-1.a, and define
+VK_LOADER_STATIC_LIBRARY for it.  A static loader cannot carry a DllMain:
+it would become the entry point of whichever DLL links it in
+(loader_windows.c), so DllMain is compiled out and the synchronisation
+primitives it would have created (loader_lock, loader_preload_icd_lock,
+global_loader_settings_lock) must instead be created in loader_initialize(),
+which runs exactly once via LOADER_PLATFORM_THREAD_ONCE before the first
+vkEnumerate*/vkCreateInstance call.  Without this the first such call locks
+an uninitialised CRITICAL_SECTION and the process dies with SIGSEGV inside
+RtlEnterCriticalSection -> update_global_loader_settings (reproducible with
+GSK_RENDERER=vulkan or by opening the GTK Inspector, both of which
+enumerate instance extensions).
+
+Also skip the CMake export for a static build: its PRIVATE link
+dependencies (loader_specific_options, Vulkan::Headers) become INTERFACE
+requirements of the exported target through $<LINK_ONLY:...>, and neither
+is in an export set.  vulkan.pc still describes the archive fully.
+
+diff -ru a/loader/CMakeLists.txt b/loader/CMakeLists.txt
 --- a/loader/CMakeLists.txt
 +++ b/loader/CMakeLists.txt
 @@ -386,31 +386,43 @@
@@ -97,6 +123,29 @@
              set(VULKAN_LIB_SUFFIX "-1")
          endif()
      endif()
+diff -ru a/loader/loader.c b/loader/loader.c
+--- a/loader/loader.c
++++ b/loader/loader.c
+@@ -2334,6 +2334,18 @@
+     (void)InitOnce;
+     (void)Parameter;
+     (void)Context;
++#if defined(VK_LOADER_STATIC_LIBRARY)
++    // A static loader has no DllMain: it would become the entry point of
++    // whichever DLL links it in (see loader_windows.c).  The synchronisation
++    // primitives DllMain would have created must therefore be created here,
++    // otherwise the first vkEnumerate* call locks an uninitialised
++    // CRITICAL_SECTION and crashes.  loader_initialize() runs exactly once,
++    // driven by LOADER_PLATFORM_THREAD_ONCE, so this is not racy.
++    // Shared builds keep doing this in DllMain, so guard against a double init.
++    loader_platform_thread_create_mutex(&loader_lock);
++    loader_platform_thread_create_mutex(&loader_preload_icd_lock);
++    init_global_loader_settings();
++#endif
+ #else
+ void loader_initialize(void) {
+     loader_platform_thread_create_mutex(&loader_lock);
+diff -ru a/loader/loader_windows.c b/loader/loader_windows.c
 --- a/loader/loader_windows.c
 +++ b/loader/loader_windows.c
 @@ -95,6 +95,10 @@
