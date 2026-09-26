@@ -101,6 +101,13 @@ jobs:
           update: true
           # 缓存 pacman 包，缩短后续运行
           cache: true
+          # 注意：install 是折叠块标量（>-），块内的 `#` 不是注释而是字面内容，
+          # 会被当作包名传给 pacman，故说明只能写在这里、不能写进块内。
+          # itstool：appstream 的 meson setup 必需（src/data/meson.build 里
+          # find_program('itstool') 未找到会直接 ERROR 中止）。base-devel 与
+          # gettext-tools 都不含它——本机之所以从未暴露，是因为系统恰好装了
+          # mingw-w64-{ucrt-x86_64,x86_64}-itstool。依赖 python + python-lxml，
+          # 由本前缀包自动带出。
           install: >-
             base-devel
             perl
@@ -113,6 +120,7 @@ jobs:
             ${{ matrix.mprefix }}-cmake
             ${{ matrix.mprefix }}-gettext-tools
             ${{ matrix.mprefix }}-gperf
+            ${{ matrix.mprefix }}-itstool
             ${{ matrix.mprefix }}-python
             ${{ matrix.mprefix }}-python-yaml
             ${{ matrix.mprefix }}-python-setuptools
