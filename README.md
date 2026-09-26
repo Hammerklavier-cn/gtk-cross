@@ -20,9 +20,9 @@ sysroot（`prefix`/`lib`/`include`），供原生运行或交叉链接。
 `g_module_open` 动态加载目标库——零 DLL 与运行期反射在 Windows 上互斥。项目 README
 明确 GIR/typelib 供 libadwaita-rs 等绑定消费，因此 introspection 链整体保持动态：
 
-| 类别                  | 数量 | 内容                                                                                            |
-| --------------------- | ---- | ----------------------------------------------------------------------------------------------- |
-| 静态（仅 `.a`）       | 25   | zlib expat pcre2 libpng libjpeg-turbo libtiff curl libxml2 libxmlb libfyaml libiconv gettext xz … |
+| 类别                        | 数量 | 内容                                                                                                                        |
+| --------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------- |
+| 静态（仅 `.a`）             | 25   | zlib expat pcre2 libpng libjpeg-turbo libtiff curl libxml2 libxmlb libfyaml libiconv gettext xz …                           |
 | 共享（`.dll` + import lib） | 14   | glib(-base) gobject-introspection libffi cairo fontconfig freetype harfbuzz(-base) pango gdk-pixbuf graphene gtk libadwaita |
 
 `libffi` 保留动态的原因特殊：其 `ffi_type_*` 是**按地址比较**的数据符号，而 glib 与
@@ -60,12 +60,12 @@ meson 会在编译器默认搜索目录里找到 **MSYS2 系统静态库**（如
 target（构建档案）命名约定 = 工具链标识（`宿主-工具链[-运行时]`），与
 `toolchains/*.yaml` 文件名一一对应，便于未来区分 msvc、linux 交叉等工具链。
 
-| target                                   | 状态    | 说明                                                              |
-| ---------------------------------------- | ------- | ----------------------------------------------------------------- |
-| msys2-mingw64（MSYS2 MINGW64 原生）      | ✅ 完成 | 39 个 recipe 全链构建 + 自带测试                                  |
+| target                                   | 状态    | 说明                                                                     |
+| ---------------------------------------- | ------- | ------------------------------------------------------------------------ |
+| msys2-mingw64（MSYS2 MINGW64 原生）      | ✅ 完成 | 39 个 recipe 全链构建 + 自带测试                                         |
 | msys2-ucrt64（MSYS2 UCRT64 原生）        | ✅ 完成 | 同 recipe 复用；UCRT 运行时，独立 sysroot（全链 39 recipe + 测试已复验） |
-| linux-x64（Linux 原生）                  | 规划    | 同 recipe 复用                                                    |
-| linux-musl-x64 / linux-mingw-x64（交叉） | 规划    | meson cross-file + exe_wrapper                                    |
+| linux-x64（Linux 原生）                  | 规划    | 同 recipe 复用                                                           |
+| linux-musl-x64 / linux-mingw-x64（交叉） | 规划    | meson cross-file + exe_wrapper                                           |
 
 > msys2-mingw64 与 msys2-ucrt64 同为 win64 输出平台（x86_64-w64-mingw32 三元组，
 > toolchain 的 `platform: win64` 字段标注），区别在 CRT 运行时（msvcrt.dll vs
@@ -133,7 +133,7 @@ test:
   `--smoke`（GTK+libadwaita 窗口 2 秒后自动退出，退出码 0 即通过）。
   ```bash
   cd tests/libadwaita-demo
-  export PKG_CONFIG_LIBDIR="$PWD/../../out/msys2-ucrt64/lib/pkgconfig;$PWD/../../out/msys2-ucrt64/share/pkgconfig"
+  export PKG_CONFIG_LIBDIR="$PWD/../../out/msys2-ucrt64/lib/pkgconfig:$PWD/../../out/msys2-ucrt64/share/pkgconfig"
   meson setup builddir && meson compile -C builddir
   PATH=../../out/msys2-ucrt64/bin:$PATH XDG_DATA_DIRS=../../out/msys2-ucrt64/share \
       ./builddir/libadwaita-demo.exe --smoke
@@ -145,16 +145,16 @@ libadwaita 依赖闭包内的 **33 recipe** 构建 + 测试通过（仓库共 39
 libadwaita 1.10.0 起 appstream 链已脱离闭包，见下），产物 `bin/*.dll` 由静态化前
 的 51 个降至 **28 个**（均为 introspection 链必需，见「静态优先」）。
 
-| recipe               | 测试数 | 失败 | 备注                        |
-| -------------------- | ------ | ---- | --------------------------- |
-| glib                 | 309    | 0    |                             |
-| libadwaita           | 430    | 0    |                             |
-| pango                | 348    | 4    | 均属已登记的 2 项（见下）   |
-| gobject-introspection| 63     | 0    |                             |
-| libpng（ctest）      | 37     | 0    | 经补丁恢复（原被静默跳过）  |
-| gdk-pixbuf           | 20     | 0    |                             |
-| fribidi              | 8      | 0    |                             |
-| expat（ctest）       | 1      | 0    |                             |
+| recipe                | 测试数 | 失败 | 备注                       |
+| --------------------- | ------ | ---- | -------------------------- |
+| glib                  | 309    | 0    |                            |
+| libadwaita            | 430    | 0    |                            |
+| pango                 | 348    | 4    | 均属已登记的 2 项（见下）  |
+| gobject-introspection | 63     | 0    |                            |
+| libpng（ctest）       | 37     | 0    | 经补丁恢复（原被静默跳过） |
+| gdk-pixbuf            | 20     | 0    |                            |
+| fribidi               | 8      | 0    |                            |
+| expat（ctest）        | 1      | 0    |                            |
 
 ### 构建日志与事件日志
 
@@ -286,12 +286,12 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 - appstream 链（libxml2 → libxmlb → libfyaml → curl → appstream，另有 xz）自
   libadwaita **1.10.0 起已脱离依赖闭包**：upstream 把 appstream 换成 vendored 的
   **ministream**（tarball 内含完整源码，以 `install-profile=vendored-no-excludelibs`
-  + `default_library=static` 内置静态链接，不安装、不产出额外 DLL，测试数 408 → 430）。
-  这些 recipe 仍保留在仓库中（可独立构建），但 `build libadwaita` 不再触及；
-  `patches/libadwaita-0001-remove-appstream.patch` 随之彻底失去用途。
-  原 appstream 链的替代源记录：gitlab.freedesktop.org 归档有登录墙 → 改用
-  Debian pool orig 包（pixman/cairo/libepoxy/appstream）；cairographics.org
-  不可达 → Debian pool。
+  - `default_library=static` 内置静态链接，不安装、不产出额外 DLL，测试数 408 → 430）。
+    这些 recipe 仍保留在仓库中（可独立构建），但 `build libadwaita` 不再触及；
+    `patches/libadwaita-0001-remove-appstream.patch` 随之彻底失去用途。
+    原 appstream 链的替代源记录：gitlab.freedesktop.org 归档有登录墙 → 改用
+    Debian pool orig 包（pixman/cairo/libepoxy/appstream）；cairographics.org
+    不可达 → Debian pool。
 - 变更 recipe 版本后需同步 `versions.lock.yaml`（sha256），并清空对应
   `build/<target>/<recipe>` 重建（stamp 不感知版本变化）。
 
@@ -347,7 +347,7 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 > 里创建。静态库不能带 `DllMain`（它会变成宿主 DLL 的入口点），编译掉之后
 > 三个 `CRITICAL_SECTION` 就再无人初始化——首次 `vkEnumerateInstance*` 便锁
 > 未初始化对象而 SIGSEGV（栈：`RtlEnterCriticalSection →
-> update_global_loader_settings`）。表现是 `GSK_RENDERER=vulkan` 或打开
+update_global_loader_settings`）。表现是 `GSK_RENDERER=vulkan` 或打开
 > **GTK Inspector**（`GTK_DEBUG=interactive`，其 `init_vulkan()` 也枚举实例
 > 扩展）直接闪退。补丁把互斥体创建移到 `loader_initialize()`
 > （经 `LOADER_PLATFORM_THREAD_ONCE` 恰好执行一次）。
@@ -394,7 +394,7 @@ pango → gdk-pixbuf → graphene → json-glib → libepoxy → directx-headers
 vulkan-loader → gtk → libadwaita
 ├→ vulkan-headers → vulkan-loader；spirv-headers → spirv-tools → glslang → shaderc
 └→ 独立（不在 libadwaita 闭包内）：libxml2 → xz(liblzma) → libxmlb → libfyaml →
-   curl（schannel）→ appstream
+curl（schannel）→ appstream
 
 （GTK4 构建配置：win32 后端；vulkan=enabled、introspection=enabled；禁
 gstreamer/x11/wayland/demos。SPIRV-Tools/shaderc 的 tag 归档不含 git
