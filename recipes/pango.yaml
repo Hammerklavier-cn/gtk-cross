@@ -44,14 +44,27 @@ test:
     PANGOCAIRO_BACKEND: fc
   # fc 后端（fontconfig/FreeType）2026-09-25 实测复验：原 win32/DirectWrite
   # 下的 5 项失败（test-bidi/test-break/test-pangocairo-threads/test-font-data/
-  # test-font）中 4 项转好移出登记；test-font 剩 3 个 roundtrip 子测试仍失败
-  # （见下）。test-fonts 为 fc 后端启用后新参与运行的测试。
+  # test-font）中 4 项转好移出登记。另 3 项为**宿主字体环境依赖**，非产物缺陷：
+  # 同一份二进制换一台字体集不同的机器就变结论，故登记而不是改代码。
   #  - test-font：roundtrip small-caps/all-small-caps/unicase 需系统级
-  #    Cantarell 变体字体（上游 Linux CI 预装）；本机无系统 Cantarell，
-  #    "Cantarell Small-Caps 11" 回退到系统 Sans 后 describe 不含变体。
+  #    Cantarell 变体字体（上游 Linux CI 预装）；无系统 Cantarell 时
+  #    "Cantarell Small-Caps 11" 回退到系统 Sans，describe 不含变体。
   #    /pango/font/custom 的路径分隔符比较 bug 已由补丁修复。
   #  - test-fonts：fontsets/cantarell2 对 DejaVu Sans/Mono 的 fontconfig
-  #    排序平序（tie）在本机 fontconfig 版本下顺序不同，纯平台差异。
+  #    排序平序（tie）随 fontconfig 版本而异，纯平台差异。
+  #  - test-font-data：断言的是**派生态**度量。boxes.ttf 只含 0x20 与
+  #    A–P/Z 共 18 个字形，而上游用 "The quick brown fox jumps over the lazy
+  #    dog." 做采样串（44 字符）——其中 36 个字符必须回退到宿主字体，于是
+  #    approximate_char_width / approximate_digit_width 由宿主字体集决定
+  #    （pangofc-font.c 用布局实测值相除/取最大，非字体固有度量，故字体固有
+  #    的 ascent/descent 等断言在 CI 上照样通过）。实测同一二进制：
+  #    全量 Windows 字体集→49273/58368（上游期望值，通过）；精简集→
+  #    53178/65536（与 CI runner 逐字节一致）；pango 自带 tests/fonts→
+  #    52935/65536。不影响字体度量修复（DirectWrite 链）本身。
+  #    2026-09-26 CI 复验：fontconfig 改为绝对 confdir 后 test-ellipsize 已
+  #    转好（从失败列表消失），test-font-data 从上轮的 60416（conf.d 未加载、
+  #    hinting 退回 full）变为 53178，即 conf.d 已生效、只剩字体集差异。
   known_failures:
     - pango:test-font
     - pango:test-fonts
+    - pango:test-font-data

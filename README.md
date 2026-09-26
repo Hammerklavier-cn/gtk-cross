@@ -209,16 +209,26 @@ libadwaita 1.10.0 起 appstream 链已脱离闭包，见下），产物 `bin/*.d
 cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
   libcairo-2.dll 的 PE TLS Directory 为 0，MSYS2 官方包非 0。重建后
   pango 原 0xc0000005 崩溃消失，test-ellipsize/testiter 转好。
-- **pango 2 项（非崩溃性失败，已登记）**：cairo/pango 显式启用
+- **pango 3 项（非崩溃性失败，均已登记）**：cairo/pango 显式启用
   `-Dfontconfig=enabled -Dfreetype=enabled`（Windows 上游默认 auto→disabled，
   无 pangoft2/fc 后端）后，测试经 recipe `test.env` 注入
-  `PANGOCAIRO_BACKEND=fc` 运行，原 5 项实测收缩为 2 项：
+  `PANGOCAIRO_BACKEND=fc` 运行，原 5 项实测收缩为 3 项。这 3 项都是**宿主
+  字体环境依赖**、非产物缺陷——同一份二进制换一台字体集不同的机器结论就变：
   - `pango:test-font`：`roundtrip` 的 small-caps/all-small-caps/unicase 子测试
-    需系统级 Cantarell 变体字体（上游 Linux CI 预装），本机回退到系统 Sans 后
-    describe 不含变体；`/pango/font/custom` 的路径分隔符比较 bug 已由
-    `pango-0001-*.patch` 修复。
+    需系统级 Cantarell 变体字体（上游 Linux CI 预装），无系统 Cantarell 时
+    回退到系统 Sans，describe 不含变体；`/pango/font/custom` 的路径分隔符
+    比较 bug 已由 `pango-0001-*.patch` 修复。
   - `pango:test-fonts`：`fontsets/cantarell2` 对 DejaVu Sans/Mono 的 fontconfig
     排序平序（tie）随版本而异，纯平台差异。
+  - `pango:test-font-data`：断言的是**派生态**度量（`pangofc-font.c` 用布局实测
+    值相除/取最大，不是字体固有度量，故字体固有的 ascent/descent 等断言在 CI
+    上照样通过）。`boxes.ttf` 只含 `0x20` 与 A–P/Z 共 18 个字形，而上游采样串
+    是 `"The quick brown fox jumps over the lazy dog."`（44 字符）——其中 36 个
+    字符必须回退到宿主字体，于是 `approximate_char_width` /
+    `approximate_digit_width` 由宿主字体集决定。实测同一二进制：全量 Windows
+    字体集→`49273/58368`（上游期望值，通过）；精简集→`53178/65536`（与 CI
+    runner 逐字节一致）；pango 自带 `tests/fonts`→`52935/65536`。本机因字体集
+    完整而通过，故登记为已知失败而非改代码。
 - **libpng 测试覆盖（已修复，2026-09-26）**：上游把整个测试段门控在
   `if(PNG_TESTS AND PNG_SHARED)` 上、测试程序硬链 `png_shared`，纯静态构建会
   **静默跳过全部 37 项**测试。补丁 `libpng-0001-tests-against-static-library.patch`

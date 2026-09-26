@@ -247,8 +247,16 @@ jobs:
           # dir <path>" 与每个 "Loading config file from <path>"；只要 conf.d 的
           # 默认片段出现在输出里，就说明规则已生效；反之是解析到了别处或该目录
           # 为空——这比推断可靠，也直接指向 fontconfig-0002 修的那个问题。
+          #
+          # 必须显式带上 PANGOCAIRO_BACKEND=fc 与 FONTCONFIG_FILE：pango 的测试
+          # 环境是 recipe test.env + pango 自己的 test_env 拼出来的，不设
+          # PANGOCAIRO_BACKEND 时 pango_cairo_font_map_new() 走默认 win32 后端，
+          # fontconfig 根本不会初始化，FC_DEBUG 因而零输出（首次加此探针时正是
+          # 漏了这两项，输出为空、毫无判别力）。
           echo "===== fontconfig 实际加载的配置 (FC_DEBUG=1024) ====="
           if [ -x "$sysroot/bin/pango-list.exe" ]; then
+            PANGOCAIRO_BACKEND=fc \
+            FONTCONFIG_FILE="$(cygpath -w "$sysroot/etc/fonts/fonts.conf" 2>/dev/null || echo "$sysroot/etc/fonts/fonts.conf")" \
             FC_DEBUG=1024 "$sysroot/bin/pango-list.exe" 2>&1 \
               | grep -aE "Scanning config dir|Loading config file from" \
               | sed 's/^/    /' | head -40 || true
