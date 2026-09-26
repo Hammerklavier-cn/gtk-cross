@@ -173,13 +173,65 @@ jobs:
             echo "sysroot 未生成：$root"
           fi
 
+      # 失败时收集测试诊断。框架对 unexpected 失败会把完整输出写到
+      # <workdir>/test-failure.log，meson 另有 build/meson-logs/testlog.txt
+      # （含每个测试的完整 command/env/tag）；两者都只在构建机磁盘上，
+      # 不下载就无从查看。pango 的失败正是如此：日志里只有测试名，看不到
+      # tag、实际字体与 fontconfig 状态，无法定位与本机的差异。
+      # 这里把 fontconfig 关键事实直接打印到日志（无需下载即可读），并把
+      # 上述文件收集到 ci-diagnostics/ 一起上传。continue-on-error 保证收集
+      # 失败不会掩盖真正的构建错误。
+      - name: 收集测试诊断（仅失败时）
+        if: failure()
+        shell: msys2 {0}
+        continue-on-error: true
+        run: |
+          target="${{ matrix.target }}"
+          out="ci-diagnostics"
+          rm -rf "$out"; mkdir -p "$out"
+
+          # 1) 框架保存的完整测试输出
+          find "build/$target" -name test-failure.log -type f 2>/dev/null | while read -r f; do
+            name=$(echo "$f" | sed "s|^build/$target/||; s|/|__|g")
+            cp "$f" "$out/$name" && echo "  [diag] 收集 $f"
+          done
+
+          # 2) meson 的 testlog（含每个测试的 command / env / 断言输出）
+          find "build/$target" -path '*/meson-logs/testlog.txt' -type f 2>/dev/null | while read -r f; do
+            recipe=$(echo "$f" | sed "s|^build/$target/||; s|/.*||")
+            cp "$f" "$out/${recipe}__testlog.txt" && echo "  [diag] 收集 $f"
+          done
+
+          echo "===== fontconfig / pango 环境事实 ($target) ====="
+          echo "MSYSTEM          : $MSYSTEM"
+          echo "FONTCONFIG_FILE  : ${FONTCONFIG_FILE:-<unset>}"
+          echo "FONTCONFIG_PATH  : ${FONTCONFIG_PATH:-<unset>}"
+          sysroot="out/$target"
+          echo "sysroot/etc/fonts/fonts.conf :"
+          ls -la "$sysroot/etc/fonts/fonts.conf" 2>&1 | sed 's/^/    /'
+          echo "MSYS2 根 /etc/fonts :"
+          ls -la /etc/fonts/fonts.conf 2>&1 | sed 's/^/    /'
+          echo "pango-list 可见字体数 :"
+          if [ -x "$sysroot/bin/pango-list.exe" ]; then
+            "$sysroot/bin/pango-list.exe" 2>&1 | wc -l | sed 's/^/    /'
+          else
+            echo "    (pango-list.exe 不存在)"
+          fi
+          echo "SystemRoot=$SYSTEMROOT  PWD=$PWD  (路径形式差异会影响 /etc/fonts 的解析)"
+
+          # 3) 把失败测试行的摘要直接打到控制台
+          echo "===== 失败测试摘要 ====="
+          grep -rhE "^\s*[0-9]+/[0-9]+ .*(FAIL|ERROR)" "$out" 2>/dev/null | sed 's/^/  /' || true
+
       # 事件日志很小（约数十 KB）且记录了失败点/测试异常，失败时上传便于排查。
       # 构建立即输出到控制台，故不上传体积巨大的 gtkcross-build.log。
-      - name: 上传事件日志（仅失败时）
+      - name: 上传事件日志与测试诊断（仅失败时）
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: gtkcross-events-${{ matrix.target }}
-          path: gtkcross-events.log
+          name: gtkcross-diagnostics-${{ matrix.target }}
+          path: |
+            gtkcross-events.log
+            ci-diagnostics
           if-no-files-found: ignore
           retention-days: 7

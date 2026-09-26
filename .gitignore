@@ -9,3 +9,5 @@ out/
 downloads/
 gtkcross-build.log
 gtkcross-events.log
+# CI 失败时收集的测试诊断（见 .github/workflows/ci.yml）
+ci-diagnostics/
