@@ -16,6 +16,25 @@ meson:
     - -Ddoctool=disabled
 test:
   enabled: true
+  # 禁用 g-ir-scanner 的用户级缓存。测试是并行跑的（meson test -j N），而
+  # 缓存目录 ~/.cache/g-ir-scanner 是所有进程共享的：
+  #   giscanner/cachestore.py _check_cache_version() 在版本不匹配时调 _clean()
+  #   重写 .cache-version（Windows 上 shutil.move 无法原子替换，只能先删再移）。
+  #   冷缓存首次运行（无版本文件 -> cache_hash=0 -> 必然重写）时，恰有另一进程
+  #   打开该文件读取，即 PermissionError: [Errno 13] Permission denied。
+  # 实测抓到完整 traceback（gtkcross-build.log）：
+  #   cachestore.py:68 in _check_cache_version
+  #     with open(version, 'r', encoding='utf-8') as version_file:
+  #   PermissionError: [Errno 13] Permission denied:
+  #     'C:/Users/q5vsx/.cache/g-ir-scanner/.cache-version'
+  # 表现即为偶发：首次调用失败、重跑（缓存已就绪）则全过，故难复现。
+  # 上游自身也这么做——tests/scanner/test_maintransformer.py 与
+  # tests/scanner/test_transformer.py 开头都设了
+  # os.environ['GI_SCANNER_DISABLE_CACHE'] = '1'。
+  # 经 engines 的 test.env 注入（meson test 继承该变量）。代价仅是没有缓存
+  # 复用、测试略慢，正确性不受影响。
+  env:
+    GI_SCANNER_DISABLE_CACHE: "1"
   known_failures:
     # test_get_source_root_dirs_different_drives 用假盘符 X:/Y: 断言
     # commonpath 分叉；本机 Y: 是真实映射盘（WebDAV），os.path.realpath

@@ -341,12 +341,27 @@ class Builder:
             return
         unexpected = [f for f in fails if f not in known]
         if unexpected:
+            # 落盘完整输出：capture=True 的 meson/ctest 输出不会进控制台或
+            # 构建日志，若只打印测试名，偶发失败事后就无从诊断——曾遇到
+            # gobject-introspection:warn-callback-invalid-scope 只报一次、
+            # 之后数十次复跑全过，而失败详情在日志里已无迹可寻。
+            # 用固定文件名，便于事后与 CI 产物收集。
+            detail = engine.ws / "test-failure.log"
+            try:
+                detail.write_text(out, encoding="utf-8", errors="replace")
+                print(f"  [test] {name}: 完整输出已保存 -> {detail}")
+            except OSError as e:
+                print(f"  [test] {name}: 保存完整输出失败: {e}")
+            # 同时回显尾部，让失败在 CI 日志里就能看到，无需下载产物
+            print(f"  [test] {name}: 输出尾部 {min(30, len(out.splitlines()))} 行:")
+            for line in out.splitlines()[-30:]:
+                print(f"    | {line}")
             print(f"  [test] {name}: FAILED (unexpected):")
             for f in unexpected:
                 print(f"    - {f}")
             self.events.log(
                 "tests-unexpected",
-                f"{name}: {', '.join(unexpected)}",
+                f"{name}: {', '.join(unexpected)}; detail: {detail}",
             )
             raise BuildError(
                 f"{name}: unexpected test failures: {', '.join(unexpected)}"
