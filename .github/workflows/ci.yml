@@ -217,6 +217,22 @@ jobs:
           else
             echo "    (pango-list.exe 不存在)"
           fi
+
+          # 判别力最强的一项。实测：pango 的 test-ellipsize / test-font-data
+          # 失败与「字体数量」无关（conf.d 缺失时字体数仍为 908，照样失败），
+          # 只与 fontconfig 是否成功加载 conf.d 里的规则有关——把 conf.d 整个
+          # 移开即可在本机复现 CI 的精确签名（exit 3 / exit 1）。
+          # 故这里按条目类型列出 conf.d：若符号链接在 CI 上创建失败、或
+          # conf.d 为空，就会是根因；fontconfig-0001 补丁的复制回退是否生效
+          # 也由此可直接看出。
+          echo "sysroot conf.d 条目数 :"
+          if [ -d "$sysroot/etc/fonts/conf.d" ]; then
+            find "$sysroot/etc/fonts/conf.d" -mindepth 1 -maxdepth 1 | wc -l | sed 's/^/    /'
+            echo "  前 5 项（链接 -> 目标 / 普通文件）:"
+            ls -la "$sysroot/etc/fonts/conf.d" 2>&1 | sed -n '2,6p' | sed 's/^/    /'
+          else
+            echo "    (conf.d 不存在！)"
+          fi
           echo "SystemRoot=$SYSTEMROOT  PWD=$PWD  (路径形式差异会影响 /etc/fonts 的解析)"
 
           # 3) 把失败测试行的摘要直接打到控制台
