@@ -5,8 +5,9 @@ source:
 build: cmake
 cmake:
   defines:
-    ENABLE_SHARED: "ON"
-    ENABLE_STATIC: "OFF"
+    # 静态化：只产出 libjpeg.a（不生成 libjpeg-62.dll）
+    ENABLE_SHARED: "OFF"
+    ENABLE_STATIC: "ON"
     WITH_TURBOJPEG: "OFF"
     WITH_SIMD: "ON"
     WITH_TOOLS: "OFF"

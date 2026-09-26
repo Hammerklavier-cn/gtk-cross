@@ -5,13 +5,7 @@ source:
 build: cmake
 cmake:
   defines:
-    BUILD_SHARED_LIBS: "ON"
+    # 静态化：只产出 libfyaml.a（不生成 libfyaml.dll / fyaml.dll）
+    BUILD_SHARED_LIBS: "OFF"
     # libfyaml 用 CMake 标准 BUILD_TESTING（测试依赖 check 框架 FetchContent 拉取）
     BUILD_TESTING: "OFF"
-    # MinGW 下默认给 DLL 加 lib 前缀（libfyaml.dll），但库头定义导出名/PkgConfig
-    # 的 -lfyaml 会让依赖方按 fyaml.dll 加载，去掉前缀保持一致
-    CMAKE_SHARED_LIBRARY_PREFIX: ""
-post_install:
-  commands:
-    # 保证依赖方导入表所需的 fyaml.dll 名存在（Windows 加载器按名查找）
-    - cp -f bin/libfyaml.dll bin/fyaml.dll

@@ -3,6 +3,8 @@ version: 2.44.7
 source:
   url: https://download.gnome.org/sources/gdk-pixbuf/2.44/gdk-pixbuf-2.44.7.tar.xz
 build: meson
+# 动态：introspection 链（GdkPixbuf/GdkPixdata gir）
+default_library: shared
 deps:
   - glib
   - libpng
@@ -14,5 +16,8 @@ meson:
     - -Dintrospection=enabled
     - -Dman=false
     - -Dtests=true
+    # 静态化：把 gif/tiff 等 loader 编进 libgdk_pixbuf（不再生成
+    # lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-*.dll 动态模块）
+    - -Dbuiltin_loaders=all
 test:
   enabled: true

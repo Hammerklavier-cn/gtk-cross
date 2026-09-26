@@ -5,5 +5,9 @@ source:
 build: autotools
 autotools:
   configure:
+    # 保持动态：libintl 需要 libiconv，而静态 libintl.a 会把该依赖外溢给每一个
+    # glib 消费者（glib-2.0.pc 输出 -lintl，但 meson 内置 intl 依赖仅在
+    # static=true 时才补 -liconv，本框架因 prefer_static=false 无法走该分支，
+    # fontconfig 的 iconv 探测即失败）。基础运行时库，保持既有已验证形态。
     - --enable-shared
     - --disable-static

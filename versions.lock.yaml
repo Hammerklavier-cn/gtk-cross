@@ -10,6 +10,10 @@ curl:
   sha256: d9b327997999045a24cda50f3983e69e51c516bd8be6ef9842fc7f99135e33bb
   url: https://github.com/curl/curl/releases/download/curl-8_21_0/curl-8.21.0.tar.gz
   version: 8.21.0
+directx-headers:
+  sha256: edb8b52b1379f841df5d0d5e11dde08e0c3912508179fb3711f163382e88865c
+  url: https://codeload.github.com/microsoft/DirectX-Headers/tar.gz/refs/tags/v1.611.0
+  version: 1.611.0
 expat:
   sha256: f6256df90c906773d344da084402b7d3e4f22ed41b1a59c989098a83d3ea0c85
   url: https://github.com/libexpat/libexpat/releases/download/R_2_8_3/expat-2.8.3.tar.xz
@@ -142,6 +146,10 @@ vulkan-loader:
   sha256: 54f2537df22313768da0317dda2abdaaab7711b4081c48c869a79db343d0ae70
   url: https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
   version: 1.4.357.0
+xz:
+  sha256: bdbc23fbf9098843357e71e49685724fda2c320c29cb1b25fd90505f14bb0b3d
+  url: https://codeload.github.com/tukaani-project/xz/tar.gz/refs/tags/v5.8.1
+  version: 5.8.1
 zlib:
   sha256: bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16
   url: https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz

@@ -10,5 +10,7 @@ autotools:
   # 注意：不能加 --disable-nls。该选项会让 intl/Makefile 得到 USE_NLS=no，
   # libintl 变成 noinst_LTLIBRARIES（只构建不安装），sysroot 里就没有 libintl。
   configure:
+    # 保持动态：静态 libintl.a 依赖 libiconv，会把 -liconv 需求外溢给所有
+    # glib 消费者（见 libiconv.yaml 的说明），且 meson 的 intl 依赖不会自动补。
     - --enable-shared
     - --disable-static

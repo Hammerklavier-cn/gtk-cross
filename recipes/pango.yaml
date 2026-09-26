@@ -3,6 +3,8 @@ version: 1.58.2
 source:
   url: https://download.gnome.org/sources/pango/1.58/pango-1.58.2.tar.xz
 build: meson
+# 动态：introspection 链（Pango/PangoCairo/PangoFc/PangoFT2/PangoOT/Pangowin32 gir）
+default_library: shared
 deps:
   - glib
   - harfbuzz

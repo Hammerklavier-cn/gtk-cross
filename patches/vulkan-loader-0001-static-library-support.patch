@@ -1,0 +1,120 @@
+--- a/loader/CMakeLists.txt
++++ b/loader/CMakeLists.txt
+@@ -386,31 +386,43 @@
+         set(RC_FILE_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/loader.rc)
+     endif()
+ 
+-    add_library(vulkan
+-                SHARED
+-                ${NORMAL_LOADER_SRCS}
+-                ${CMAKE_CURRENT_SOURCE_DIR}/${API_TYPE}-1.def
+-                ${RC_FILE_LOCATION})
+-
+-    target_link_libraries(vulkan PRIVATE loader_specific_options)
+-
+-    # when adding the suffix the import and runtime library names must be consistent
+-    # mingw: libvulkan-1.dll.a / vulkan-1.dll
+-    # msvc: vulkan-1.lib / vulkan-1.dll
+-    set_target_properties(vulkan
+-                          PROPERTIES
+-                          OUTPUT_NAME ${API_TYPE}-1)
+-    if(MINGW)
+-        # generate the same DLL with mingw
++    # Upstream only offered a static loader for APPLE (APPLE_STATIC_LOADER); on
++    # Windows the target was unconditionally SHARED.  Honour BUILD_SHARED_LIBS so
++    # a static libvulkan-1.a can be produced and linked into the host (GTK's
++    # Vulkan renderer) without shipping vulkan-1.dll.
++    if(BUILD_SHARED_LIBS)
++        add_library(vulkan
++                    SHARED
++                    ${NORMAL_LOADER_SRCS}
++                    ${CMAKE_CURRENT_SOURCE_DIR}/${API_TYPE}-1.def
++                    ${RC_FILE_LOCATION})
++
++        # when adding the suffix the import and runtime library names must be consistent
++        # mingw: libvulkan-1.dll.a / vulkan-1.dll
++        # msvc: vulkan-1.lib / vulkan-1.dll
+         set_target_properties(vulkan
+                               PROPERTIES
+-                              PREFIX "")
+-        # let the linker just fix up the stdcall mangling, like on msvc
+-        if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+-            target_link_options(vulkan PRIVATE "-Wl,--enable-stdcall-fixup")
++                              OUTPUT_NAME ${API_TYPE}-1)
++        if(MINGW)
++            # generate the same DLL with mingw
++            set_target_properties(vulkan
++                                  PROPERTIES
++                                  PREFIX "")
++            # let the linker just fix up the stdcall mangling, like on msvc
++            if(CMAKE_SIZEOF_VOID_P EQUAL 4)
++                target_link_options(vulkan PRIVATE "-Wl,--enable-stdcall-fixup")
++            endif()
+         endif()
++    else()
++        # Static loader: no exports file and no DllMain (see loader_windows.c);
++        # the sync primitives are created on the first API call instead.
++        add_library(vulkan STATIC ${NORMAL_LOADER_SRCS})
++        target_compile_definitions(vulkan PRIVATE VK_LOADER_STATIC_LIBRARY)
++        set_target_properties(vulkan PROPERTIES OUTPUT_NAME ${API_TYPE}-1)
+     endif()
+ 
++    target_link_libraries(vulkan PRIVATE loader_specific_options)
++
+     if(MSVC AND ENABLE_WIN10_ONECORE)
+         target_link_libraries(vulkan PRIVATE OneCoreUAP.lib LIBCMT.LIB LIBCMTD.LIB LIBVCRUNTIME.LIB LIBUCRT.LIB)
+         set_target_properties(vulkan PROPERTIES LINK_FLAGS "/NODEFAULTLIB")
+@@ -545,9 +557,17 @@
+ endif()
+ 
+ # Generate CMake Configuration File (IE: VulkanLoaderConfig.cmake)
+-install(TARGETS vulkan EXPORT VulkanLoaderConfig)
+-set_target_properties(vulkan PROPERTIES EXPORT_NAME "Loader")
+-install(EXPORT VulkanLoaderConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VulkanLoader NAMESPACE Vulkan::)
++# A static loader cannot be exported: its PRIVATE link dependencies
++# (loader_specific_options, Vulkan::Headers) become INTERFACE requirements of
++# the exported target via $<LINK_ONLY:...>, and neither is in an export set.
++# Install the archive on its own; vulkan.pc below still describes it fully.
++if(BUILD_SHARED_LIBS)
++    install(TARGETS vulkan EXPORT VulkanLoaderConfig)
++    set_target_properties(vulkan PROPERTIES EXPORT_NAME "Loader")
++    install(EXPORT VulkanLoaderConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VulkanLoader NAMESPACE Vulkan::)
++else()
++    install(TARGETS vulkan)
++endif()
+ 
+ # Generate CMake Version File (IE: VulkanLoaderConfigVersion.cmake)
+ include(CMakePackageConfigHelpers)
+@@ -562,9 +582,10 @@
+ find_package(PkgConfig)
+ if (PKG_CONFIG_FOUND)
+     if(WIN32)
+-        if(MINGW)
++        if(MINGW AND BUILD_SHARED_LIBS)
+             set(VULKAN_LIB_SUFFIX "-1.dll")
+         else()
++            # static: libvulkan-1.a
+             set(VULKAN_LIB_SUFFIX "-1")
+         endif()
+     endif()
+--- a/loader/loader_windows.c
++++ b/loader/loader_windows.c
+@@ -95,6 +95,10 @@
+ #endif
+ }
+ 
++#if !defined(VK_LOADER_STATIC_LIBRARY)
++/* A DllMain in a static library would become the entry point of whatever DLL it
++ * is linked into; for static builds the same initialisation is done lazily in
++ * loader_initialize() instead. */
+ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved) {
+     (void)hinst;
+     switch (reason) {
+@@ -115,6 +119,7 @@
+     }
+     return TRUE;
+ }
++#endif  // !VK_LOADER_STATIC_LIBRARY
+ 
+ VkResult windows_add_json_entry(const struct loader_instance *inst, struct loader_string_list *search_paths,
+                                 LPCSTR key_name,  // key name - used for debug prints - i.e. VulkanDriverName

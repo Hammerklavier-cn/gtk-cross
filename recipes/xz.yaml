@@ -1,0 +1,28 @@
+name: xz
+version: 5.8.1
+source:
+  # 官方 tukaani.org 与 github release 会 302 跳转，codeload 直取更稳；
+  # repo 归档自带 CMakeLists.txt（无需 autoreconf）。
+  url: https://codeload.github.com/tukaani-project/xz/tar.gz/refs/tags/v5.8.1
+  sha256: bdbc23fbf9098843357e71e49685724fda2c320c29cb1b25fd90505f14bb0b3d
+  mirrors:
+    - url: https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.gz
+      sha256: 507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543
+build: cmake
+# 静态：供 libxmlb 的 -Dlzma（AppStream catalog 解压）使用。
+# 此前 libxmlb 链到 MSYS2 系统 liblzma.dll.a，导致 libadwaita-1-0.dll 在运行期
+# 依赖系统 liblzma-5.dll（不在 sysroot 内，违反"全部从源码构建、依赖尽量少"），
+# 装进 sysroot 后 liblzma 亦为静态 .a，该外部 DLL 依赖消除。
+cmake:
+  defines:
+    # 只保留库本体：命令行工具/NLS/文档均不需要（NLS 会引入 gettext 依赖）
+    XZ_TOOL_XZ: "OFF"
+    XZ_TOOL_XZDEC: "OFF"
+    XZ_TOOL_LZMADEC: "OFF"
+    XZ_TOOL_LZMAINFO: "OFF"
+    XZ_TOOL_SCRIPTS: "OFF"
+    XZ_TOOL_SYMLINKS: "OFF"
+    XZ_NLS: "OFF"
+    XZ_DOC: "OFF"
+    XZ_DOXYGEN: "OFF"
+    XZ_LZIP_DECODER: "OFF"

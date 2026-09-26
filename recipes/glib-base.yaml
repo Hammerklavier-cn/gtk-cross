@@ -3,6 +3,8 @@ version: 2.88.3
 source:
   url: https://download.gnome.org/sources/glib/2.88/glib-2.88.3.tar.xz
 build: meson
+# 动态：introspection 链（g-ir-scanner 需 DLL 导入库；typelib 运行期 dlopen）
+default_library: shared
 deps:
   - zlib
   - libffi

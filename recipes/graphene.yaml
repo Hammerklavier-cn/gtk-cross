@@ -3,6 +3,8 @@ version: 1.10.8
 source:
   url: https://download.gnome.org/sources/graphene/1.10/graphene-1.10.8.tar.xz
 build: meson
+# 动态：introspection 链（Graphene-1.0.gir）
+default_library: shared
 deps:
   - glib
 meson:

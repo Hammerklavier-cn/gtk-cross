@@ -21,6 +21,56 @@ from .toolchain import Toolchain, posix
 _ENGINE_CLS = {"meson": MesonEngine, "cmake": CmakeEngine, "autotools": AutotoolsEngine}
 _LOCKFILE = "versions.lock.yaml"
 
+# .pc 的字段：Requires.private / Libs.private / Cflags.private 需提升为公开字段
+_PC_KEY_RE = re.compile(r"^([A-Za-z0-9_.]+)\s*:\s*(.*)$")
+_PC_PRIVATE_RE = re.compile(r"^(Requires|Libs|Cflags)\.private\s*:\s*(.*)$")
+
+
+def publish_pc_private_fields(path: Path) -> bool:
+    """把 .pc 的私有字段并入同名公开字段（幂等），返回是否有改动。
+
+    静态库不携带依赖信息：其传递依赖（-lz、-lintl）与静态消费宏
+    （-DXML_STATIC、-DPCRE2_STATIC 等）只写在 Requires.private /
+    Libs.private / Cflags.private 里，且仅在 `pkg-config --static` 查询时
+    返回。本框架因 prefer_static=false（否则 meson 会在编译器默认搜索目录
+    里找到 MSYS2 系统静态库，既破坏 hermetic 又符号不匹配）不会以 --static
+    查询，于是下游就缺了这些参数——表现为 libpng16.a 未定义引用 deflate*、
+    harfbuzz 等链接失败。静态包安装后提升私有字段即可。
+    """
+    text = path.read_text(encoding="utf-8")
+    private: Dict[str, str] = {}
+    for line in text.splitlines():
+        m = _PC_PRIVATE_RE.match(line)
+        if m:
+            key, val = m.group(1), m.group(2).strip()
+            private[key] = f"{private.get(key, '')} {val}".strip()
+    if not private:
+        return False
+    out: List[str] = []
+    for line in text.splitlines():
+        if _PC_PRIVATE_RE.match(line):
+            continue  # 内容并入公开字段后删除
+        m = _PC_KEY_RE.match(line)
+        if m and m.group(1) in ("Requires", "Libs", "Cflags"):
+            key, val = m.group(1), m.group(2).strip()
+            extra = private.pop(key, "")
+            tokens = val.split()
+            for tok in extra.split():
+                if tok not in tokens:
+                    tokens.append(tok)
+            out.append(f"{key}: {' '.join(tokens)}".rstrip())
+            continue
+        out.append(line)
+    # 公开字段原本缺失时补一行
+    for key, extra in private.items():
+        if extra:
+            out.append(f"{key}: {extra}")
+    new_text = "\n".join(out) + "\n"
+    if new_text == text:
+        return False
+    path.write_text(new_text, encoding="utf-8")
+    return True
+
 
 class Builder:
     """Fetches and builds recipes in dependency order into a sysroot."""
@@ -98,11 +148,21 @@ class Builder:
         self._apply_submodules(name, recipe, ws, src)
 
         # 2..4. configure / compile / install
-        engine = _ENGINE_CLS[recipe.build](recipe, self.tc, ws, self.jobs)
+        engine = _ENGINE_CLS[recipe.build](
+            recipe,
+            self.tc,
+            ws,
+            self.jobs,
+            default_library=self.project.default_library,
+            prefer_static=self.project.prefer_static,
+        )
         engine.apply("configure", engine.configure)
         engine.apply("compile", engine.compile)
         print(f"  [install] {name} -> {self.sysroot}")
         engine.apply("install", engine.install)
+        published = self._publish_static_pc()
+        if published:
+            print(f"  [pc] {name}: 提升静态 .pc 私有字段 -> {', '.join(published)}")
         self._apply_post_install(name, recipe)
         self._apply_test(name, engine)
 
@@ -146,6 +206,51 @@ class Builder:
                 continue
             print(f"  [submodule] {name}: {rel} <- {dep}")
             shutil.copytree(dep_src, target)
+
+    def _pkgconfig_dirs(self) -> List[Path]:
+        return [self.sysroot / "lib" / "pkgconfig",
+                self.sysroot / "share" / "pkgconfig"]
+
+    def _pc_is_static(self, pc: Path) -> bool:
+        """判断 .pc 描述的库在本 sysroot 里是否为静态。
+
+        依据 `Libs:` 里的 -lNAME 反查：libNAME.a 存在且 libNAME.dll.a 不存在
+        即为静态。共享库的导入库是 libNAME.dll.a，因此能区分开。
+        不依赖 mtime——CMake/meson 重装时常报 "Up-to-date" 而不改写 .pc。
+        """
+        libdir = self.sysroot / "lib"
+        try:
+            text = pc.read_text(encoding="utf-8")
+        except OSError:
+            return False
+        for line in text.splitlines():
+            if not line.startswith("Libs:"):
+                continue
+            for tok in line.split():
+                if not tok.startswith("-l") or len(tok) <= 2:
+                    continue
+                name = tok[2:]
+                if (libdir / f"lib{name}.a").exists() and not (
+                    libdir / f"lib{name}.dll.a"
+                ).exists():
+                    return True
+        return False
+
+    def _publish_static_pc(self) -> List[str]:
+        """提升静态库 .pc 的私有字段（幂等）。
+
+        静态包安装后调用；共享库的 .pc 不动（保持既有已验证形态）。
+        """
+        changed: List[str] = []
+        for d in self._pkgconfig_dirs():
+            if not d.is_dir():
+                continue
+            for p in sorted(d.glob("*.pc")):
+                if not self._pc_is_static(p):
+                    continue
+                if publish_pc_private_fields(p):
+                    changed.append(p.name)
+        return changed
 
     def _apply_post_install(self, name: str, recipe: Recipe) -> None:
         cmds = recipe.post_install.get("commands", [])

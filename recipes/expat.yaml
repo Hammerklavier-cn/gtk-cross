@@ -5,7 +5,8 @@ source:
 build: cmake
 cmake:
   defines:
-    EXPAT_SHARED_LIBS: "ON"
+    # 静态化：只产出 libexpat.a（不生成 libexpat-1.dll）
+    EXPAT_SHARED_LIBS: "OFF"
     EXPAT_BUILD_EXAMPLES: "OFF"
     EXPAT_BUILD_DOCS: "OFF"
     EXPAT_BUILD_TOOLS: "OFF"

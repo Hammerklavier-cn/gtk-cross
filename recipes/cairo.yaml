@@ -4,6 +4,8 @@ source:
   # 上游 cairographics.org 不可达，用 Debian pool 的原味 orig tar 包
   url: https://deb.debian.org/debian/pool/main/c/cairo/cairo_1.18.4.orig.tar.xz
 build: meson
+# 动态：introspection 链（cairo-1.0.gir 引用 libcairo-gobject-2.dll）
+default_library: shared
 deps:
   - pixman
   - freetype

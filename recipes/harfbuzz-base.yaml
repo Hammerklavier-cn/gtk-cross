@@ -3,6 +3,8 @@ version: 14.3.1
 source:
   url: https://github.com/harfbuzz/harfbuzz/releases/download/14.3.1/harfbuzz-14.3.1.tar.xz
 build: meson
+# 动态：introspection 链（HarfBuzz-0.0.gir）
+default_library: shared
 # 引导段（与 glib-base/glib 两段式同构）：先以 introspection=disabled 构建
 # harfbuzz 并安装，之后的 harfbuzz recipe 再开 introspection 重建覆盖安装，
 # 产出 HarfBuzz-0.0.gir 供 pango 的 gir 生成 include。同一 tarball，锁文件各记一条。
@@ -24,3 +26,10 @@ meson:
     - -Dintrospection=disabled
     - -Ddocs=disabled
     - -Dtests=disabled
+    # 关闭无消费者却默认开启的子库，避免多余 DLL：
+    # raster/vector/gpu 上游默认 enabled，但全链（pango/gtk/libadwaita）
+    # 无任何依赖，仅产出 3 个孤立 DLL。subset 被 gtk 的
+    # gskrendernodeparser.c 真实使用（hb_subset_input_*），必须保留。
+    - -Draster=disabled
+    - -Dvector=disabled
+    - -Dgpu=disabled

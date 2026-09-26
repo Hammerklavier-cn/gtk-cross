@@ -3,12 +3,17 @@ version: 1.6.58
 source:
   url: https://download.sourceforge.net/libpng/libpng-1.6.58.tar.xz
 build: cmake
+patches:
+  # 上游测试段门控在 PNG_SHARED 上、测试程序硬链 png_shared；纯静态构建会
+  # 静默跳过全部 37 项自带测试。补丁改为按实际变体链接。
+  - libpng-0001-tests-against-static-library.patch
 deps:
   - zlib
 cmake:
   defines:
-    PNG_SHARED: "ON"
-    PNG_STATIC: "OFF"
+    # 静态化：只产出 libpng.a（不生成 libpng16.dll）
+    PNG_SHARED: "OFF"
+    PNG_STATIC: "ON"
     PNG_EXECUTABLES: "OFF"
     PNG_TESTS: "ON"
 test:

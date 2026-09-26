@@ -5,6 +5,56 @@
 目标：除交叉编译器与宿主构建工具外，**所有 target 侧依赖库都从源码编译**，产出可复现的
 sysroot（`prefix`/`lib`/`include`），供原生运行或交叉链接。
 
+## 静态优先（default_library: static）
+
+除 GObject introspection 链之外，**所有库都只产出静态库（`.a`），不生成 DLL**。
+`gtk-cross.yaml` 的 `default_library: static` 是这一点的唯一开关：Meson 工程由框架
+注入 `default_library=static`，CMake 工程注入 `BUILD_SHARED_LIBS=OFF`，Autotools 注入
+`--disable-shared`；个别包的自有开关（`ZLIB_BUILD_SHARED`、`PNG_SHARED`、`EXPAT_SHARED_LIBS`…）
+在 recipe 的 `cmake.defines` 里显式指定。recipe 可用 `default_library:` 单包覆盖。
+
+### 为什么保留少量 DLL
+
+`g-ir-scanner` 无法 introspect 静态库（实测 `.a` 报
+`can't resolve libraries to shared libraries`），且 typelib 在**运行期**经
+`g_module_open` 动态加载目标库——零 DLL 与运行期反射在 Windows 上互斥。项目 README
+明确 GIR/typelib 供 libadwaita-rs 等绑定消费，因此 introspection 链整体保持动态：
+
+| 类别                  | 数量 | 内容                                                                                            |
+| --------------------- | ---- | ----------------------------------------------------------------------------------------------- |
+| 静态（仅 `.a`）       | 25   | zlib expat pcre2 libpng libjpeg-turbo libtiff curl libxml2 libxmlb libfyaml libiconv gettext xz … |
+| 共享（`.dll` + import lib） | 14   | glib(-base) gobject-introspection libffi cairo fontconfig freetype harfbuzz(-base) pango gdk-pixbuf graphene gtk libadwaita |
+
+`libffi` 保留动态的原因特殊：其 `ffi_type_*` 是**按地址比较**的数据符号，而 glib 与
+gobject-introspection 两个 DLL 都会用；静态化会让各 DLL 各嵌一份副本，跨 DLL 指针
+比较必然不等（girepository 的 callable-info 测试即对此断言）。
+`cairo`/`pango` 都链接 `freetype`/`fontconfig`，静态化会使两者各持一份拷贝而
+`FT_Face`/`FcPattern` 跨边界传递，故这三者一并保持动态。
+
+### 静态消费（pkg-config --static）
+
+静态库不携带依赖信息：传递依赖与静态消费宏只写在 `.pc` 的
+`Requires.private`/`Libs.private`/`Cflags.private`，仅在 `pkg-config --static` 时返回。
+框架在**每个静态包安装后**自动把这三个私有字段并入同名公开字段（幂等，见
+`gtkcross/builder.py` 的 `publish_pc_private_fields`），因此**不带 `--static` 也能**从
+`out/<target>/lib/pkgconfig` 取到完整参数：
+
+```bash
+export PKG_CONFIG_LIBDIR="$PWD/out/msys2-ucrt64/lib/pkgconfig;$PWD/out/msys2-ucrt64/share/pkgconfig"
+pkg-config --libs libpng16        # -> -L…/lib -lpng16 -lz -lm
+pkg-config --cflags expat         # -> -I…/include -DXML_STATIC
+```
+
+> 注：`PKG_CONFIG_LIBDIR` 多目录在 Windows 上必须用**分号**分隔（MSYS2 的 pkgconf 是
+> 原生 Windows 程序，冒号会被当作路径的一部分）。
+
+之所以不依赖 meson 的 `prefer_static: true` 来带出这些字段：introspection 链各包
+在 sysroot 里只有导入库（`libfoo.dll.a`），一旦让 `dependency()` 优先找 `.a`，
+meson 会在编译器默认搜索目录里找到 **MSYS2 系统静态库**（如
+`C:/msys64/ucrt64/lib/libglib-2.0.a`）——既不 hermetic，符号也对不上
+（`undefined reference to __imp_g_free`）。因此 `prefer_static: false`，静态消费
+宏改由上述 `.pc` 字段提升提供。
+
 ## 目标矩阵
 
 target（构建档案）命名约定 = 工具链标识（`宿主-工具链[-运行时]`），与
@@ -12,8 +62,8 @@ target（构建档案）命名约定 = 工具链标识（`宿主-工具链[-运�
 
 | target                                   | 状态    | 说明                                                              |
 | ---------------------------------------- | ------- | ----------------------------------------------------------------- |
-| msys2-mingw64（MSYS2 MINGW64 原生）      | ✅ 完成 | 36 个 recipe 全链构建 + 自带测试                                  |
-| msys2-ucrt64（MSYS2 UCRT64 原生）        | ✅ 可用 | 同 recipe 复用；UCRT 运行时，独立 sysroot（冒烟验证 zlib+libffi） |
+| msys2-mingw64（MSYS2 MINGW64 原生）      | ✅ 完成 | 39 个 recipe 全链构建 + 自带测试                                  |
+| msys2-ucrt64（MSYS2 UCRT64 原生）        | ✅ 完成 | 同 recipe 复用；UCRT 运行时，独立 sysroot（全链 39 recipe + 测试已复验） |
 | linux-x64（Linux 原生）                  | 规划    | 同 recipe 复用                                                    |
 | linux-musl-x64 / linux-mingw-x64（交叉） | 规划    | meson cross-file + exe_wrapper                                    |
 
@@ -79,6 +129,31 @@ test:
 - meson 工程在 install 后跑 `meson test`（cmake 跑 `ctest`），结果按测试名与
   `known_failures` 比对：已知失败打印并忽略，未知失败使构建失败。
 - 运行一个 recipe 的测试：`gtkcross build <pkg> && rm -f build/<t>/<pkg>/done/test.stamp && gtkcross build <pkg>`
+- 端到端冒烟：`tests/libadwaita-demo` 经 `pkg-config` 链接 sysroot 产物构建并跑
+  `--smoke`（GTK+libadwaita 窗口 2 秒后自动退出，退出码 0 即通过）。
+  ```bash
+  cd tests/libadwaita-demo
+  export PKG_CONFIG_LIBDIR="$PWD/../../out/msys2-ucrt64/lib/pkgconfig;$PWD/../../out/msys2-ucrt64/share/pkgconfig"
+  meson setup builddir && meson compile -C builddir
+  PATH=../../out/msys2-ucrt64/bin:$PATH XDG_DATA_DIRS=../../out/msys2-ucrt64/share \
+      ./builddir/libadwaita-demo.exe --smoke
+  ```
+
+### 当前验证结果（msys2-ucrt64，2026-09-26）
+
+全链 39 recipe 构建 + 测试通过，产物 `bin/*.dll` 由静态化前的 51 个降至 **28 个**
+（均为 introspection 链必需，见「静态优先」）。
+
+| recipe               | 测试数 | 失败 | 备注                        |
+| -------------------- | ------ | ---- | --------------------------- |
+| glib                 | 306    | 0    |                             |
+| libadwaita           | 408    | 0    |                             |
+| pango                | 348    | 4    | 均属已登记的 2 项（见下）   |
+| gobject-introspection| 63     | 0    |                             |
+| libpng（ctest）      | 37     | 0    | 经补丁恢复（原被静默跳过）  |
+| gdk-pixbuf           | 20     | 0    |                             |
+| fribidi              | 8      | 0    |                             |
+| expat（ctest）       | 1      | 0    |                             |
 
 ### 构建日志与事件日志
 
@@ -132,13 +207,27 @@ test:
 cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
   libcairo-2.dll 的 PE TLS Directory 为 0，MSYS2 官方包非 0。重建后
   pango 原 0xc0000005 崩溃消失，test-ellipsize/testiter 转好。
-- **pango 5 项（非崩溃性失败，已登记）**：重建后实测剩余 test-bidi/
-  test-break/test-font/test-font-data/test-pangocairo-threads，均为断言/
-  字体缺失类失败（缺 Cantarell/emoji 字体、hinted 度量不等），非产物崩溃。
-- **libadwaita（已修复并复验，2026-08-25）**：原 67 项失败根因是测试环境
+- **pango 2 项（非崩溃性失败，已登记）**：cairo/pango 显式启用
+  `-Dfontconfig=enabled -Dfreetype=enabled`（Windows 上游默认 auto→disabled，
+  无 pangoft2/fc 后端）后，测试经 recipe `test.env` 注入
+  `PANGOCAIRO_BACKEND=fc` 运行，原 5 项实测收缩为 2 项：
+  - `pango:test-font`：`roundtrip` 的 small-caps/all-small-caps/unicase 子测试
+    需系统级 Cantarell 变体字体（上游 Linux CI 预装），本机回退到系统 Sans 后
+    describe 不含变体；`/pango/font/custom` 的路径分隔符比较 bug 已由
+    `pango-0001-*.patch` 修复。
+  - `pango:test-fonts`：`fontsets/cantarell2` 对 DejaVu Sans/Mono 的 fontconfig
+    排序平序（tie）随版本而异，纯平台差异。
+- **libpng 测试覆盖（已修复，2026-09-26）**：上游把整个测试段门控在
+  `if(PNG_TESTS AND PNG_SHARED)` 上、测试程序硬链 `png_shared`，纯静态构建会
+  **静默跳过全部 37 项**测试。补丁 `libpng-0001-tests-against-static-library.patch`
+  改为门控 `PNG_LIBRARY_TARGETS` 并按实际变体选择链接目标，37 项测试已恢复全过。
+- gvsbuild 对照：其用 MSVC（无此问题）且 glib 默认 `-Dtests=false`；我们不引入
+  额外验证，仅如实记录失败集。
+- **libadwaita（已修复并复验）**：原 67 项失败根因是测试环境
   而非产物缺陷——`meson test` 继承登录 shell 的 `XDG_DATA_DIRS`，schema
   source 为 NULL（libadwaita 上游本不携带 gschema，非安装缺失）；框架注入
-  `XDG_DATA_DIRS=$SYSROOT/share` 后 68 项全部通过，登记已清空。
+  `XDG_DATA_DIRS=$SYSROOT/share` 后全部通过，登记已清空（2026-09-26 复验
+  408 项全过）。
 - gvsbuild 对照：其用 MSVC（无此问题）且 glib 默认 `-Dtests=false`；我们不引入
   额外验证，仅如实记录失败集。
 
@@ -185,7 +274,7 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 - 变更 recipe 版本后需同步 `versions.lock.yaml`（sha256），并清空对应
   `build/<target>/<recipe>` 重建（stamp 不感知版本变化）。
 
-### 当前版本清单（msys2-mingw64，2026-08-23）
+### 当前版本清单（msys2-mingw64 / msys2-ucrt64）
 
 | recipe         | 版本      |     | recipe                | 版本      |
 | -------------- | --------- | --- | --------------------- | --------- |
@@ -206,14 +295,14 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 | glslang        | 1.4.357.0 |     | shaderc               | 2026.3    |
 | libxml2        | 2.15.3    |     | libxmlb               | 0.3.28    |
 | libfyaml       | 0.9.5     |     | curl                  | 8.21.0    |
-| appstream      | 1.1.6     |     |                       |           |
+| appstream      | 1.1.6     |     | directx-headers       | 1.611.0   |
+| xz (liblzma)   | 5.8.1     |     |                       |           |
 
 > 升级说明：本轮新增 appstream 链（libxml2/libxmlb/libfyaml/curl/appstream），
 > libadwaita 不再采用移除 appstream 的补丁（保留 `adw_*_new_from_appdata`
-> 等 appdata API，供 libadwaita-rs 绑定链接）；其完整测试套件回归（67 项
-> 失败，根因为测试环境 XDG_DATA_DIRS 泄漏，见「当前已知失败」，待重跑收缩）。
+> 等 appdata API，供 libadwaita-rs 绑定链接）；其完整测试套件 408 项全过。
 > 另修复 Windows TLS callback 家族 bug：glib 与 cairo 均加
-> `-Dc_link_args=-Wl,--undefined=_tls_used`（cairo 待重建复验），glib 测试
+> `-Dc_link_args=-Wl,--undefined=_tls_used`（均已重建复验），glib 测试
 > 306 项全过、原 12 项已知失败全部移除；框架 prelude 统一注入
 > `XDG_DATA_DIRS=$SYSROOT/share`，修复 GSettings schema 查找。
 > glib 与 gobject-introspection 存在循环依赖（glib 开 introspection 需要
@@ -223,18 +312,26 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
 > glib → GI → cairo → glib 环。gtk 显式依赖 vulkan-loader（vulkan=enabled）。
 > autotools 工程 configure 已启用 `-C`（config.cache 实时落盘）：单步命令超时
 > 中断后重跑会跳过已完成的检测，无需从零开始。
+>
+> 静态化（2026-09-26）：`default_library: static` 全链只出 `.a`，DLL 由 51 降至
+> 28（均为 introspection 链必需，见「静态优先」）。新增 `directx-headers`
+> recipe（gdk/win32 的 d3d12 路径依赖）、`libpng-0001-*` 补丁（恢复被
+> `PNG_SHARED` 门控掉的 37 项测试）；libffi/libiconv/gettext 保持动态
+> （理由见「为什么保留少量 DLL」）。
 
-## 当前已完成链（msys2-mingw64，36 recipes）
+## 当前已完成链（msys2-mingw64 / msys2-ucrt64，39 recipes）
 
 zlib → libffi → pcre2 → libiconv → gettext → glib-base
-└→ expat / freetype → fontconfig → harfbuzz → fribidi → pixman → libpng →
+└→ expat / freetype → fontconfig → harfbuzz(-base) → fribidi → pixman → libpng →
 libjpeg-turbo → libtiff → cairo → gobject-introspection → glib（两段式）→
-pango → gdk-pixbuf → graphene → json-glib → libepoxy → vulkan-loader →
-gtk → libadwaita
+pango → gdk-pixbuf → graphene → json-glib → libepoxy → directx-headers →
+vulkan-loader → gtk → libadwaita
 ├→ vulkan-headers → vulkan-loader；spirv-headers → spirv-tools → glslang → shaderc
-└→ libxml2 → libxmlb → libfyaml → curl（schannel）→ appstream → libadwaita
+└→ libxml2 → xz(liblzma) → libxmlb → libfyaml → curl（schannel）→ appstream → libadwaita
 
 （GTK4 构建配置：win32 后端；vulkan=enabled、introspection=enabled；禁
 gstreamer/x11/wayland/demos。SPIRV-Tools/shaderc 的 tag 归档不含 git
 submodule，由框架 `submodules` 字段从已构建依赖源码树自动填充
-`external/`、`third_party/` 目录。）
+`external/`、`third_party/` 目录。`directx-headers` 供 gdk/win32 的 d3d12
+纹理路径 `dependency('DirectX-Headers')`；其 wrap 是 `[wrap-git]`，在
+github.com 不可达的网络下会失败，装进 sysroot 后 meson 直接命中 .pc。）

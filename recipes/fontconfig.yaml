@@ -3,6 +3,9 @@ version: 2.18.3
 source:
   url: https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/2.18.3/fontconfig-2.18.3.tar.gz
 build: meson
+# 动态：同上，fontconfig 是全局单例语义（缓存/配置），cairo 与 pango 各持一份
+# 会导致 FcPattern/FcConfig 跨实例传递。
+default_library: shared
 deps:
   - expat
   - freetype

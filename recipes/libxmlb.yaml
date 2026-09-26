@@ -5,8 +5,13 @@ source:
 build: meson
 deps:
   - glib
+  # libxmlb 默认 -Dlzma=auto，会嗅到 MSYS2 系统 liblzma 并把系统路径写进
+  # xmlb.pc（Libs/Cflags 带 C:/msys64/ucrt64/...），从而让 libadwaita 在运行期
+  # 依赖系统 liblzma-5.dll。改用自建静态 xz 后，该外部 DLL 依赖消除。
+  - xz
 meson:
   options:
+    - -Dlzma=enabled
     - -Dgtkdoc=false
     - -Dintrospection=false
     - -Dtests=false

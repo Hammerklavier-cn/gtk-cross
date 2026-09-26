@@ -41,6 +41,9 @@ class Recipe:
     # （用于 tag 打包不含 git submodule 的工程，如 SPIRV-Tools/shaderc）
     submodules: Dict[str, str] = field(default_factory=dict)
     targets: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    # 库链接形态覆盖（static | shared）；空 = 用项目级 default_library。
+    # 少数包必须保留动态产物时（上游无静态构建路径）用它单独放开。
+    default_library: str = ""
 
     @property
     def source_urls(self) -> List[Dict[str, str]]:
@@ -48,6 +51,10 @@ class Recipe:
         return [
             {"url": self.source["url"], "sha256": self.source.get("sha256", "")},
         ] + list(self.source.get("mirrors", []))
+
+    def libtype(self, project_default: str) -> str:
+        """本 recipe 实际使用的库形态（static | shared）。"""
+        return self.default_library or project_default
 
     def for_target(self, target: str) -> "Recipe":
         """Return a copy with per-target overrides applied."""
@@ -68,6 +75,7 @@ class Recipe:
             patches=override.get("patches", self.patches),
             submodules=override.get("submodules", self.submodules),
             targets={},
+            default_library=override.get("default_library", self.default_library),
         )
 
 
@@ -102,6 +110,7 @@ def load_recipe(path: Path) -> Recipe:
         patches=data.get("patches", []),
         submodules=data.get("submodules", {}),
         targets=data.get("targets", {}),
+        default_library=data.get("default_library", ""),
     )
 
 

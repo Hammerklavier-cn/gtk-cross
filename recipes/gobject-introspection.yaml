@@ -3,6 +3,8 @@ version: 1.86.0
 source:
   url: https://download.gnome.org/sources/gobject-introspection/1.86/gobject-introspection-1.86.0.tar.xz
 build: meson
+# 动态：libgirepository 上游即 shared_library()，且 gir/typelib 由它生成
+default_library: shared
 deps:
   - glib-base
   - libffi

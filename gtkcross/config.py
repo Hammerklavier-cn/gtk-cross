@@ -16,6 +16,12 @@ class ProjectConfig:
     targets: Dict[str, Dict] = field(default_factory=dict)
     downloads_dir: Path = Path("downloads")
     build_dir: Path = Path("build")
+    # 库默认链接形态：static = 只产出 .a（不生成 DLL）；shared 为旧的动态行为。
+    # recipe 可用同名键覆盖（见 Recipe.default_library）。
+    default_library: str = "static"
+    # meson 的 prefer_static：dependency() 优先选 .a 并以 --static 查询
+    # pkg-config，带出 .pc 的 Cflags.private 静态消费宏。
+    prefer_static: bool = True
 
     @classmethod
     def load(cls, root: Path | None = None) -> "ProjectConfig":
@@ -35,6 +41,8 @@ class ProjectConfig:
             targets=targets,
             downloads_dir=root / (cfg.get("downloads_dir", "downloads")),
             build_dir=root / (cfg.get("build_dir", "build")),
+            default_library=cfg.get("default_library", "static"),
+            prefer_static=bool(cfg.get("prefer_static", True)),
         )
 
     def target(self, name: str) -> Dict:

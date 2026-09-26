@@ -16,7 +16,15 @@ class BuildError(RuntimeError):
 class Engine:
     """One recipe build inside a per-target, per-recipe workspace."""
 
-    def __init__(self, recipe: Recipe, tc: Toolchain, workspace: Path, jobs: int):
+    def __init__(
+        self,
+        recipe: Recipe,
+        tc: Toolchain,
+        workspace: Path,
+        jobs: int,
+        default_library: str = "static",
+        prefer_static: bool = True,
+    ):
         self.recipe = recipe
         self.tc = tc
         self.ws = workspace  # build/<target>/<recipe>/
@@ -25,6 +33,18 @@ class Engine:
         self.build_dir = workspace / "build"
         self.sysroot = tc.sysroot
         self.done = workspace / "done"
+        # 项目级库形态默认值；recipe.default_library 可单独覆盖
+        self.default_library = default_library
+        self.prefer_static = prefer_static
+
+    @property
+    def libtype(self) -> str:
+        """本 recipe 实际的库形态（static | shared）。"""
+        return self.recipe.libtype(self.default_library)
+
+    @property
+    def static(self) -> bool:
+        return self.libtype != "shared"
 
     # -- stamp helpers (idempotent, resumable) ----------------------------
 
@@ -61,10 +81,15 @@ class MesonEngine(Engine):
         opts = self.recipe.meson.get("options", [])
         opt_str = " ".join(opts)
         cross = self.recipe.meson.get("cross_args", "")
+        # 库形态由项目/recipe 配置驱动（默认 static：只出 .a，不出 DLL）
+        libtype = self.libtype
+        # prefer_static：dependency() 优先选 .a，并以 pkg-config --static 查询，
+        # 从而带出 .pc 的 Cflags.private（XML_STATIC / PCRE2_STATIC 等静态消费宏）
+        prefer = "true" if self.prefer_static else "false"
         return (
             f"meson setup {posix(self.build_dir)} {posix(self.src_dir)} "
             f"--prefix={posix(self.sysroot)} --libdir=lib -Dbuildtype=release "
-            f"-Ddefault_library=shared {opt_str} {cross}"
+            f"-Ddefault_library={libtype} -Dprefer_static={prefer} {opt_str} {cross}"
         )
 
     def configure(self) -> None:
@@ -93,7 +118,12 @@ class MesonEngine(Engine):
 
 class CmakeEngine(Engine):
     def setup_cmd(self) -> str:
-        defines = self.recipe.cmake.get("defines", {})
+        defines = dict(self.recipe.cmake.get("defines", {}))
+        # 库形态统一由 default_library 驱动，注入 CMake 标准开关
+        # BUILD_SHARED_LIBS（默认 OFF，所以共享包必须显式置 ON）。
+        # recipe 显式声明了同名键则以 recipe 为准（个别包用别的开关名，
+        # 如 EXPAT_SHARED_LIBS / PNG_SHARED / ENABLE_SHARED / ZLIB_BUILD_SHARED）。
+        defines.setdefault("BUILD_SHARED_LIBS", "OFF" if self.static else "ON")
         def_str = " ".join(f"-D{k}={v}" for k, v in defines.items())
         sr = posix(self.sysroot)
         # Hermetic sysroot: never pick up libs/headers/CMake packages outside
@@ -147,7 +177,12 @@ class AutotoolsEngine(Engine):
         return posix(self.src_dir / sub) if sub else posix(self.src_dir)
 
     def configure(self) -> None:
-        opts = self.recipe.autotools.get("configure", [])
+        opts = list(self.recipe.autotools.get("configure", []))
+        # 库形态统一由 default_library 驱动（除非 recipe 自己声明了 --enable/--disable-shared）
+        if not any("--enable-shared" in o or "--disable-shared" in o for o in opts):
+            opts.append("--disable-shared" if self.static else "--enable-shared")
+        if not any("--enable-static" in o or "--disable-static" in o for o in opts):
+            opts.append("--enable-static" if self.static else "--disable-static")
         opt_str = " ".join(opts)
         envs = self.recipe.autotools.get("env", {})
         env_str = " ".join(f"{k}={v}" for k, v in envs.items())

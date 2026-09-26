@@ -3,6 +3,9 @@ version: 4.22.4
 source:
   url: https://download.gnome.org/sources/gtk/4.22/gtk-4.22.4.tar.xz
 build: meson
+# 动态：introspection 链（Gdk/Gsk/Gtk/GdkWin32 gir；上游 libgtk-4 本就是
+# shared_library，静态化无意义）
+default_library: shared
 deps:
   - glib
   - cairo
@@ -21,6 +24,10 @@ deps:
   # vulkan=enabled 时 meson 硬性要求 glslc（shaderc 提供，装到 $SYSROOT/bin
   # 即位于构建 PATH 前置，meson find_program 可找到）；缺它 setup 直接报错
   - shaderc
+  # gdk/win32 的 d3d12 纹理路径需要 dependency('DirectX-Headers')；装进
+  # sysroot 后 meson 直接命中 .pc，不再回退到 subprojects 的 wrap（其
+  # DirectX-Headers.wrap 是 [wrap-git]，需要 git clone github，本机不可达）
+  - directx-headers
 meson:
   options:
     - -Dbuild-tests=true

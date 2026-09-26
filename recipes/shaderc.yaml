@@ -19,3 +19,7 @@ cmake:
     SHADERC_SKIP_COPYRIGHT_CHECK: "ON"
     SHADERC_ENABLE_INSTALL: "ON"
     SHADERC_ALLOW_EXTERNAL_LIBRARY: "ON"
+patches:
+  # shaderc_shared 仅发行版打包需要；静态构建下不产出 libshaderc_shared.dll
+  # （glslc 链的是静态 shaderc 目标），并同步 shaderc.pc 的 Libs。
+  - shaderc-0001-skip-shared-variant.patch

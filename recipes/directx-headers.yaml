@@ -1,0 +1,18 @@
+name: directx-headers
+version: 1.611.0
+source:
+  # github.com 在部分网络下不可达（git clone 会失败），但 codeload 可用；
+  # 主源走 codeload，镜像为 github archive 形式。
+  url: https://codeload.github.com/microsoft/DirectX-Headers/tar.gz/refs/tags/v1.611.0
+  sha256: edb8b52b1379f841df5d0d5e11dde08e0c3912508179fb3711f163382e88865c
+  mirrors:
+    - url: https://github.com/microsoft/DirectX-Headers/archive/refs/tags/v1.611.0.tar.gz
+      sha256: edb8b52b1379f841df5d0d5e11dde08e0c3912508179fb3711f163382e88865c
+build: cmake
+# 静态：纯头文件 + 两个小静态库（上游直接写 STATIC，不随 BUILD_SHARED_LIBS）
+cmake:
+  defines:
+    DXHEADERS_INSTALL: "ON"
+    DXHEADERS_BUILD_TEST: "OFF"
+    DXHEADERS_BUILD_GOOGLE_TEST: "OFF"
+    BUILD_TESTING: "OFF"

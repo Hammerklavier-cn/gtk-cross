@@ -1,0 +1,15 @@
+From: gtk-cross <noreply@localhost>
+Subject: [PATCH] Drop Windows static library name suffix
+
+Windows 下上游把 static 库命名为 libzs.a（zlib_static_suffix = "s"），
+而 zlib.pc 的 Libs 与下游 find_package(ZLIB)/dependency('zlib') 都按 -lz
+查找；该后缀会令静态链接时找不到库。此项目只构建静态库，统一命名 libz.a。
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -150,7 +150,7 @@
+ if(WIN32)
+-    set(zlib_static_suffix "s")
++    set(zlib_static_suffix "")
+     set(CMAKE_DEBUG_POSTFIX "d")
+ endif(WIN32)
+ 

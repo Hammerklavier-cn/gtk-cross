@@ -8,7 +8,8 @@ deps:
   - libjpeg-turbo
 cmake:
   defines:
-    BUILD_SHARED_LIBS: "ON"
+    # 静态化：只产出 libtiff.a / libtiffxx.a（不生成 libtiff-6.dll 等）
+    BUILD_SHARED_LIBS: "OFF"
     tiff-tools: "OFF"
     tiff-tests: "OFF"
     tiff-docs: "OFF"

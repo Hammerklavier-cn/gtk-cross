@@ -81,6 +81,13 @@ class Toolchain:
             lines.append(f"export {k}=\"{v}\"")
         # Bias every compiler search at our sysroot (headers/libs first).
         lines.append('export CPPFLAGS="-I$SYSROOT/include"')
+        # 注：曾尝试在 LDFLAGS 加 -static-libgcc/-static-libstdc++ 以消除产物对
+        # MSYS2 工具链运行时（libgcc_s_seh-1.dll / libstdc++-6.dll）的依赖，
+        # 实测不可靠：meson 对 link_language=cpp 的工程会在 -Wl,--start-group
+        # 内显式追加 -lstdc++，该参数位于 -static-libstdc++ 之后，动态导入库
+        # 仍被选中（harfbuzz 主库仍依赖 libstdc++-6.dll，仅 subset 侥幸清掉）。
+        # 时灵时不灵的全局开关比不加更糟，且多份 C++ 运行时在跨 DLL 场景有
+        # 风险，故不启用。这些运行时 DLL 由 MSYS2 工具链提供，非本项目产物。
         lines.append('export LDFLAGS="-L$SYSROOT/lib"')
         # Login bash (-l) sources /etc/profile.d/000-msys2.sh which exports
         # XDG_DATA_DIRS pointing at the MSYS2 prefixes.  On Windows GLib uses

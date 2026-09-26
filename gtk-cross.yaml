@@ -3,6 +3,19 @@
 # 命名约定 = 工具链标识（宿主-工具链[-运行时]），与 toolchains/*.yaml 文件名一致，
 # 便于未来区分 msvc、linux 交叉等工具链；产物安装到 <prefix>（该 profile 的 sysroot）。
 default_target: msys2-mingw64
+# 库默认链接形态：static = 只产出静态库（.a），不生成 DLL。
+# 目标：sysroot 里只有静态库，应用可静态链接成单文件（不依赖自建 DLL）。
+# 个别 recipe 需要动态产物时，可在该 recipe 里用 default_library: shared 覆盖。
+default_library: static
+# meson 的 prefer_static 必须为 false：introspection 链（glib/cairo/pango/gtk…）
+# 仍是动态库，而 sysroot 里只有它们的导入库（.dll.a）。若让 dependency() 优先找
+# .a，meson 在本 prefix 里找不到 libglib-2.0.a，就会回退到编译器默认搜索目录里的
+# MSYS2 系统静态库（C:/msys64/ucrt64/lib/libglib-2.0.a）——既不 hermetic，符号也
+# 对不上（__imp_g_free 之类 undefined reference）。关闭后 meson 正常按
+# prefix 优先解析我们自己的 .dll.a（动态链）/ .a（纯静态包）。
+# 纯静态包的 Windows 静态消费宏（XML_STATIC、PCRE2_STATIC 等）改由 toolchain
+# 的 static_defines 显式注入（见 toolchains/*.yaml）。
+prefer_static: false
 targets:
   msys2-mingw64:
     toolchain: msys2-mingw64

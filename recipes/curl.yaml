@@ -7,7 +7,8 @@ deps:
   - zlib
 cmake:
   defines:
-    BUILD_SHARED_LIBS: "ON"
+    # 静态化：只产出 libcurl.a（不生成 libcurl.dll）
+    BUILD_SHARED_LIBS: "OFF"
     BUILD_CURL_EXE: "OFF"
     BUILD_TESTING: "OFF"
     BUILD_EXAMPLES: "OFF"

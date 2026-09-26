@@ -9,11 +9,14 @@ source:
     - url: https://deb.debian.org/debian/pool/main/f/freetype/freetype_2.14.3+dfsg.orig.tar.xz
       sha256: dc1bec263a6fffa436029efe6428f601d6b1a0b800837508ee3e49bbab8f1006
 build: cmake
+# 动态：cairo 与 pango 都链接 freetype，静态化会让两者各持一份拷贝，
+# 而 FT_Face 会跨二者边界传递（pango 建 face → cairo-ft 使用）。
+# 注意不要在这里写 BUILD_SHARED_LIBS：该变量由 default_library 统一注入。
+default_library: shared
 deps:
   - zlib
 cmake:
   defines:
-    BUILD_SHARED_LIBS: "ON"
     FT_DISABLE_BROTLI: "TRUE"
     FT_DISABLE_BZIP2: "TRUE"
     FT_DISABLE_HARFBUZZ: "TRUE"

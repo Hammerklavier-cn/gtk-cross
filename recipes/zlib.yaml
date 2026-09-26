@@ -6,5 +6,13 @@ source:
 build: cmake
 cmake:
   defines:
-    BUILD_SHARED_LIBS: "ON"
-    ZLIB_BUILD_EXAMPLES: "OFF"
+    # zlib 用自己的开关名（不是 BUILD_SHARED_LIBS）：只产出 libz.a
+    ZLIB_BUILD_SHARED: "OFF"
+    ZLIB_BUILD_STATIC: "ON"
+    # 只构建不跑测试（zlib 上游无 meson/ctest 套件接入）
+    ZLIB_BUILD_TESTING: "OFF"
+patches:
+  # Windows 下上游把静态库命名为 libzs.a（zlib_static_suffix="s"），
+  # 而 zlib.pc 与下游 find_package(ZLIB) 都按 -lz 查找；去掉该后缀使
+  # 静态库名为 libz.a，链接名与 .pc 一致。
+  - zlib-0001-drop-windows-static-suffix.patch

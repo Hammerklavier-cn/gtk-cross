@@ -13,3 +13,7 @@ cmake:
     SPIRV_SKIP_TESTS: "ON"
     SPIRV_WERROR: "OFF"
     SPIRV_SKIP_EXECUTABLES: "ON"
+patches:
+  # SPIRV-Tools-shared 仅发行版打包需要；静态构建下不产出其 DLL
+  # （glslang 链的是静态 SPIRV-Tools 目标）。
+  - spirv-tools-0001-skip-shared-variant.patch

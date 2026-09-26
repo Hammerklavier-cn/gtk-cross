@@ -8,7 +8,8 @@ deps:
   - libiconv
 cmake:
   defines:
-    BUILD_SHARED_LIBS: "ON"
+    # 静态化：只产出 libxml2.a（不生成 libxml2.dll）
+    BUILD_SHARED_LIBS: "OFF"
     LIBXML2_WITH_PYTHON: "OFF"
     LIBXML2_WITH_ICU: "OFF"
     LIBXML2_WITH_LZMA: "OFF"

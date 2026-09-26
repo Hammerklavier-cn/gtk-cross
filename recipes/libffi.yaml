@@ -4,6 +4,11 @@ source:
   url: https://github.com/libffi/libffi/releases/download/v3.8.0/libffi-3.8.0.tar.gz
   sha256: 7da3e2d9a171eb0a038f592ecad3ff2bb2550f3496d87b3b29ad0cf4430c0db4
 build: autotools
+# 必须动态：libffi 的 ffi_type_* 是"按地址比较"的数据符号，而 glib(gobject)
+# 与 gobject-introspection 两个 DLL 都会用它。静态化会让每个 DLL 各嵌一份
+# 副本，跨 DLL 比较指针必然不等——girepository 的 callable-info 测试
+# （cif.rtype == &ffi_type_sint）即因此失败。原版构建同样产出 libffi-8.dll。
+default_library: shared
 autotools:
   configure:
     - --disable-docs

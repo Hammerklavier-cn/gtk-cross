@@ -12,3 +12,8 @@ cmake:
     BUILD_WSI_WAYLAND_SUPPORT: "OFF"
     BUILD_WSI_DIRECTFB_SUPPORT: "OFF"
     BUILD_WSI_XCB_SUPPORT: "OFF"
+patches:
+  # 上游只为 Apple 提供静态 loader（APPLE_STATIC_LOADER），Windows 分支硬编码
+  # SHARED；改为遵循 BUILD_SHARED_LIBS 产出 libvulkan-1.a，并把静态构建下的
+  # DllMain 关掉（否则会变成宿主的 DLL 入口点）。
+  - vulkan-loader-0001-static-library-support.patch

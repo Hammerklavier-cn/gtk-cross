@@ -3,6 +3,8 @@ version: 14.3.1
 source:
   url: https://github.com/harfbuzz/harfbuzz/releases/download/14.3.1/harfbuzz-14.3.1.tar.xz
 build: meson
+# 动态：introspection 链（HarfBuzz-0.0.gir）
+default_library: shared
 # 覆盖段（与 glib-base/glib 两段式同构）：harfbuzz-base 已以
 # introspection=disabled 构建安装，本段开 introspection 重建覆盖安装，
 # 产出 HarfBuzz-0.0.gir（gir 基于 hb-gobject 绑定，故 gobject=enabled）
@@ -27,3 +29,7 @@ meson:
     - -Dintrospection=enabled
     - -Ddocs=disabled
     - -Dtests=disabled
+    # 与 harfbuzz-base 保持一致（见其说明）：raster/vector/gpu 无消费者。
+    - -Draster=disabled
+    - -Dvector=disabled
+    - -Dgpu=disabled
