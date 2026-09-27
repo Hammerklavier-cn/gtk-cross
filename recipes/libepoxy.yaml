@@ -4,7 +4,32 @@ source:
   # github release 404；freedesktop GitLab 归档有登录墙，用 Debian pool orig 包
   url: https://deb.debian.org/debian/pool/main/libe/libepoxy/libepoxy_1.5.10.orig.tar.gz
 build: meson
+deps:
+  # EGL 头文件与 egl.pc 来自本项目自建的 egl-headers recipe（Khronos
+  # EGL-Registry 源码），**不依赖 MSYS2 的 mingw-w64-egl-headers 包**：
+  # epoxy 的 meson 用 dependency('egl') 取 EGL 头（partial_dependency 只要
+  # compile_args/includes），链接期不拉真实 EGL 实现——它运行期自己 dlopen
+  # （Windows 上是 ANGLE 的 libEGL.dll）。
+  - egl-headers
 meson:
   options:
     - -Dtests=false
     - -Ddocs=false
+    # epoxy 默认在 Windows 上关 EGL（meson.build: enable_egl=='auto' 时
+    # build_egl = host_system 不是 windows/darwin）。
+    #
+    # 2026-09-27 实测结论：**暂不打开**。开 -Degl=yes 后本机必然崩溃——本机
+    # 没有任何 EGL 运行时（Windows 上即 ANGLE 的 libEGL.dll），而 epoxy 在
+    # ENABLE_EGL 下会于 GL 上下文检查里无条件走 EGL 查询：
+    #   epoxy_is_desktop_gl() -> epoxy_eglGetCurrentContext ->
+    #   egl_provider_resolver -> epoxy_conservative_egl_version ->
+    #   eglGetCurrentDisplay 的分发指针为 NULL -> 跳到 0x0 段错误
+    # （gdb 实测栈，触发点是 GTK 的 WGL 路径 gdk_win32_gl_context_wgl_realize
+    #  → epoxy_has_gl_extension；libadwaita-demo --smoke 退出码 139）。
+    # 也就是说：EGL 支持一旦编入，就连"只用 WGL"的正常路径也会崩，
+    # 必须同时提供运行期 libEGL 才能打开。
+    # 头文件侧已就位（egl-headers recipe，见本 recipe 的 deps 与
+    # recipes/egl-headers.yaml）：将来要打开 EGL，只需 (a) 往 sysroot 放一个
+    # libEGL 实现（Windows 上现实选择是 ANGLE，需先验证它能否用 mingw-gcc 构建），
+    # 或 (b) 给 epoxy 打补丁让"EGL 库未加载时 EGL 查询安全返回"。
+    - -Degl=no

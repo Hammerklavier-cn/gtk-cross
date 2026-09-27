@@ -1,0 +1,32 @@
+name: egl-headers
+version: 1.5
+source:
+  # Khronos 官方 EGL 注册表仓库，按 commit 固定（与 MSYS2 的
+  # mingw-w64-egl-headers 同 commit 3ae2b7c…，其 pkgver 记为 1.5.r284）。
+  # 目的：把 EGL 头文件与一个 egl.pc 装进本项目的 sysroot，使 libepoxy 的
+  # -Degl=yes 能成立——**不依赖 MSYS2 的 mingw-w64-egl-headers 包**。
+  url: https://github.com/KhronosGroup/EGL-Registry/archive/3ae2b7c48690d2ce13cc6db3db02dfc0572be65e.tar.gz
+# 纯数据包：上游仓库只有 api/ 下的头文件（没有构建系统、没有 configure），
+# 故用框架的 data 引擎声明式安装（见 gtkcross/engines.py 的 DataEngine），
+# 不再需要"造一个 meson.build + 手写创建文件补丁"。
+build: data
+data:
+  install_files:
+    api/EGL: include/EGL
+    api/KHR/khrplatform.h: include/KHR
+  text_files:
+    # libepoxy 用 dependency('egl') 探测 EGL，只取 Cflags（头文件目录）：它的
+    # EGL 支持是纯 dlopen 的（src/dispatch_common.c: `#define EGL_LIB
+    # "libEGL.dll"`），编译期不需要链接真实 EGL 实现，故 .pc 不声明 Libs。
+    # 运行期的 EGL 实现（Windows 上即 ANGLE 的 libEGL.dll）由使用方决定；
+    # GTK 的 GDK/Win32 EGL 上下文也只在 WGL 不可用时才会走到那一步。
+    lib/pkgconfig/egl.pc: |
+      prefix=@PREFIX@
+      exec_prefix=${prefix}
+      includedir=${prefix}/include
+
+      Name: egl
+      Description: EGL header files (Khronos EGL-Registry)
+      Version: 1.5
+      Cflags: -I${includedir}
+      Libs:
