@@ -1,0 +1,37 @@
+name: gstreamer
+version: 1.28.7
+source:
+  url: https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.28.7.tar.xz
+build: meson
+# 动态，且这是"静态优先"的一个明确例外（与 introspection 链同级）：
+# GStreamer 的插件是运行期由 registry 扫描、g_module_open() 加载的独立 DLL，
+# 而插件与核心库共享 GObject 类型与全局状态（GstRegistry/GstPlugin/
+# gst_*_get_type 的单例）。若把核心库静态化，每个插件 DLL 都会内嵌一份
+# 核心副本，类型注册与单例跨 DLL 不一致——故 gstreamer 全链（core /
+# plugins-base / plugins-good / plugins-bad）一律 default_library: shared。
+default_library: shared
+deps:
+  - glib
+meson:
+  options:
+    # 明确不要的东西（上游 suite 对媒体环境要求高、体积大）：
+    - -Dtests=disabled
+    - -Dexamples=disabled
+    - -Dbenchmarks=disabled
+    - -Ddoc=disabled
+    # GTK 的 media-gstreamer 只用 C API（gstreamer-play-1.0/-gl-1.0/
+    # -allocators-1.0 + d3d12），不需要 gir/typelib；本项目的 introspection
+    # 只为 GTK/libadwaita 绑定链而保留，gst 不入链。
+    - -Dintrospection=disabled
+    # 回溯符号来源（Windows 下 dbghelp 可用，但会让 gst_debug 拖入额外依赖；
+    # 需要崩溃回溯时再开）
+    - -Dlibunwind=disabled
+    - -Dlibdw=disabled
+    - -Ddbghelp=disabled
+    # gst-inspect-1.0 / gst-launch-1.0 / gst-discoverer：验证插件是否可用、
+    # 排障都靠它们，必须装出来
+    - -Dtools=enabled
+    # 其余可选特性一律显式开关，避免"宿主碰巧有什么就编什么"：
+    # auto_features=disabled 下所有 value:'auto' 的特性都关（nls/orc/
+    # bash-completion/coretracers 等），需要时再逐个打开。
+    - -Dauto_features=disabled

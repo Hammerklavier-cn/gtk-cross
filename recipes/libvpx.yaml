@@ -1,0 +1,39 @@
+name: libvpx
+version: 1.17.0
+source:
+  # webmproject 自家的 downloads.webmproject.org 在本机不可达（curl 000），
+  # 用 GitHub tag 归档（与 MSYS2 同版本 1.17.0）
+  url: https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz
+build: autotools
+# 静态（项目默认，且这里是唯一可行形态）：libvpx 的 configure 对非 ELF 平台
+# 只在 gnu 工具链下"警告后继续"，明确 --enable-shared 会 die
+# （configure: process_detect → "--enable-shared only supported on ELF, OS/2,
+# and Darwin for now"）。产物 libvpx.a 由 gst-plugins-good 的 vpx 插件静态链入。
+autotools:
+  # 手工 configure（见 gtkcross/engines.py 的 raw_configure 分支）：它不接受
+  # autoconf 的 -C/--host/--build（process_common_cmdline 对未知参数直接
+  # die_unknown），所以目标平台与库形态都在这里写全。
+  raw_configure: true
+  configure:
+    - --target=x86_64-win64-gcc
+    # 库形态：Windows 上只出静态库（框架的自动注入在 raw 模式下不生效）
+    - --disable-shared
+    - --enable-static
+    # 与 MSYS2 官方包对齐的编解码开关：VP8/VP9（含 high-bitdepth 与时间降噪，
+    # 需 experimental 模式）+ 运行期 CPU 检测 + 后处理
+    - --enable-vp8
+    - --enable-vp9
+    - --enable-vp9-highbitdepth
+    - --enable-vp9-temporal-denoising
+    - --enable-experimental
+    - --enable-runtime-cpu-detect
+    - --enable-postproc
+    # 汇编器：本机已装 nasm（两个工具链各一份），显式指定以免 configure
+    # 自动探测到别的（yasm 缺失时 auto 会 die）
+    - --as=nasm
+    # 不要的东西
+    - --disable-unit-tests
+    - --disable-examples
+    - --disable-docs
+    - --disable-install-docs
+    - --disable-install-srcs

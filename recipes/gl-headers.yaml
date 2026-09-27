@@ -1,0 +1,25 @@
+name: gl-headers
+# 版本号取归档的 sha 前缀：本仓库无 tag（上游 gl-headers 只有 master 分支），
+# 锁定到 commit 才可复现。
+version: 1d237e34
+source:
+  # gst-plugins-base 的 gst-libs/gst/gl 用
+  #   dependency('', fallback: ['gl-headers', 'gl_headers_dummy_dep'])
+  #   subproject('gl-headers').get_variable('compatibility_includes')
+  # 取 GL 兼容头（GL/glext.h、GL/wglext.h、KHR/khrplatform.h），而随包提供的
+  # gl-headers.wrap 是 **[wrap-git] + revision=master**：未固定版本、且每次
+  # 全新构建都要 git clone（本项目对 DirectX-Headers 的 wrap-git 也是同样处理
+  # ——装进 sysroot 让 meson 直接命中，不走 wrap）。这里改为按 commit 归档的
+  # tarball（sha256 由框架锁进 versions.lock.yaml），再由
+  # recipes/gst-plugins-base.yaml 的 submodules: 把源码树预置到
+  # subprojects/gl-headers，meson 见到目录已存在即不再 clone。
+  url: https://gitlab.freedesktop.org/gstreamer/meson-ports/gl-headers/-/archive/1d237e348de930f9f561620d2e6a31d94019525f/gl-headers-1d237e348de930f9f561620d2e6a31d94019525f.tar.gz
+build: meson
+meson:
+  options:
+    # 两个选项默认即 enabled；显式写出来是为了让"装了哪些头"可预期：
+    # 头文件只在工具链缺该头时才安装（meson.build 里 cc.has_header 判定），
+    # 因此本 recipe 在 mingw-w64 已带 GL/* 头时是个近乎空操作的数据包，
+    # 主要作用是给 base 的 subproject 提供源码树。
+    - -Dglext=enabled
+    - -Dwglext=enabled

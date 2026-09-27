@@ -29,17 +29,38 @@ deps:
   # sysroot 后 meson 直接命中 .pc，不再回退到 subprojects 的 wrap（其
   # DirectX-Headers.wrap 是 [wrap-git]，需要 git clone github，本机不可达）
   - directx-headers
+  # media-gstreamer=enabled 时 meson 硬性依赖四个 .pc：
+  #   gstreamer-play-1.0 / gstreamer-d3d12-1.0 -> gst-plugins-bad
+  #     （gstplay 与 gstplayer 是 bad 的 gst-libs 常驻库；d3d12 需显式开）
+  #   gstreamer-gl-1.0 / gstreamer-allocators-1.0 -> gst-plugins-base
+  #     （gl 需显式开，且 Windows 上按 win32/opengl/wgl 后端配置）
+  # 核心 gstreamer 是传递依赖，这里也显式列出，便于"从零规划"时把整条媒体
+  # 链纳入 build plan。
+  # 注：运行期还需要 gst-plugins-good（matroska/vpx/autodetect/directsound…），
+  # 它不参与 libgtk 的编译，故不列为构建依赖（见 README 媒体链一节）。
+  - gstreamer
+  - gst-plugins-base
+  - gst-plugins-bad
 meson:
   options:
     - -Dbuild-tests=true
     - -Dbuild-testsuite=false
-    - -Dbuild-demos=false
+    # demos=true 产出 gtk4-demo 与 gtk4-widget-factory（MSYS2 官方包同样带着
+    # 这两个程序，可用来直观验证渲染/缩放/无障碍等行为）；examples/testsuite
+    # 仍关闭（前者是文档型示例，后者是上游 CI 用的重型套件）。
+    - -Dbuild-demos=true
     - -Dbuild-examples=false
     - -Ddocumentation=false
     - -Dman-pages=false
     - -Dintrospection=enabled
     - -Dvulkan=enabled
-    - -Dmedia-gstreamer=disabled
+    # 媒体后端（GtkMediaFile/GtkVideo/GtkMediaControls 的实现）。上游
+    # meson.options 自述："For distros: GTK guarantees support for WebM video
+    # (VP8 and VP9), so a supported build should provide that"；MSYS2 官方包
+    # 同样是 -Dmedia-gstreamer=enabled。关掉的话 gtk_media_file_new() 会直接
+    # g_error（"GTK was run without any GtkMediaFile extension..."），即用即崩。
+    # GTK 4.24 要求 gstreamer >= 1.28.0（meson.build 的 gstreamer_req）。
+    - -Dmedia-gstreamer=enabled
     - -Dx11-backend=false
     - -Dwayland-backend=false
     - -Dbroadway-backend=false

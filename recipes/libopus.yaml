@@ -1,0 +1,17 @@
+name: libopus
+version: 1.6.1
+source:
+  url: https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
+build: meson
+# 静态（项目默认）：被 gst-plugins-base 的 opus 插件静态链入（纯 C，无跨 DLL
+# 类型/单例问题，同 libogg/libvorbis）
+meson:
+  options:
+    # 本机工具链没有 nasm/yasm（实测 command -v 均 MISSING），x86 SIMD 汇编
+    # 无从构建；上游对 asm 缺失是"自动关闭"还是"报错"取决于目标平台，这里
+    # 显式关掉，让 opus 走 C 实现（功能一致，解码性能略降）。将来装了 nasm
+    # 可改成 -Dasm=enabled（MSYS2 官方包即 enabled）。
+    - -Dasm=disabled
+    - -Dtests=disabled
+    - -Ddocs=disabled
+    - -Dextra-programs=disabled

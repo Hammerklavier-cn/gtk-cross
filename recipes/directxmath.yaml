@@ -1,0 +1,23 @@
+name: directxmath
+# 上游仓库按月份 tag（apr2025）；CMakeLists.txt 里自己的版本号是 3.20.b。
+# 用 tag 名作 version，便于与上游 release 对应。
+version: apr2025
+source:
+  # gst-plugins-bad 的 d3d11 与 d3d12 两个 gst-libs 都做
+  #   dependency('DirectXMath', 'directxmath', required: true)
+  # （d3d11/meson.build:203、d3d12/meson.build:129），而 GTK 的
+  # media-gstreamer 硬性要求 gstreamer-d3d12-1.0 —— 所以这个头文件库是本
+  # 项目媒体链的必需依赖，不能靠 MSYS2 的 mingw-w64-directxmath 包。
+  # 上游 CMakeLists 同时装 CMake config（DirectXMath-config.cmake + 导出目标）
+  # 与 pkg-config 文件（DirectXMath.pc），meson 两种探测方式都能命中。
+  url: https://github.com/microsoft/DirectXMath/archive/apr2025/directxmath-apr2025.tar.gz
+build: cmake
+# header-only：全部实现都在头文件里（all inline SIMD），没有库产物；
+# 静态/动态形态对本包无意义（框架注入的 BUILD_SHARED_LIBS=OFF 不影响
+# INTERFACE 目标）。
+cmake:
+  defines:
+    # 上游默认就会装 Inc/ 下的头（DirectXMath.h、DirectXColors.h、
+    # DirectXMathMatrix.inl 等）到 include/，并生成 pkgconfig 文件；
+    # 两个矩阵/向量扩展子目录（MatrixStack、Extensions）不参与构建。
+    BUILD_TESTING: "OFF"

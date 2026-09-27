@@ -1,0 +1,38 @@
+name: gst-plugins-good
+version: 1.28.7
+source:
+  url: https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-1.28.7.tar.xz
+build: meson
+# 同 gstreamer：插件是运行期加载的 DLL，库必须动态
+default_library: shared
+deps:
+  - gstreamer
+  - gst-plugins-base
+  - glib
+  # vpx 插件（VP8/VP9 编解码）静态链接自建 libvpx
+  - libvpx
+meson:
+  options:
+    # WebM 的核心两件：matroska 解封装 + vpx 编解码
+    - -Dmatroska=enabled
+    - -Dvpx=enabled
+    # playbin 的默认音视频输出靠 autodetect（autovideosink/autoaudiosink）；
+    # 不开的话 playbin 没有自动 sink，GtkMediaFile 会"能解码但出不了画面/声音"
+    - -Dautodetect=enabled
+    # Windows 的音频输出（DirectSound sink）；bad 那边还有 wasapi 可选，
+    # 这里先把 good 侧这条打开
+    - -Ddirectsound=enabled
+    # 解析/封装类：音频解析器、WAV、MP4/MOV（qtdemux）
+    - -Daudioparsers=enabled
+    - -Dwavparse=enabled
+    - -Disomp4=enabled
+    # 去隔行（老素材有用，依赖仅 gstvideo）
+    - -Ddeinterlace=enabled
+    # 不要的东西（good 的插件表同样很长，auto_features=disabled 已关掉其余）
+    - -Dtests=disabled
+    - -Dexamples=disabled
+    - -Ddoc=disabled
+    # 注意：gst-plugins-good 1.28.7 **没有** introspection 选项
+    # （core/base/bad 有，good 的 meson.options 里就没有这一项，传了会
+    # "ERROR: Unknown option: introspection" 直接 setup 失败）
+    - -Dauto_features=disabled

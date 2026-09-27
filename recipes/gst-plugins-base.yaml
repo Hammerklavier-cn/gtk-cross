@@ -1,0 +1,62 @@
+name: gst-plugins-base
+version: 1.28.7
+source:
+  url: https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-1.28.7.tar.xz
+build: meson
+# 同 gstreamer：插件是运行期由 registry 加载的 DLL，库必须动态
+# （理由见 recipes/gstreamer.yaml）
+default_library: shared
+deps:
+  - gstreamer
+  - glib
+  # pango 插件（字幕/文字叠加）需要 pango + cairo
+  - pango
+  - cairo
+  # ogg/opus/vorbis 插件（WebM/OGG 音频解码，正是 GTK 文档要求支持的
+  # WebM 音频侧）
+  - libogg
+  - libopus
+  - libvorbis
+  # gl-headers 是"源码树提供者"：见下面的 submodules 说明
+  - gl-headers
+# gst-libs/gst/gl 需要 gl-headers 子项目（GL 兼容头）。上游随包的
+# subprojects/gl-headers.wrap 是 [wrap-git] + revision=master——未固定版本且
+# 每次全新构建都要 git clone；这里照项目既有模式（SPIRV-Tools/shaderc 的
+# submodules 字段）把 gl-headers recipe 的源码树预置到 subprojects/gl-headers，
+# meson 见到目录已存在就不再 clone（框架的 _apply_submodules 在 configure
+# 之前执行，且幂等）。
+submodules:
+  subprojects/gl-headers: gl-headers
+meson:
+  options:
+    # 本包提供给 GTK 的关键产物：gstreamer-play-1.0（gstplay 库，GTK 的
+    # media-gstreamer 后端就用它）、gstreamer-gl-1.0（GTK meson 硬性
+    # dependency）、gstreamer-allocators-1.0。play/allocators 是 gst-libs
+    # 里的常驻库，gl 需要显式开启下面三项。
+    - -Dgl=enabled
+    # 与 MSYS2 官方包一致的 Windows 后端组合：WGL + OpenGL（本机无
+    # EGL/ANGLE 运行时，gles2/egl 无法工作）
+    - -Dgl_winsys=win32
+    - -Dgl_api=opengl
+    - -Dgl_platform=wgl
+    # 播放一条 WebM/OGG 所需的最小插件集（auto_features=disabled 下其余
+    # 插件一律不编，保证 hermetic 且体积可控）：
+    - -Daudioconvert=enabled
+    - -Daudioresample=enabled
+    - -Dplayback=enabled
+    - -Dtypefind=enabled
+    - -Dvideoconvertscale=enabled
+    - -Dvolume=enabled
+    - -Dogg=enabled
+    - -Dopus=enabled
+    - -Dvorbis=enabled
+    - -Dpango=enabled
+    # 两个测试源：手工验证媒体链（gst-launch videotestsrc …）时用得上，代价极小
+    - -Dvideotestsrc=enabled
+    - -Daudiotestsrc=enabled
+    # 不要的东西
+    - -Dtests=disabled
+    - -Dexamples=disabled
+    - -Ddoc=disabled
+    - -Dintrospection=disabled
+    - -Dauto_features=disabled

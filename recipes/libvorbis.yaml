@@ -1,0 +1,15 @@
+name: libvorbis
+version: 1.3.7
+source:
+  url: https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz
+build: autotools
+deps:
+  - libogg
+autotools:
+  configure:
+    # 库形态由框架注入 --disable-shared --enable-static
+    - --disable-oggtest
+    - --disable-examples
+    - --disable-docs
+    # 明确指向 sysroot（configure 会经 pkg-config 找 ogg.pc，OGG_CFLAGS/LIBS
+    # 由 ogg 的 .pc 提供；这里不额外传 --with-ogg 以免写死路径）
