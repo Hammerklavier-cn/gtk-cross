@@ -1,0 +1,45 @@
+name: shared-mime-info
+version: 2.4
+source:
+  # 版本选 2.4 而非 2.5 的理由：2.5 的 build-tests 需要 subprojects/xdgmime
+  # 的 wrap-git（revision=master，未固定，meson 会在构建期 git clone），与本
+  # 项目"锁定 tarball、构建期不 clone 未固定版本"的约定冲突（同 DirectX-Headers
+  # wrap-git 的处理）。2.4 的同名测试改用仓库内的 xdgmime 源码，找不到预编译
+  # 工具时只跳过 2 个测试、其余测试可完全离线运行。
+  url: https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/2.4/shared-mime-info-2.4.tar.gz
+build: meson
+deps:
+  # src/update-mime-database.cpp 需要 libxml-2.0 与 glib-2.0；树内另有可选的
+  # gio-2.0（tree-magic 测试用），glib recipe 已提供，无需单列。
+  - glib
+  - libxml2
+meson:
+  # 构建期环境（框架的 meson.env，$SRC = 本包源码目录）：
+  # data/meson.build 用 i18n.merge_file 合并 XML 翻译，meson 会把
+  # --datadirs=<源码>/data/. 以 Windows 形式（C:/...）写进 GETTEXTDATADIRS；
+  # 而 gettext 的搜索路径按 ':' 切分
+  # （gettext-tools/src/search-path.c:52 的 foreach_elements），盘符冒号把该
+  # 路径切成 "C" 与 "/msys64/..." 两个无效项，msgfmt 于是报
+  #   msgfmt: cannot locate ITS rules for ../src/data/freedesktop.org.xml.in
+  # （实测：同一命令换成 posix 形式的 datadir 即成功，Windows 形式必失败；
+  #  MSYS2 的 mingw64 包能用是因为它用的是 mingw 原生 gettext，原生构建按
+  #  ';' 切分）。单数的 GETTEXTDATADIR 是单一路径、不参与切分且优先级更高，
+  # 指向源码里的 its/ 目录即可让 ITS 规则被找到（实测产出 2470771 字节的
+  # 翻译后 freedesktop.org.xml）。
+  env:
+    GETTEXTDATADIR: "$SRC/data"
+  options:
+    - -Dbuild-tools=true
+    # 只用到 en/zh 等翻译产出的 freedesktop.org.xml（i18n.merge_file），
+    # 构建期需要 msgfmt（MSYS2 宿主提供，不在 sysroot 内）
+    - -Dbuild-translations=true
+    - -Dbuild-tests=true
+    # 关键：安装后运行 update-mime-database 生成 share/mime/mime.cache。
+    # 上游默认 false 是给 distro 打包（DESTDIR）用的；本框架直接 meson
+    # install 到 sysroot（无 DESTDIR），故必须开启——否则 sysroot 里只有
+    # share/mime/packages/*.xml 而无 mime.cache，GIO 的 g_content_type_guess()
+    # 取不到数据库，内容类型识别（文件选择器 MIME 过滤器、拖放类型判定、
+    # 默认应用查找）整体失效。安装脚本用的是刚构建出的 update-mime-database。
+    - -Dupdate-mimedb=true
+test:
+  enabled: true

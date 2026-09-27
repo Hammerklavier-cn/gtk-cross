@@ -1,0 +1,28 @@
+name: adwaita-icon-theme
+version: 49.0
+source:
+  url: https://download.gnome.org/sources/adwaita-icon-theme/49/adwaita-icon-theme-49.0.tar.xz
+build: meson
+deps:
+  # 只为 post_install 的图标缓存工具 gtk4-update-icon-cache；主题本身不链接
+  # 任何库（纯数据包，install_subdir 直接铺 share/icons/Adwaita）
+  - gtk
+meson:
+  # 上游无 meson_options.txt（无可配选项）。两点注意：
+  #   1) setup 阶段会 run_command('tools/find_cursors_win32.py') 取 Windows
+  #      光标文件清单（.cur/.ani），故构建 PATH 里必须有可用的 python；
+  #   2) 归档里有 2 个 symlink（Adwaita/scalable/status/folder-open.svg ->
+  #      ../places/folder.svg、Adwaita/symbolic/places/
+  #      folder-drag-accept-symbolic.svg -> folder-symbolic.svg）。本机无符号
+  #      链接权限（实测 os.symlink 报 WinError 1314），但**无需额外处理**：
+  #      CPython 的 tarfile 在无法建链时会退化为复制目标文件内容
+  #      （TarFile.makelink_with_filter 的既有行为），解包后这两个路径是内容
+  #      与目标一致的普通文件；实测安装后 share/icons/Adwaita 共 799 个文件、
+  #      713 个 SVG，两个图标均在。
+  options: []
+post_install:
+  commands:
+    # 生成 icon-theme.cache（GTK 的 GtkIconTheme 有缓存则直接读，无缓存需在
+    # 运行期扫目录）。MSYS2 官方包由 pacman hook 做同一件事。命令经 toolchain
+    # prelude 执行，$SYSROOT 已导出。
+    - '"$SYSROOT/bin/gtk4-update-icon-cache" -q -t -f "$SYSROOT/share/icons/Adwaita"'
