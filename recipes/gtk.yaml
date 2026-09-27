@@ -50,3 +50,26 @@ meson:
     - -Dprint-cups=disabled
 test:
   enabled: true
+# 仅 msvcrt 目标（msys2-mingw64）需要这个补丁，故按 target 覆盖。完整因果
+# 链（每一步都有源码或实测支撑）：
+#   1) msvcrt 不认 POSIX 区域名：setlocale(LC_ALL, "en_US.UTF-8") 返回 NULL
+#      （ucrt64/UCRT 认得，故 ucrt64 全过；msvcrt 只认
+#      "English_United States.1252" 这类名字，且完全没有 UTF-8 区域）。
+#   2) GTK 的 gtk_test_init 先调 (g_test_init)()，再 setlocale，失败即
+#      g_warning —— 见 gtk/gtktestutils.c。
+#   3) GLib 的 g_test_init **无条件**把 warning/critical 设为致命
+#      （glib/gtestutils.c: "make warnings and criticals fatal for all test
+#      programs"），因此上一步的 warning 必然致命，与 G_DEBUG 无关。
+#   4) _g_log_abort（glib/gmessages.c）在无调试器时走 g_abort()，msvcrt 的
+#      abort 退出码即 3；挂调试器时 IsDebuggerPresent() 为真，改走
+#      G_BREAKPOINT()（gdb 下实测 SIGTRAP，栈为
+#      g_log_writer_default <- g_log_structured_standard <- gtk_test_init）。
+#   5) 每个测试都过 gtk_test_init，于是 libadwaita 全套 68 项在 mingw64 上
+#      于初始化阶段就 abort（TAP 头之后没有任何测试结果），ucrt64 不受影响。
+# 上游 GTK main 分支与 4.24.0 一字未改，MSYS2 则直接 -Dtests=false /
+# -Dbuild-tests=false 从不跑这些测试，故没有现成修复可抄。
+# 补丁让失败时回退到 Windows 区域名，从而不再产生致命 warning。
+targets:
+  msys2-mingw64:
+    patches:
+      - gtk-0001-fallback-to-windows-locale.patch

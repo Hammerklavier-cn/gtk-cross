@@ -243,20 +243,27 @@ cairo_win32_font_face_create_for_logfontw_hfont`；二进制实证：自建
   source 为 NULL（libadwaita 上游本不携带 gschema，非安装缺失）；框架注入
   `XDG_DATA_DIRS=$SYSROOT/share` 后全部通过，登记已清空（2026-09-26 复验
   430 项全过；1.10.0 升级使 junit 由 408 增至 430）。
-- **libadwaita 全套 68 项（仅 msys2-mingw64，已按 target 登记）**：ucrt64 全过，
-  mingw64 68/68 `ERROR exit status 3`，stderr 只有一行
-  `Gtk-WARNING: Failed to set locale to en_US.UTF-8`。根因是 CRT 差异，与产物
-  无关：GTK 的 `gtk_test_init`（`gtk/gtktestutils.c`）硬编码
-  `setlocale (LC_ALL, "en_US.UTF-8")`，失败即 `g_warning`；libadwaita 的
-  `tests/meson.build` 又把 `G_DEBUG` 设为 `gc-friendly,fatal-warnings`，这条
-  warning 于是被提升为致命 → GLib `g_abort()` → CRT 退出码 3。UCRT 认识该
-  POSIX 区域名，msvcrt 只认 `English_United States.1252` 之类，所以同一份代码
-  在两个 target 上结论相反。实测：`objdump -p` 显示
-  `out/msys2-mingw64/bin/libglib-2.0-0.dll` 链 `msvcrt.dll`、ucrt64 的 python
-  链 `api-ms-win-crt-*`；同一条 setlocale 探针在 ucrt64 返回 `'en_US.UTF-8'`、
-  在 mingw64 失败。故只在 mingw64 登记（recipe `targets: msys2-mingw64:`
-  覆盖），测试照旧运行，新增或转好的测试仍会以 `tests-unexpected` /
-  `tests-known-absent` 报出。
+- **libadwaita 全套 68 项在 mingw64 上曾集体 `ERROR exit status 3`（已真正修复）**：
+  ucrt64 一直全过，mingw64 68/68 `ERROR exit status 3` 且 stderr 只有一行
+  `Gtk-WARNING: Failed to set locale to en_US.UTF-8`。根因与产物无关，是 CRT
+  差异：msvcrt 没有 `en_US.UTF-8` 这个 POSIX 区域名（只认
+  `English_United States.1252` 之类），而 GTK 的 `gtk_test_init`
+  （`gtk/gtktestutils.c`）**硬编码** `setlocale (LC_ALL, "en_US.UTF-8")` 并在失败
+  时 `g_warning`；更关键的是 GLib 的 `g_test_init` **无条件**把 warning/critical
+  设为致命（`glib/gtestutils.c`：*make warnings and criticals fatal for all test
+  programs*）——**与 `G_DEBUG=fatal-warnings` 无关**（实测把它去掉毫无变化，这一
+  点最初的归因是错的）。`_g_log_abort` 在无调试器时走 `g_abort()`，msvcrt 的
+  abort 退出码即 3；挂 gdb 时 `IsDebuggerPresent()` 为真改走 `G_BREAKPOINT()`，
+  实测 SIGTRAP，栈为 `g_log_writer_default ← g_log_structured_standard ←
+  gtk_test_init`——直接实证。每个测试都过 `gtk_test_init`，故整套在初始化阶段就
+  死（TAP 头之后没有任何测试结果）。
+  上游 GTK `main` 与 4.24.0 一字未改，MSYS2 的 PKGBUILD 则直接
+  `-Dtests=false`（libadwaita）/ `-Dbuild-tests=false -Dbuild-testsuite=false`
+  （gtk4）从不跑这些测试，没有现成修复可抄。修复 = 新补丁
+  `patches/gtk-0001-fallback-to-windows-locale.patch`：`setlocale` 失败时回退到
+  Windows 区域名，不再产生致命 warning；补丁**只对 msvcrt 目标应用**（gtk
+  recipe 的 `targets: msys2-mingw64: patches:` 覆盖），ucrt64 的源码与产物不变。
+  本地实测两者：mingw64 `Ok: 68 / Fail: 0`，ucrt64 仍 `OK=68`。
 - gvsbuild 对照：其用 MSVC（无此问题）且 glib 默认 `-Dtests=false`；我们不引入
   额外验证，仅如实记录失败集。
 
