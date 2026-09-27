@@ -116,6 +116,7 @@ jobs:
             ${{ matrix.mprefix }}-binutils
             ${{ matrix.mprefix }}-pkgconf
             ${{ matrix.mprefix }}-meson
+            ${{ matrix.mprefix }}-nasm
             ${{ matrix.mprefix }}-ninja
             ${{ matrix.mprefix }}-cmake
             ${{ matrix.mprefix }}-gettext-tools
