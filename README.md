@@ -148,6 +148,13 @@ libadwaita 依赖闭包内的 **33 recipe** 构建 + 测试通过（仓库共 39
 libadwaita 1.10.0 起 appstream 链已脱离闭包，见下），产物 `bin/*.dll` 由静态化前
 的 51 个降至 **28 个**（均为 introspection 链必需，见「静态优先」）。
 
+> **2026-09-27 更新（msys2-mingw64）**：上表是 2026-09-26 的 ucrt64 记录，未同步
+> 本次改动。本次在 msys2-mingw64 上并入媒体链（gstreamer/gst-plugins-* 等 9 个
+> recipe）与两个运行期数据包，闭包 33 → **42**、仓库 recipe 39 → **52**；sysroot
+> 的 `bin/*.dll` 28 → **65**（媒体链按上游设计必须动态：插件是运行期由 registry
+> 加载的 DLL）。逐包复验范围与新增的 `meson.env` / `autotools.raw_configure` /
+> `build: data` 三项框架能力见文末「当前已完成链」一节。
+
 | recipe                | 测试数 | 失败 | 备注                       |
 | --------------------- | ------ | ---- | -------------------------- |
 | glib                  | 309    | 0    |                            |
@@ -481,22 +488,129 @@ update_global_loader_settings`）。表现是 `GSK_RENDERER=vulkan` 或打开
 > `include/libadwaita-1/`、`lib/pkgconfig/libadwaita-1.pc`、`share/gir-1.0/Adw-1.gir`、
 > `lib/girepository-1.0/Adw-1.typelib`）再构建。
 
-## 当前已完成链（msys2-mingw64 / msys2-ucrt64，39 recipes）
+## 当前已完成链（msys2-mingw64 / msys2-ucrt64，52 recipes）
 
-libadwaita 依赖闭包为 **33 recipe**；下列 appstream 链不在闭包内（见版本说明）。
+libadwaita 依赖闭包为 **42 recipe**（2026-09-27 起媒体链并入，33 → 42）；下列
+appstream 链与运行期数据包不在闭包内（见版本说明）。
 
 zlib → libffi → pcre2 → libiconv → gettext → glib-base
 └→ expat / freetype → fontconfig → harfbuzz(-base) → fribidi → pixman → libpng →
 libjpeg-turbo → libtiff → cairo → gobject-introspection → glib（两段式）→
 pango → gdk-pixbuf → graphene → json-glib → libepoxy → directx-headers →
-vulkan-loader → gtk → libadwaita
+vulkan-loader → libogg → libopus / libvorbis → gstreamer → gl-headers →
+gst-plugins-base → directxmath → gst-plugins-bad → gtk → libadwaita
 ├→ vulkan-headers → vulkan-loader；spirv-headers → spirv-tools → glslang → shaderc
+├→ 运行期数据包（不参与编译，独立 recipe）：shared-mime-info → share/mime +
+   mime.cache；adwaita-icon-theme → share/icons/Adwaita + icon-theme.cache
 └→ 独立（不在 libadwaita 闭包内）：libxml2 → xz(liblzma) → libxmlb → libfyaml →
 curl（schannel）→ appstream
 
-（GTK4 构建配置：win32 后端；vulkan=enabled、introspection=enabled；禁
-gstreamer/x11/wayland/demos。SPIRV-Tools/shaderc 的 tag 归档不含 git
-submodule，由框架 `submodules` 字段从已构建依赖源码树自动填充
-`external/`、`third_party/` 目录。`directx-headers` 供 gdk/win32 的 d3d12
-纹理路径 `dependency('DirectX-Headers')`；其 wrap 是 `[wrap-git]`，在
-github.com 不可达的网络下会失败，装进 sysroot 后 meson 直接命中 .pc。）
+（GTK4 构建配置（2026-09-27 起）：win32 后端；vulkan=enabled、
+introspection=enabled、**media-gstreamer=enabled**、build-demos=true
+（gtk4-demo / gtk4-widget-factory）；仍禁 x11/wayland。SPIRV-Tools/shaderc 的
+tag 归档不含 git submodule，由框架 `submodules` 字段从已构建依赖源码树自动
+填充 `external/`、`third_party/` 目录；gst-plugins-base 的 gl-headers 子项目
+同样如此（上游 wrap 是 revision=master 的 wrap-git，未固定版本）。）
+
+### 媒体链（2026-09-27 新增）
+
+GTK 的 media 后端（GtkMediaFile / GtkVideo / GtkMediaControls）在 Windows 上
+只有 gstreamer 一种实现（`gtk/media/meson.build`），关掉后
+`gtk_media_file_new()` 会直接 `g_error`（"GTK was run without any GtkMediaFile
+extension…"），即用即崩。GTK 4.24 的 meson 硬性要求 `gstreamer >= 1.28.0`，
+并需要四个 .pc：play / d3d12（gst-plugins-bad）、gl / allocators（gst-plugins-base）。
+
+| 组件 | recipe | 关键开关与说明 |
+| --- | --- | --- |
+| 核心 | gstreamer | tools=enabled；tests/examples/benchmarks/doc/introspection 关 |
+| base | gst-plugins-base | `-Dgl=enabled -Dgl_winsys=win32 -Dgl_api=opengl -Dgl_platform=wgl`；playback/typefind/videoconvertscale/audioconvert/audioresample/ogg/opus/vorbis/pango |
+| bad | gst-plugins-bad | `-Dd3d12=enabled -Dd3d11=enabled`；gstplay/gstplayer 为 gst-libs 常驻库（gstreamer-play-1.0 由此提供）；需 directxmath + directx-headers |
+| good（运行期） | gst-plugins-good | matroska / vpx / autodetect / directsound / isomp4 / wavparse / audioparsers / deinterlace；不参与 libgtk 编译，故不列为 GTK 的构建依赖 |
+| 编解码依赖 | libogg / libopus / libvorbis / libvpx | libvpx 用手工 configure（框架 `autotools.raw_configure`）静态构建，x86_64 上必须 nasm；libopus 走 `-Dasm=disabled` |
+
+gst 全链一律 `default_library: shared`——插件是运行期由 registry 扫描、
+`g_module_open` 加载的 DLL，核心库若静态化则每个插件各持一份 GObject
+类型/单例；这是"静态优先"的明确例外（与 introspection 链同级）。
+
+实测（msys2-mingw64）：`gst-inspect-1.0` 25 插件 / 352 feature；
+`videotestsrc ! vp9enc ! webmmux ! filesink` → `filesrc ! matroskademux ! vp9dec
+! fakesink` 闭环通过；`vp8dec`/`vp9dec`/`vp9enc` 均已注册。
+（2026-09-27 已解决）曾出现 **`vp8enc` 未注册**：gst-plugins-good 的 vpx 插件
+对 libvpx 做链接期探测时报缺 `vp8_encode_value` / `vp8_start_encode` /
+`vp8_prob_cost`（同式的 VP9 探测通过）。根因不在构建选项，而在 libvpx 的
+**截断对象**——本机第一次构建 libvpx 时被手工超时打断，
+`vp8/encoder/boolhuff.c.o` 被留成 **0 字节**；之后 make 按时间戳认为它已最新，
+把这个空对象归档进 `libvpx.a`，VP8 编码器符号于是全部悬空（`nm` 只见 `U`）。
+彻底删掉 `build/<target>/libvpx/` 重编后，meson 探测日志显示四个接口
+（VP8/VP9 编解码）全部提供，`gst-inspect-1.0 vp8enc` 已注册
+（25 插件 / 353 feature），`videotestsrc ! vp8enc ! webmmux ! filesink` →
+`filesrc ! matroskademux ! vp8dec ! fakesink` 闭环通过——VP8 与 VP9 双向均可用。
+
+> 经验：构建被中断（进程被杀 / 超时）后，make 的增量判定会误信截断产物；
+> 此时应删除该包的 `build/<target>/<pkg>/` 重编，而不是只清框架的 stamp。
+
+### EGL（2026-09-27 新增，当前**关闭**）
+
+为不依赖 MSYS2 的 `mingw-w64-egl-headers` 包，新增 `egl-headers` recipe
+（Khronos EGL-Registry 按 commit 固定，用框架的 `build: data` 声明式安装）：
+EGL 头与 `egl.pc` 进 sysroot，实测 `pkg-config --modversion egl` = 1.5。
+
+但 libepoxy 的 `-Degl=yes` **实测不可开**：本机没有任何 EGL 运行期实现
+（Windows 上即 ANGLE 的 libEGL.dll），而 epoxy 在 ENABLE_EGL 下会在 GL 上下文
+检查里无条件走 EGL 查询，此时分发指针为 NULL：
+
+```
+epoxy_is_desktop_gl() → epoxy_eglGetCurrentContext → egl_provider_resolver
+→ epoxy_conservative_egl_version → eglGetCurrentDisplay() → 跳到 0x0（SIGSEGV）
+```
+
+触发点是 GTK 的 **WGL** 路径（`gdk_win32_gl_context_wgl_realize` →
+`epoxy_has_gl_extension`），即"只用 WGL"的正常场景也会崩：`libadwaita-demo
+--smoke` 退出码 139（gdb 实测栈）。故 epoxy 保持 `-Degl=no`，GTK 的 config.h
+无 `HAVE_EGL`。要打开需二选一：给 sysroot 加 libEGL 实现（Windows 上现实选择
+是 ANGLE，需先验证能否用 mingw-gcc 构建），或给 epoxy 打"EGL 库未加载时 EGL
+查询安全返回"的补丁。
+
+### 框架侧新增能力（2026-09-27）
+
+- `meson.env`：构建期环境注入（值支持 `$SRC`/`$BUILD`/`$WS` 占位符）。首个用例
+  是 shared-mime-info——meson 把 `--datadirs=<源码>/data/.` 以 Windows 形式
+  （`C:/…`）写进 GETTEXTDATADIRS，而 gettext 的搜索路径按 `:` 切分
+  （`gettext-tools/src/search-path.c:52` 的 foreach_elements），盘符冒号把路径
+  切成 "C" 与 "/msys64/…" 两个无效项，msgfmt 报 "cannot locate ITS rules"；
+  改用单数、不参与切分的 `GETTEXTDATADIR` 指向源码 its/ 目录即解。
+- `autotools.raw_configure`：手工 configure（libvpx）不注入
+  `-C/--host/--build` 与共享/静态开关——libvpx 的 configure 对未知参数直接
+  `die_unknown`。
+- `build: data`（DataEngine）：纯数据/头文件包按 `data.install_files` /
+  `data.text_files`（`@PREFIX@` 展开为 sysroot 路径）安装，用于 egl-headers。
+
+### 运行期数据包（2026-09-27 新增）
+
+- **shared-mime-info 2.4**：`-Dupdate-mimedb=true` 在安装后生成
+  `share/mime/mime.cache`。此前 sysroot 里没有任何 mime 库，GIO 的
+  `g_content_type_guess()` 基本失效（文件选择器的 MIME 过滤器、拖放类型判定、
+  默认应用查找都受影响）。自带测试 8 项全过；实测 `gio info -a
+  standard::content-type` 的结果与 MSYS2 系统 mime 库逐项一致。
+- **adwaita-icon-theme 49.0**：`share/icons/Adwaita` 共 799 个文件（713 SVG），
+  post_install 用 gtk4-update-icon-cache 生成 `icon-theme.cache`。归档里的 2 个
+  symlink（如 `scalable/status/folder-open.svg`）在本机无符号链接权限时由
+  CPython tarfile 自身退化为"复制目标内容"（`TarFile.makelink_with_filter`），
+  无需额外处理，两个图标实测到位且内容与目标一致。
+
+### 本次验证范围（2026-09-27，msys2-mingw64）
+
+- 逐包重跑并通过：gdk-pixbuf 20/20、libogg / libopus / libvorbis（编译+安装）、
+  libvpx、directxmath、gl-headers、shared-mime-info 8/8、
+  adwaita-icon-theme、gstreamer / gst-plugins-base / gst-plugins-bad /
+  gst-plugins-good（以 gst-inspect 校验插件与元素）、gtk（自带测试 +
+  `libadwaita-demo --smoke` 退出码 0）。
+- gdk-pixbuf 的 `-Dothers=enabled` 是**负结果**：产物侧确实生效（BMP/ICO/XPM/
+  TGA 等 loader 进入 libgdk_pixbuf），但自带测试 `pixbuf-randomly-modified`
+  出现上游断言（`gdk_pixbuf_animation_get_height: assertion
+  'GDK_IS_PIXBUF_ANIMATION'`）且同一批变异输入里 24/27 变成 >8s 的病态慢解析，
+  未达测试门槛，已回退；完整证据写在 `recipes/gdk-pixbuf.yaml` 注释里。
+- sysroot DLL 数由静态化后的 28 增至 **65**（其中 gst 相关 37、gst 插件 24），
+  原因是媒体链按上游设计必须动态；非媒体链的包仍是"仅 .a"。
+- **未做**：清空 `out/` 的从零全链重建（时间不允许），上列结果均为增量重建 +
+  项目自带测试的实测；msys2-ucrt64 未同步本次改动。

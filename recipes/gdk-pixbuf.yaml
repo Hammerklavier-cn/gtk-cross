@@ -19,5 +19,32 @@ meson:
     # 静态化：把 gif/tiff 等 loader 编进 libgdk_pixbuf（不再生成
     # lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-*.dll 动态模块）
     - -Dbuiltin_loaders=all
+    # bmp/ico/ani/pnm/xpm/xbm/tga/icns/qtif 这批 loaders 由 upstream 的
+    # `others` 选项单独门控（默认 disabled，上游标注 "weakly maintained"），
+    # 与 builtin_loaders 无关：只传 all 时它们不会被编进 libgdk_pixbuf
+    # （实测产物里 gdk_pixbuf__bmp_image 等符号全无）。MSYS2 官方包是
+    # -Dothers=enabled。2026-09-27 试开过并回退，理由是实测未通过本项目
+    # 的测试门槛，证据如下（msys2-mingw64，两次构建间仅此选项不同）：
+    #   1) 产物侧确实生效：重建后 DLL 内含 bmp/ico/ani/pnm/xpm/xbm/icns/
+    #      qtif（gdk_pixbuf__<fmt>_image）与 tga（gdk_pixbuf__tga_begin_load）。
+    #   2) 自带测试 pixbuf-randomly-modified 出现上游断言失败（1 次/约 13 次
+    #      全量运行）：
+    #        not ok /pixbuf/randomly-modified/fail\bug778584.gif -
+    #        GdkPixbuf-FATAL-CRITICAL: gdk_pixbuf_animation_get_height:
+    #        assertion 'GDK_IS_PIXBUF_ANIMATION (animation)' failed
+    #      该测试的输入是随机变异，根因线索在 gdk-pixbuf-loader.c:406-407
+    #      （core 的 updated_func 在 priv->animation 尚为 NULL 时取宽高，而
+    #      priv->animation 只在 prepare 里赋值）→ 某个 loader 在 prepared 之前
+    #      报了 area-updated；因随机变异未能稳定复现到具体 loader/输入。
+    #   3) 更重的证据：用固定 seed 对同一变异输入做对照扫描（26 个 seed，
+    #      -p 单文件 + timeout 8s），开启 others 后 24/27 个输入变成 >8s 的
+    #      病态慢解析（最长 >30s，519 字节文件）；这批输入在未开启时因无
+    #      loader 认领 magic 而瞬间报错。
+    # 结论：这批 upstream "weakly maintained" loader 对畸形输入既慢又可能
+    # 触发断言，未达"重跑实测通过"的门槛，故本 recipe 保持上游默认（不开）。
+    # 若将来要重开，建议先在上游定位 io-ico/io-bmp 等的 updated-before-
+    # prepared 路径，或把可视图像格式需求交给 glycin/librsvg 路线。
+    # 注：native_windows_loaders（GDI+ 路径）同样刻意不开——它会接管
+    # png/jpeg/gif/tiff 换成 GDI+ 实现，与自建 libjpeg/libpng 链路不一致。
 test:
   enabled: true
