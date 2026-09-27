@@ -211,9 +211,10 @@ class DataEngine(Engine):
     既没有构建系统也没有 configure；用声明代替"为它造一个构建系统 + 补丁"：
 
     data:
-      install_files:            # 源码树路径 -> sysroot 路径（目录递归复制）
-        api/EGL: include/EGL
-        api/KHR/khrplatform.h: include/KHR
+      install_files:            # 源码树路径 -> sysroot 目录（目录递归复制；
+        api/EGL: include/EGL     # 单文件则按原名落入该目录，
+        api/KHR/khrplatform.h: include/KHR   # 同 meson 的
+                                             # install_headers(subdir: …)）
       text_files:               # 生成文本文件，@PREFIX@ 替换为 sysroot 路径
         lib/pkgconfig/egl.pc: |
           prefix=@PREFIX@
@@ -237,13 +238,37 @@ class DataEngine(Engine):
             src = self.src_dir / src_rel
             if not src.exists():
                 raise BuildError(f"{self.recipe.name}: 源路径不存在: {src_rel}")
+            # dest 一律按**目录**处理（与 meson 的 install_headers(subdir: …) 同义）：
+            # 单文件按原名落进 dest/，目录则递归复制其内容。
+            #
+            # 曾经的写法是"src 是文件就把 dest 当文件名直接 copy2"，这在
+            # api/KHR/khrplatform.h -> include/KHR 上是错的——会把
+            # include/KHR 建成名为 KHR 的**普通文件**。同一 sysroot 里只装
+            # 这一个 data 包时看不出问题（copy2 覆盖自己、幂等），但只要别处
+            # 再要 include/KHR 这个**目录**就会炸：gl-headers 的 meson install
+            # 走 minstall.install_headers -> do_copyfile ->
+            # `dirmaker.makedirs(outdir, exist_ok=True)`，而 outdir 是由
+            # include/KHR 拼出的、末尾带分隔符的路径，os.makedirs 在目标已存在
+            # 且**不是目录**时抛
+            #   FileExistsError: [WinError 183] Cannot create a file when that
+            #   file already exists（CI 实测 exit 17）。
+            # 又因为 build plan 里 egl-headers 恒排在 gl-headers 之前
+            # （egl-headers 是 libepoxy 的依赖，gl-headers 挂在 gst-plugins-base
+            # 下），本机只要 sysroot 里已有一份 include/KHR 目录就会"侥幸通过"
+            # ——干净 sysroot（CI）必炸。
             dest = self.sysroot / dest_rel
+            if dest.exists() and not dest.is_dir():
+                raise BuildError(
+                    f"{self.recipe.name}: 目标路径 {dest_rel} 已存在且不是目录"
+                    f"（{dest}），请先清理该文件"
+                )
             if src.is_dir():
                 shutil.copytree(src, dest, dirs_exist_ok=True)
+                print(f"  [data] {src_rel} -> {dest_rel}/")
             else:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dest)
-            print(f"  [data] {src_rel} -> {dest_rel}")
+                dest.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest / src.name)
+                print(f"  [data] {src_rel} -> {dest_rel}/{src.name}")
         prefix = posix(self.sysroot)
         for dest_rel, content in generated.items():
             dest = self.sysroot / dest_rel
