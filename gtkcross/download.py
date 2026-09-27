@@ -101,7 +101,11 @@ def extract(archive: Path, dest: Path) -> Path:
                         tarfile.FilterError,
                         OSError) as e:
                     # 部分上游包的测试样例含故意损坏/越界 symlink
-                    # （如 appstream tests/samples 中的 badlink），跳过该成员
+                    # （如 appstream tests/samples 中的 badlink），跳过该成员。
+                    # 注：归档内合法的 symlink 无需在此兜底——无符号链接权限时
+                    # tarfile 自己会退化为"复制目标文件内容"
+                    # （TarFile.makelink_with_filter 的既有行为），
+                    # adwaita-icon-theme 的 2 个 symlink 图标即由此完整落盘。
                     print(f"  [extract-skip] {member.name}: {e}")
     entries = [p for p in stage.iterdir()]
     src_root = entries[0] if len(entries) == 1 and entries[0].is_dir() else stage

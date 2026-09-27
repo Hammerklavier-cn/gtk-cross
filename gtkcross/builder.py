@@ -12,13 +12,25 @@ import yaml
 
 from .config import ProjectConfig
 from .download import extract, fetch
-from .engines import AutotoolsEngine, BuildError, CmakeEngine, Engine, MesonEngine
+from .engines import (
+    AutotoolsEngine,
+    BuildError,
+    CmakeEngine,
+    DataEngine,
+    Engine,
+    MesonEngine,
+)
 from .events import EventLog
 from .recipe import Recipe, load_recipes
 from .resolver import resolve
 from .toolchain import Toolchain, posix
 
-_ENGINE_CLS = {"meson": MesonEngine, "cmake": CmakeEngine, "autotools": AutotoolsEngine}
+_ENGINE_CLS = {
+    "meson": MesonEngine,
+    "cmake": CmakeEngine,
+    "autotools": AutotoolsEngine,
+    "data": DataEngine,
+}
 _LOCKFILE = "versions.lock.yaml"
 
 # .pc 的字段：Requires.private / Libs.private / Cflags.private 需提升为公开字段

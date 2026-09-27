@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Dict, List
 
@@ -77,16 +78,52 @@ class Engine:
 
 
 class MesonEngine(Engine):
+    def env_prefix(self) -> str:
+        """recipe.meson.env -> `env K=V` 前缀，作用于 configure/compile/install。
+
+        与 recipe.test.env（由 test_command 注入）同构，补上"构建期"这一半：
+        少数包在 configure/compile 阶段就需要显式环境变量。值是字符串，
+        其中的 $SRC / $BUILD / $WS 占位符替换为对应目录的 posix 路径
+        （recipe 无法预知 build/<target>/<name>/ 的实际路径，故由引擎展开）。
+
+        首例：shared-mime-info 的 data/meson.build 用 i18n.merge_file 合并
+        XML 翻译，meson 会把 --datadirs=<源码目录>/data/. 以 **Windows 形式**
+        （C:/...）塞进 GETTEXTDATADIRS；而 gettext 的搜索路径按 ':' 切分
+        （gettext-tools/src/search-path.c 的 foreach_elements），盘符里的
+        冒号把该路径切成 "C" 与 "/msys64/..." 两个无效项，于是
+        msgfmt 报 "cannot locate ITS rules"。单数的 GETTEXTDATADIR 是
+        单一路径、不参与切分且优先级更高，指向源码里的 its/ 目录即可解。
+        """
+        env = self.recipe.meson.get("env") or {}
+        if not env:
+            return ""
+        repl = {
+            "$SRC": posix(self.src_dir),
+            "$BUILD": posix(self.build_dir),
+            "$WS": posix(self.ws),
+        }
+        parts = []
+        for key, value in env.items():
+            val = str(value)
+            for token, path in repl.items():
+                val = val.replace(token, path)
+            parts.append(f'{key}="{val}"')
+        return "env " + " ".join(parts) + " "
+
     def setup_cmd(self) -> str:
-        opts = self.recipe.meson.get("options", [])
+        # 注意用 `or []` 兜底：YAML 里 `options:` 下只写注释会被解析成 None，
+        # 用 get(..., []) 的默认值兜不住（键存在但值为 None），会炸成
+        # "can only join an iterable" 这种难查的 TypeError。
+        opts = self.recipe.meson.get("options") or []
         opt_str = " ".join(opts)
-        cross = self.recipe.meson.get("cross_args", "")
+        cross = self.recipe.meson.get("cross_args") or ""
         # 库形态由项目/recipe 配置驱动（默认 static：只出 .a，不出 DLL）
         libtype = self.libtype
         # prefer_static：dependency() 优先选 .a，并以 pkg-config --static 查询，
         # 从而带出 .pc 的 Cflags.private（XML_STATIC / PCRE2_STATIC 等静态消费宏）
         prefer = "true" if self.prefer_static else "false"
         return (
+            f"{self.env_prefix()}"
             f"meson setup {posix(self.build_dir)} {posix(self.src_dir)} "
             f"--prefix={posix(self.sysroot)} --libdir=lib -Dbuildtype=release "
             f"-Ddefault_library={libtype} -Dprefer_static={prefer} {opt_str} {cross}"
@@ -98,11 +135,16 @@ class MesonEngine(Engine):
 
     def compile(self) -> None:
         self.tc.expect(
-            f"meson compile -C {posix(self.build_dir)} -j {self.jobs}", cwd=self.ws
+            f"{self.env_prefix()}"
+            f"meson compile -C {posix(self.build_dir)} -j {self.jobs}",
+            cwd=self.ws,
         )
 
     def install(self) -> None:
-        self.tc.expect(f"meson install -C {posix(self.build_dir)}", cwd=self.ws)
+        self.tc.expect(
+            f"{self.env_prefix()}meson install -C {posix(self.build_dir)}",
+            cwd=self.ws,
+        )
 
     def test_command(self) -> str | None:
         # recipe test.env: 以 `env K=V` 前缀注入测试进程环境（shell 层继承，
@@ -162,6 +204,54 @@ class CmakeEngine(Engine):
         )
 
 
+class DataEngine(Engine):
+    """纯数据包：无构建步骤，按 recipe 声明把文件装进 sysroot。
+
+    首个用例：egl-headers —— Khronos EGL-Registry 仓库只有头文件（api/），
+    既没有构建系统也没有 configure；用声明代替"为它造一个构建系统 + 补丁"：
+
+    data:
+      install_files:            # 源码树路径 -> sysroot 路径（目录递归复制）
+        api/EGL: include/EGL
+        api/KHR/khrplatform.h: include/KHR
+      text_files:               # 生成文本文件，@PREFIX@ 替换为 sysroot 路径
+        lib/pkgconfig/egl.pc: |
+          prefix=@PREFIX@
+          ...
+    """
+
+    def configure(self) -> None:
+        print(f"  [data] {self.recipe.name}: 无 configure（纯数据包）")
+
+    def compile(self) -> None:
+        print(f"  [data] {self.recipe.name}: 无 compile（纯数据包）")
+
+    def install(self) -> None:
+        files = self.recipe.data.get("install_files") or {}
+        generated = self.recipe.data.get("text_files") or {}
+        if not files and not generated:
+            raise BuildError(
+                f"{self.recipe.name}: data 段为空（install_files/text_files 都没声明）"
+            )
+        for src_rel, dest_rel in files.items():
+            src = self.src_dir / src_rel
+            if not src.exists():
+                raise BuildError(f"{self.recipe.name}: 源路径不存在: {src_rel}")
+            dest = self.sysroot / dest_rel
+            if src.is_dir():
+                shutil.copytree(src, dest, dirs_exist_ok=True)
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+            print(f"  [data] {src_rel} -> {dest_rel}")
+        prefix = posix(self.sysroot)
+        for dest_rel, content in generated.items():
+            dest = self.sysroot / dest_rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(str(content).replace("@PREFIX@", prefix), encoding="utf-8")
+            print(f"  [data] <generated> -> {dest_rel}")
+
+
 class AutotoolsEngine(Engine):
     def source_posix(self) -> str:
         """Source dir containing configure (default: src root)."""
@@ -178,14 +268,28 @@ class AutotoolsEngine(Engine):
 
     def configure(self) -> None:
         opts = list(self.recipe.autotools.get("configure", []))
+        envs = self.recipe.autotools.get("env", {})
+        env_str = " ".join(f"{k}={v}" for k, v in envs.items())
+        if self.recipe.autotools.get("raw_configure"):
+            # 手工 configure（首个用例：libvpx）——它不是 autotools 生成的脚本，
+            # 对 -C / --host= / --build= 这类 autoconf 参数会直接
+            # die_unknown（build/make/configure.sh 的 process_common_cmdline 尾部
+            # `*) die_unknown $opt`）而退出；库形态与 target 也各有专有写法
+            # （--target=x86_64-win64-gcc、非 ELF 平台只支持静态），故这一支
+            # 只保留各包通用的 --prefix，其余全部由 recipe 自己写全。
+            print(f"  [autotools configure/raw] {self.recipe.name}")
+            self.tc.expect(
+                f"cd {self.source_posix()} && {env_str} ./configure "
+                f"--prefix={posix(self.sysroot)} {' '.join(opts)}",
+                cwd=self.ws,
+            )
+            return
         # 库形态统一由 default_library 驱动（除非 recipe 自己声明了 --enable/--disable-shared）
         if not any("--enable-shared" in o or "--disable-shared" in o for o in opts):
             opts.append("--disable-shared" if self.static else "--enable-shared")
         if not any("--enable-static" in o or "--disable-static" in o for o in opts):
             opts.append("--enable-static" if self.static else "--disable-static")
         opt_str = " ".join(opts)
-        envs = self.recipe.autotools.get("env", {})
-        env_str = " ".join(f"{k}={v}" for k, v in envs.items())
         host = self.tc.cfg.get("host_triple")
         host_str = f"--host={host} --build={host}" if host else ""
         cmd = (

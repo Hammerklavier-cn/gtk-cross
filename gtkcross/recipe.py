@@ -34,6 +34,8 @@ class Recipe:
     meson: Dict[str, Any] = field(default_factory=dict)
     cmake: Dict[str, Any] = field(default_factory=dict)
     autotools: Dict[str, Any] = field(default_factory=dict)
+    # 纯数据包（build: data）的声明：install_files / text_files，见 engines.DataEngine
+    data: Dict[str, Any] = field(default_factory=dict)
     post_install: Dict[str, Any] = field(default_factory=dict)
     test: Dict[str, Any] = field(default_factory=dict)
     patches: List[str] = field(default_factory=list)
@@ -70,6 +72,7 @@ class Recipe:
             meson=_deep_merge(self.meson, override.get("meson", {})),
             cmake=_deep_merge(self.cmake, override.get("cmake", {})),
             autotools=_deep_merge(self.autotools, override.get("autotools", {})),
+            data=_deep_merge(self.data, override.get("data", {})),
             post_install=_deep_merge(self.post_install, override.get("post_install", {})),
             test=_deep_merge(self.test, override.get("test", {})),
             patches=override.get("patches", self.patches),
@@ -105,6 +108,7 @@ def load_recipe(path: Path) -> Recipe:
         meson=data.get("meson", {}),
         cmake=data.get("cmake", {}),
         autotools=data.get("autotools", {}),
+        data=data.get("data", {}),
         post_install=data.get("post_install", {}),
         test=data.get("test", {}),
         patches=data.get("patches", []),
