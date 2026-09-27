@@ -1,0 +1,40 @@
+Check the XAML/DirectX interop header in the WinRT d3d11 probe
+
+The d3d11 plugin probes for UWP (WINAPI_PARTITION_APP) support with a
+cxx.compiles() snippet and, when the probe passes, compiles the WinRT window
+sources gstd3d11window_corewindow.cpp / gstd3d11window_swapchainpanel.cpp.
+Both of them include <windows.ui.xaml.media.dxinterop.h>:
+
+  ../src/sys/d3d11/gstd3d11window_corewindow.cpp:32:10: fatal error:
+    windows.ui.xaml.media.dxinterop.h: No such file or directory
+  ../src/sys/d3d11/gstd3d11window_swapchainpanel.cpp:32:10: fatal error:
+    windows.ui.xaml.media.dxinterop.h: No such file or directory
+
+That is a Windows SDK XAML/DirectX interop header which the mingw-w64 headers
+do not ship, so the probe currently reports a false positive: it only tests
+"is this a Windows 10+ UWP-capable target", never "can the WinRT window sources
+actually be compiled".
+
+Whether the probe passes is decided by the prefix's default _WIN32_WINNT, which
+is 0xA00 in UCRT64 but 0x601 in MINGW64 (_mingw.h).  The snippet's
+`#if (WINVER < 0x0A00)` check therefore fails on mingw64 and passes on ucrt64 --
+which is exactly why this fails on msys2-ucrt64 and not on msys2-mingw64.
+
+Adding the missing header to the probe makes it test what actually matters.
+The probe then correctly reports NO for MinGW (header absent) and still YES for
+MSVC (the Windows SDK ships it), so only the Win32 desktop window path is built
+here.  GCC loses nothing: the UWP CoreWindow/SwapChainPanel sinks are not
+usable from a Win32 desktop application.
+
+Same approach as MSYS2's mingw-w64-gst-plugins-bad 0004-check-d3d11-header.patch.
+
+--- a/gst-libs/gst/d3d11/meson.build
++++ b/gst-libs/gst/d3d11/meson.build
+@@ -86,6 +86,7 @@
+ if runtimeobject_lib.found() and d3dcompiler_lib.found()
+   d3d11_winapi_app = cxx.compiles('''#include <winapifamily.h>
+       #include <windows.applicationmodel.core.h>
++      #include <windows.ui.xaml.media.dxinterop.h>
+       #include <wrl.h>
+       #include <wrl/wrappers/corewrappers.h>
+       #include <d3d11_4.h>

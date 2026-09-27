@@ -36,3 +36,12 @@ meson:
     - -Dauto_features=disabled
     # 上游默认即 disabled，显式写出来表示不引入 GPL 侧编解码
     - -Dgpl=disabled
+patches:
+  # d3d11 的 UWP(WinRT) 窗口源用 <windows.ui.xaml.media.dxinterop.h>，而该头
+  # 是 Windows SDK 的 XAML/DirectX interop 头，mingw-w64 头文件里没有。上游
+  # 的 winapi_app 探测只判"是否 Windows 10+ 的 UWP 目标"，不判该头能否编译，
+  # 于是探测通过→编入 corewindow/swapchainpanel 源→fatal error。
+  # 探测能否通过取决于前缀的 _WIN32_WINNT 默认值（ucrt64=0xA00，mingw64=0x601），
+  # 这正是 msys2-ucrt64 挂而 msys2-mingw64 过、本机曾"侥幸"的原因。
+  # 补丁把该头加进探测，使探测回归其真实语义（MinGW 报 NO、MSVC 仍 YES）。
+  - gst-plugins-bad-0001-check-xaml-interop-header.patch
