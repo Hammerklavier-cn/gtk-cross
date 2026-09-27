@@ -37,7 +37,7 @@ deps:
   # 核心 gstreamer 是传递依赖，这里也显式列出，便于"从零规划"时把整条媒体
   # 链纳入 build plan。
   # 注：运行期还需要 gst-plugins-good（matroska/vpx/autodetect/directsound…），
-  # 它不参与 libgtk 的编译，故不列为构建依赖（见 README 媒体链一节）。
+  # 它不参与 libgtk 的编译，故不列为构建依赖（见 NOTES.md 媒体链一节）。
   - gstreamer
   - gst-plugins-base
   - gst-plugins-bad
