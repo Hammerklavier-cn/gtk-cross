@@ -1,0 +1,61 @@
+shared-mime-info 的 8 个测试中只有 translations 和 "No duplicate
+mime-types" 两项失败，且失败输出是 UTF-16 的 "Windows Subsystem for
+Linux has no installed distributions." —— 共同点是这两个脚本的 shebang
+都是 `#!/usr/bin/env bash`（其余两个 .sh 用 `#!/bin/sh`，不受影响）。
+
+根因：Windows 上 meson 不理解 shebang。mtest.py 在运行"已构建、非 exe"
+的测试命令时调用 ExternalProgram._shebang_to_cmd()，其 is_windows()
+分支把 shebang 程序名的路径前缀剥掉（/usr/bin/env -> env -> 再折叠为
+bash），得到**裸名** `bash`。CreateProcess 解析裸名的顺序是「镜像目录 ->
+当前目录 -> System32 -> Windows -> PATH」，System32 先于 PATH；而装了
+WSL 的 Windows（GitHub windows-latest runner 镜像即是）在 System32 下
+有 bash.exe —— 那是 WSL 启动器，不是 bash。于是测试实际执行
+
+    C:\Windows\System32\bash.exe check_translations.sh
+      -> wsl.exe -> "Windows Subsystem for Linux has no installed
+         distributions."（UTF-16 输出）-> exit 1
+
+两个脚本用了 `set -euo pipefail` 与 `[[ ]]`，必须 bash，不能改成 sh。
+本机没装 WSL launcher（System32 下无 bash.exe），裸名 bash 会正常落到
+PATH 上的 MSYS2 bash，所以本地永远复现不了——纯 CI 环境差异。
+
+修复：配置期用 find_program('bash') 把解释器解析成绝对路径（按工具链
+PATH 顺序命中 MSYS2 bash），脚本改用 files() 作参数传入；绝对路径的
+CreateProcess 不走上述搜索顺序，绕开 System32 劫持。
+
+--- a/po/meson.build
++++ b/po/meson.build
+@@ -5,4 +5,14 @@
+ )
+ 
+ 
+-test('translations', find_program('check_translations.sh'))
++# Windows/CI 修复：meson 在 Windows 上不理解 shebang，_shebang_to_cmd() 会把
++# `#!/usr/bin/env bash` 折叠成**裸名** bash 作为解释器；CreateProcess 搜索裸名
++# 的顺序是 镜像目录 -> 当前目录 -> System32 -> Windows -> PATH，而装了 WSL 的
++# Windows（含 GitHub runner 镜像）里 System32 目录下就有 bash.exe —— 那是 WSL
++# 启动器，执行后报 "Windows Subsystem for Linux has no installed
++# distributions." 并以非 0 退出。改为配置期用 find_program('bash') 按 PATH
++# 顺序解析出 MSYS2 bash 的绝对路径，脚本本身作为参数传入。
++test('translations',
++    find_program('bash'),
++    args: files('check_translations.sh'),
++)
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -32,9 +32,13 @@
+     command: [ find_program('test_generic_icons.sh'), freedesktop_org_xml ],
+ )
+ 
++# 同 po/meson.build：脚本 shebang 是 `#!/usr/bin/env bash`，折叠出的裸名
++# bash 在 Windows 上被 System32 的 WSL launcher 劫持。显式指定绝对路径 bash。
++# （`#!/bin/sh` 的 test-case-sensitivity.sh 不受影响：System32 下没有 sh.exe，
++#  裸名 sh 会正常落到 PATH 上的 MSYS2 sh.exe。）
+ test('No duplicate mime-types',
+-    find_program('test_duplicate_mime_types.sh'),
+-    args: freedesktop_org_xml,
++    find_program('bash'),
++    args: [ files('test_duplicate_mime_types.sh'), freedesktop_org_xml, ],
+ )
+ 
+ test('Single spelling case',
