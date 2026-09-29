@@ -322,7 +322,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-mingw64/expat/build --output-on-failure -j 24",
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-mingw64/expat/build --output-on-failure -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -384,7 +384,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/fribidi/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/fribidi/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -407,7 +407,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/gdk-pixbuf/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/gdk-pixbuf/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -466,7 +466,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/glib/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/glib/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -535,7 +535,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "env GI_SCANNER_DISABLE_CACHE=1 meson test -C @ROOT@/build/msys2-mingw64/gobject-introspection/build --print-errorlogs -j 24",
+        "test_cmd": "env GI_SCANNER_DISABLE_CACHE=1 meson test -C @ROOT@/build/msys2-mingw64/gobject-introspection/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {
           "GI_SCANNER_DISABLE_CACHE": "1"
@@ -693,7 +693,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/gtk/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/gtk/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -781,7 +781,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/libadwaita/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/libadwaita/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -975,7 +975,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-mingw64/libpng/build --output-on-failure -j 24",
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-mingw64/libpng/build --output-on-failure -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -1482,7 +1482,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "env PANGOCAIRO_BACKEND=fc meson test -C @ROOT@/build/msys2-mingw64/pango/build --print-errorlogs -j 24",
+        "test_cmd": "env PANGOCAIRO_BACKEND=fc meson test -C @ROOT@/build/msys2-mingw64/pango/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {
           "PANGOCAIRO_BACKEND": "fc"
@@ -1571,7 +1571,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/shared-mime-info/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/shared-mime-info/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -2106,7 +2106,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-ucrt64/expat/build --output-on-failure -j 24",
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-ucrt64/expat/build --output-on-failure -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -2168,7 +2168,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/fribidi/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/fribidi/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -2191,7 +2191,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/gdk-pixbuf/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/gdk-pixbuf/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -2250,7 +2250,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/glib/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/glib/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -2319,7 +2319,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "env GI_SCANNER_DISABLE_CACHE=1 meson test -C @ROOT@/build/msys2-ucrt64/gobject-introspection/build --print-errorlogs -j 24",
+        "test_cmd": "env GI_SCANNER_DISABLE_CACHE=1 meson test -C @ROOT@/build/msys2-ucrt64/gobject-introspection/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {
           "GI_SCANNER_DISABLE_CACHE": "1"
@@ -2475,7 +2475,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/gtk/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/gtk/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -2563,7 +2563,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/libadwaita/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/libadwaita/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -2757,7 +2757,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-ucrt64/libpng/build --output-on-failure -j 24",
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-ucrt64/libpng/build --output-on-failure -j 1",
         "test_enabled": true,
         "test_env": {}
       },
@@ -3264,7 +3264,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "env PANGOCAIRO_BACKEND=fc meson test -C @ROOT@/build/msys2-ucrt64/pango/build --print-errorlogs -j 24",
+        "test_cmd": "env PANGOCAIRO_BACKEND=fc meson test -C @ROOT@/build/msys2-ucrt64/pango/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {
           "PANGOCAIRO_BACKEND": "fc"
@@ -3353,7 +3353,7 @@
         "platforms": [],
         "post_install": [],
         "submodules": {},
-        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/shared-mime-info/build --print-errorlogs -j 24",
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/shared-mime-info/build --print-errorlogs -j 1",
         "test_enabled": true,
         "test_env": {}
       },

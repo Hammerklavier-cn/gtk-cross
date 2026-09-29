@@ -24,6 +24,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import unittest
 from pathlib import Path
 
@@ -42,9 +43,26 @@ def _rel(text: str) -> str:
 
 
 def capture_plan(target: str) -> dict:
-    """Return the resolved build plan for one target (no subprocess spawned)."""
+    """Return the resolved build plan for one target (no subprocess spawned).
+
+    钉死两个宿主相关的输入，否则快照会随 runner 漂移（CI 上 20 个 FAIL 的根因）：
+      * 并行度：test_cmd 里的 `-j {jobs}` 取自 Builder 的 cpu_count()，本地 24 核
+        生成的 golden 到 4 核 runner 上必然不同 → 固定为任意常量即可，值本身不进
+        断言语义；
+      * GTKCROSS_TEST_WRAPPER：linux job 用它给测试命令加 xvfb 前缀，而快照校验
+        的是"命令串与目标定义一致"，不该随宿主环境变化 → 捕获期间清空。
+    """
     project = ProjectConfig.load(ROOT)
-    builder = Builder(project, target)
+    builder = Builder(project, target, jobs=1)
+    saved_wrapper = os.environ.pop("GTKCROSS_TEST_WRAPPER", None)
+    try:
+        return _capture_plan(project, builder, target)
+    finally:
+        if saved_wrapper is not None:
+            os.environ["GTKCROSS_TEST_WRAPPER"] = saved_wrapper
+
+
+def _capture_plan(project, builder, target: str) -> dict:
     captured: list[str] = []
     # 捕获而非执行：Toolchain.expect 是唯一下发命令的出口
     builder.tc.expect = lambda script, cwd=None, _c=captured: _c.append(script)
