@@ -1454,6 +1454,26 @@
         "test_enabled": false,
         "test_env": {}
       },
+      "openssl": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/openssl/src &&  ./config --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib --openssldir=/etc/ssl no-shared no-docs no-tests no-fips no-legacy",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
       "pango": {
         "build": "meson",
         "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/pango/build @ROOT@/build/msys2-mingw64/pango/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dgtk_doc=false -Dintrospection=enabled -Dman-pages=false -Dfontconfig=enabled -Dfreetype=enabled ",
@@ -3224,6 +3244,26 @@
           "expat",
           "zlib"
         ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "openssl": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/openssl/src &&  ./config --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib --openssldir=/etc/ssl no-shared no-docs no-tests no-fips no-legacy",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
         "known_failures": [],
         "libtype": "static",
         "patches": [],

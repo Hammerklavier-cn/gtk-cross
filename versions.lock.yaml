@@ -230,6 +230,10 @@ mesa:
   sha256: 1628058a8d2c0615975de5a15ab7bbb9638c50000b5bed9456ff423ea034a81f
   url: https://archive.mesa3d.org/mesa-26.2.3.tar.xz
   version: 26.2.3
+openssl:
+  sha256: a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2
+  url: https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz
+  version: 3.5.8
 pango:
   sha256: 342385b6ca3b7c73455d7c80a13b7dbe4489e00bc3bd4c5bd6ed4dce421e374a
   url: https://download.gnome.org/sources/pango/1.58/pango-1.58.2.tar.xz

@@ -309,16 +309,24 @@ class AutotoolsEngine(Engine):
         opts = list(self.recipe.autotools.get("configure", []))
         envs = self.recipe.autotools.get("env", {})
         env_str = " ".join(f"{k}={v}" for k, v in envs.items())
+        # 配置入口脚本名：绝大多数上游是 autoconf 生成的 ./configure，少数手写入口
+        # 各有自己的名字（OpenSSL 的 ./config 在 3.5.8 里就是
+        # `exec "$THERE/Configure" "$@"` 三行包装）。默认值保持与旧行为逐字节一致。
+        script = self.recipe.autotools.get("script", "./configure")
         if self.recipe.autotools.get("raw_configure"):
-            # 手工 configure（首个用例：libvpx）——它不是 autotools 生成的脚本，
+            # 手工 configure（用例：libvpx、openssl）——它不是 autotools 生成的脚本，
             # 对 -C / --host= / --build= 这类 autoconf 参数会直接
             # die_unknown（build/make/configure.sh 的 process_common_cmdline 尾部
             # `*) die_unknown $opt`）而退出；库形态与 target 也各有专有写法
             # （--target=x86_64-win64-gcc、非 ELF 平台只支持静态），故这一支
             # 只保留各包通用的 --prefix，其余全部由 recipe 自己写全。
+            # openssl 是同一问题的**静默**变体，更值得防：./config 对 -C 与
+            # --disable-shared/--enable-static 一律退出 0，而库形态那两条完全不生效
+            # （实测：给它 --disable-shared --enable-static 后，生成的 Makefile 里
+            # 仍有 236 处 libcrypto.so；只有上游关键字 no-shared 才是 0）。
             print(f"  [autotools configure/raw] {self.recipe.name}")
             self.tc.expect(
-                f"cd {self.source_posix()} && {env_str} ./configure "
+                f"cd {self.source_posix()} && {env_str} {script} "
                 f"--prefix={posix(self.sysroot)} {' '.join(opts)}",
                 cwd=self.ws,
             )
@@ -332,7 +340,7 @@ class AutotoolsEngine(Engine):
         host = self.tc.cfg.get("host_triple")
         host_str = f"--host={host} --build={host}" if host else ""
         cmd = (
-            f"cd {self.source_posix()} && {env_str} ./configure -C "
+            f"cd {self.source_posix()} && {env_str} {script} -C "
             f"--prefix={posix(self.sysroot)} {host_str} {opt_str}"
         )
         print(f"  [autotools configure] {self.recipe.name}")
@@ -342,4 +350,10 @@ class AutotoolsEngine(Engine):
         self.tc.expect(f"make -C {self.subdir_posix()} -j {self.jobs}", cwd=self.ws)
 
     def install(self) -> None:
-        self.tc.expect(f"make -C {self.subdir_posix()} install", cwd=self.ws)
+        # 安装目标可换：OpenSSL 的默认 `install` = install_sw + install_ssldirs
+        # （+ install_docs），而 install_ssldirs 写的是 $(DESTDIR)$(OPENSSLDIR) ——
+        # --openssldir 给运行期绝对路径（/etc/ssl）时它会试图往系统目录装
+        # openssl.cnf，破 hermetic 也必失败。上游为此提供只装软件成分的 install_sw
+        # （INSTALL.md:1741；组成见 Configurations/unix-Makefile.tmpl:669、:707）。
+        target = self.recipe.autotools.get("install_target", "install")
+        self.tc.expect(f"make -C {self.subdir_posix()} {target}", cwd=self.ws)

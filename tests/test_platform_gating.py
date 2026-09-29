@@ -457,7 +457,7 @@ class PlatformsApplicability(unittest.TestCase):
         self.assertEqual(self.names_with("windows"), self.WINDOWS_ONLY)
 
     def test_linux_only_set_is_pinned(self):
-        """X 客户端栈 + GL 供给链（21 个）；改动这里必须同时说明为什么。"""
+        """X 客户端栈 + GL 供给链 + TLS 后端（22 个）；改动这里必须同时说明为什么。"""
         self.assertEqual(
             self.names_with("linux"),
             {
@@ -466,6 +466,7 @@ class PlatformsApplicability(unittest.TestCase):
                 "libxfixes", "libxrender", "libxi", "libxrandr", "libxcursor",
                 "libxdamage", "libxinerama", "libxxf86vm",
                 "libpciaccess", "libdrm", "libxshmfence", "mesa",
+                "openssl",
             },
         )
 
@@ -621,6 +622,103 @@ class TestWrapperHook(unittest.TestCase):
         os.environ["GTKCROSS_TEST_WRAPPER"] = "xvfb-run -a"
         cmd = self._cmd(named[0])
         self.assertTrue(cmd.startswith("xvfb-run -a env "), f"{named[0]}: {cmd}")
+
+
+class OpensslTlsBackend(unittest.TestCase):
+    """Linux 侧 curl 的 TLS 后端 = 自建 OpenSSL，以及它逼出来的两个 autotools 旋钮。
+
+    三处都必须钉住，因为它们出错不会当场炸：
+      - `--libdir=lib`：上游默认 libdir 是 `lib$target{multilib}`，而 linux-x86_64
+        带 multilib=64、linux-aarch64 不带 ⇒ 漏写就是 x86_64 装进 lib64、aarch64
+        装进 lib，同一份 target 定义在两个 CI 容器里产出不同布局，只有 x86_64 侧
+        会被 sysroot 的 lib64 守卫拦下；
+      - `install_target: install_sw`：默认 install 含 install_ssldirs，它会往
+        $(OPENSSLDIR)（这里是运行期绝对路径 /etc/ssl）写 openssl.cnf —— 既破
+        hermetic 又在无 root 时失败；
+      - `platforms: [linux]`：Windows 侧用 schannel，OpenSSL 不能进它的闭包。
+    """
+
+    def setUp(self):
+        self.project = ProjectConfig.load(ROOT)
+
+    def _captured(self, name: str, phase: str, target: str = LINUX_TARGET) -> str:
+        """只取命令串地跑一个阶段（Toolchain.expect 是唯一下发口，与
+        tests/test_windows_plan.py 的 capture_plan 同一手法）。"""
+        b = Builder(self.project, target)
+        r = b.recipes[name].for_target(target, b.tc.target_os)
+        out: list[str] = []
+        b.tc.expect = lambda script, cwd=None, _c=out: _c.append(script)
+        engine = _ENGINE_CLS[r.build](
+            r, b.tc, Path("/tmp/ws"), 4,
+            default_library=self.project.default_library,
+            prefer_static=self.project.prefer_static,
+        )
+        getattr(engine, phase)()
+        self.assertEqual(len(out), 1, f"{name}.{phase} 应只下发一条命令")
+        return out[0]
+
+    def test_openssl_uses_its_own_entrypoint(self):
+        cmd = self._captured("openssl", "configure")
+        self.assertIn("./config --prefix=", cmd)
+        # raw 支的意义：不注入 autoconf 的 -C 与 --host/--build（./config 会拒）
+        self.assertNotIn(" -C ", cmd)
+        self.assertNotIn("--host=", cmd)
+        # 库形态与文档/测试开关由 recipe 写全，引擎不插手
+        self.assertIn("no-shared", cmd)
+        self.assertNotIn("--enable-shared", cmd)
+
+    def test_install_avoids_ssldirs(self):
+        cmd = self._captured("openssl", "install")
+        self.assertTrue(cmd.endswith("install_sw"), cmd)
+        self.assertNotIn("ssldirs", cmd)
+
+    def test_libdir_is_pinned_against_multilib(self):
+        cmd = self._captured("openssl", "configure")
+        self.assertIn("--libdir=lib", cmd.split())
+        self.assertNotIn("lib64", cmd)
+
+    def test_curl_picks_the_backend_per_platform(self):
+        b = Builder(self.project, LINUX_TARGET)
+        r = b.recipes["curl"].for_target(LINUX_TARGET, b.tc.target_os)
+        self.assertIn("openssl", r.deps)
+        self.assertEqual(r.cmake["defines"]["CURL_USE_OPENSSL"], "ON")
+        # 死定义：CMakeLists.txt 的非 WIN32 分支自己 set(CURL_USE_SCHANNEL OFF)
+        self.assertNotIn("CURL_USE_SCHANNEL", r.cmake["defines"])
+        for target in WINDOWS_TARGETS:
+            w = Builder(self.project, target)
+            rw = w.recipes["curl"].for_target(target, w.tc.target_os)
+            with self.subTest(target=target):
+                self.assertEqual(rw.cmake["defines"]["CURL_USE_OPENSSL"], "OFF")
+                self.assertEqual(rw.cmake["defines"]["CURL_USE_SCHANNEL"], "ON")
+                self.assertNotIn("openssl", rw.deps)
+                self.assertNotIn("openssl", w.order(["curl"]))
+        self.assertIn("openssl", b.order(["curl"]))
+
+    def test_new_autotools_keys_default_to_the_old_commands(self):
+        """两个新旋钮缺省时命令串必须逐字节不变（Windows 快照靠这个不跟着动）。"""
+        b = Builder(self.project, LINUX_TARGET)
+        plain = Recipe(name="plain", version="1", source={"url": "u"},
+                       build="autotools")
+        knob = Recipe(name="knob", version="1", source={"url": "u"},
+                      build="autotools",
+                      autotools={"raw_configure": True, "script": "./config",
+                                 "install_target": "install_sw"})
+        for recipe, want_conf, want_inst in (
+            (plain, "./configure -C --prefix=", "install"),
+            (knob, "./config --prefix=", "install_sw"),
+        ):
+            out: list[str] = []
+            b.tc.expect = lambda script, cwd=None, _c=out: _c.append(script)
+            engine = _ENGINE_CLS["autotools"](
+                recipe, b.tc, Path("/tmp/ws"), 4,
+                default_library="static", prefer_static=False,
+            )
+            with self.subTest(recipe=recipe.name):
+                engine.configure()
+                engine.install()
+                self.assertIn(want_conf, out[0])
+                self.assertTrue(out[1].endswith(want_inst), out[1])
+                self.assertIn("make -C", out[1])
 
 
 if __name__ == "__main__":

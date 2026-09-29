@@ -20,9 +20,10 @@ cmake:
     CURL_DISABLE_LDAP: "ON"
     ENABLE_ARES: "OFF"
     ENABLE_IDN2: "OFF"
-# TLS 后端按平台而不同：schannel 是 Windows 的 SSPI 实现，Linux 上不存在
-# （对应物是 openssl/gnutls/mbedtls，本框架不引入，见 README：appstream 链
-# 自 libadwaita 1.10 起已不在闭包内，curl 只为该链存在，HTTP 能力不是目标）。
+# TLS 后端按平台而不同：schannel 是 Windows 的 SSPI 实现，Linux 上不存在，那边
+# 用自建的 OpenSSL（recipes/openssl.yaml）。base 里留 CURL_USE_OPENSSL=OFF 是
+# "默认无后端"的保守姿态（Windows 靠它，未来新平台也不会意外链上 crypto），
+# Linux 块把这个叶子值改成 ON。
 targets:
   - for: [windows]
     cmake:
@@ -30,7 +31,10 @@ targets:
         # schannel 后端避免 openssl/libssh2 大链
         CURL_USE_SCHANNEL: "ON"
   - for: [linux]
+    deps:
+      - openssl
     cmake:
       defines:
-        # 无 TLS 后端（curl 仍可构建，只是 https:// 不可用）
-        CURL_USE_SCHANNEL: "OFF"
+        # 不写 CURL_USE_SCHANNEL：CMakeLists.txt:735-736 的非 WIN32 分支直接
+        # `set(CURL_USE_SCHANNEL OFF)`，那个 -D 在本平台根本没被读过。
+        CURL_USE_OPENSSL: "ON"
