@@ -1,0 +1,19 @@
+name: libxau
+version: 1.0.12
+source:
+  url: https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz
+build: autotools
+# X 授权文件解析（.Xauthority）。libxcb 依赖它，于是 X 客户端栈的底层顺序是
+# util-macros → xorgproto → libXau / libpthread-stubs / xcb-proto → libxcb → libX11。
+#
+# 不加任何 --disable/--with 选项：X.org 的文档生成（xmlto/fop/doxygen）在宿主
+# 缺工具时上游探测本就不启用（本机实测 xmlto/fop/doxygen 均未安装），框架
+# 只传 --prefix 与库形态；将来某个包因缺工具失败时再按那条包的实测错误加开关。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+  - xorgproto
+test:
+  enabled: false

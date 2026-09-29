@@ -1,0 +1,18 @@
+name: xtrans
+version: 1.6.0
+source:
+  url: https://www.x.org/releases/individual/lib/xtrans-1.6.0.tar.xz
+build: autotools
+# X 传输层**头文件**包（Xtrans*.h + xtrans.pc），无库产物。
+# 实测 libX11 1.8.13 的 configure 那句是
+#   Package requirements (xproto >= 7.0.25 xextproto xtrans xcb >= 1.11.1 kbproto inputproto)
+# 缺它时报 `Package 'xtrans' not found`（其余四项由 xorgproto/libxcb 满足）。
+# 注意：Xtrans 源码从 libX11 里拆出成独立发行包，所以"vendored 在 libX11 内"
+# 这个旧说法对 1.8.x 不再成立。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+test:
+  enabled: false

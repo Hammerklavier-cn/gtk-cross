@@ -1,0 +1,16 @@
+name: libxfixes
+version: 6.0.2
+source:
+  url: https://www.x.org/releases/individual/lib/libXfixes-6.0.2.tar.xz
+build: autotools
+# X Fixes 扩展（区域裁剪、光标修复）；libXcursor / libXdamage 需要它。
+# 本包是双构建（根目录同时有 configure 与 meson.build），X 栈统一走 autotools。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+  - xorgproto
+  - libx11
+test:
+  enabled: false

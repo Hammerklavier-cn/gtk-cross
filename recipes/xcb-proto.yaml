@@ -1,0 +1,25 @@
+name: xcb-proto
+version: 1.17.0
+source:
+  url: https://www.x.org/releases/individual/proto/xcb-proto-1.17.0.tar.xz
+build: autotools
+# XCB 协议 XML + Python 代码生成器（xcbgen 包）。它不产出 C 库，但 libxcb 构建期
+# 要 `import xcbgen`，所以它是**构建期依赖**而非运行期依赖，随闭包装进
+# $SYSROOT 下的 python site-packages（安装目录由本包 configure 依据宿主 Python
+# 算出，libxcb 再从 xcb-proto.pc 的变量里取用）。
+#
+# PKG_CONFIG_PATH 指向宿主 /usr/lib64/pkgconfig 只为让 configure 用 pkg-config
+# 定位**宿主 Python**（Python.h / libpython 路径）。框架把 PKG_CONFIG_LIBDIR
+# 整体替换成 sysroot 以保证 hermetic，宿主 Python 的 .pc 因此在默认搜索路径外。
+# 放开的只是 PKG_CONFIG_PATH（pkg-config 追加搜索路径），且只作用于本 recipe 的
+# configure 命令行前缀。这不算破 hermetic：Python 与 meson/ninja/perl 同类，
+# 属"宿主构建工具"，从不在 target 侧闭包里（gobject-introspection 依赖同一个
+# python3-devel，见 NOTES 的 linux-x64 首跑记录）。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+    PKG_CONFIG_PATH: /usr/lib64/pkgconfig
+deps:
+  - util-macros
+test:
+  enabled: false

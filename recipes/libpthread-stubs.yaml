@@ -1,0 +1,18 @@
+name: libpthread-stubs
+version: "0.5"
+source:
+  url: https://www.x.org/releases/individual/lib/libpthread-stubs-0.5.tar.xz
+build: autotools
+# 只提供 `pthread-stubs.pc` 的桩包：X.org/xcb 体系用它在 glibc 之外补
+# pthread_atfork 之类的符号，在 glibc 上几乎不产出内容。仍然要建，因为下游
+# （libxcb）的探测是按 pkg-config 找这个 .pc，找不到就中止配置——具体那句
+# PKG_CHECK_MODULES 的要求版本以解包后的源码为准（见 recipes/platform-notes.md
+# 的记录方式：只写实测到的）。
+# 本包只被 linux 家族块里的 libxcb 间接引入，msys2-* 计划里没有它。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+test:
+  enabled: false

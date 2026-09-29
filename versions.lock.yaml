@@ -110,6 +110,10 @@ libadwaita:
   sha256: b1bf56239269d101a6391ad4553c910eff9cc6170b803916405477ef60a66c84
   url: https://download.gnome.org/sources/libadwaita/1.10/libadwaita-1.10.0.tar.xz
   version: 1.10.0
+libdrm:
+  sha256: ac5e74d157830eb8bee44c6a6bf3ad49774ef0dd2a72bdad74a8f20308b52a95
+  url: https://dri.freedesktop.org/libdrm/libdrm-2.4.134.tar.xz
+  version: 2.4.134
 libepoxy:
   sha256: a7ced37f4102b745ac86d6a70a9da399cc139ff168ba6b8002b4d8d43c900c15
   url: https://deb.debian.org/debian/pool/main/libe/libepoxy/libepoxy_1.5.10.orig.tar.gz
@@ -138,10 +142,18 @@ libopus:
   sha256: 6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
   url: https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
   version: 1.6.1
+libpciaccess:
+  sha256: 3c55aa86c82e54a4e3109786f0463530d53b36b6d1cfd14616454f985dd2aa43
+  url: https://www.x.org/releases/individual/lib/libpciaccess-0.19.tar.xz
+  version: '0.19'
 libpng:
   sha256: 28eb403f51f0f7405249132cecfe82ea5c0ef97f1b32c5a65828814ae0d34775
   url: https://download.sourceforge.net/libpng/libpng-1.6.58.tar.xz
   version: 1.6.58
+libpthread-stubs:
+  sha256: 59da566decceba7c2a7970a4a03b48d9905f1262ff94410a649224e33d2442bc
+  url: https://www.x.org/releases/individual/lib/libpthread-stubs-0.5.tar.xz
+  version: '0.5'
 libtiff:
   sha256: 672bd7d10aee4606171afb864f3570b83340f6a33e2c186dc0512f7145ffdf6a
   url: https://download.osgeo.org/libtiff/tiff-4.7.2.tar.gz
@@ -154,6 +166,42 @@ libvpx:
   sha256: 1020f184046187baa2985dbde38e0691f49c44088bca7a1842b0236c6081dc0a
   url: https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz
   version: 1.17.0
+libx11:
+  sha256: 69606f485c2c07c14ef64f75b7bb326d48587af33795d9ab3e607c0b5f94f11c
+  url: https://www.x.org/releases/individual/lib/libX11-1.8.13.tar.xz
+  version: 1.8.13
+libxau:
+  sha256: 74d0e4dfa3d39ad8939e99bda37f5967aba528211076828464d2777d477fc0fb
+  url: https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz
+  version: 1.0.12
+libxcb:
+  sha256: 599ebf9996710fea71622e6e184f3a8ad5b43d0e5fa8c4e407123c88a59a6d55
+  url: https://www.x.org/releases/individual/xcb/libxcb-1.17.0.tar.xz
+  version: 1.17.0
+libxcursor:
+  sha256: fde9402dd4cfe79da71e2d96bb980afc5e6ff4f8a7d74c159e1966afb2b2c2c0
+  url: https://www.x.org/releases/individual/lib/libXcursor-1.2.3.tar.xz
+  version: 1.2.3
+libxdamage:
+  sha256: 127067f521d3ee467b97bcb145aeba1078e2454d448e8748eb984d5b397bde24
+  url: https://www.x.org/releases/individual/lib/libXdamage-1.1.7.tar.xz
+  version: 1.1.7
+libxext:
+  sha256: 6c643c7035cdacf67afd68f25d01b90ef889d546c9fcd7c0adf7c2cf91e3a32d
+  url: https://www.x.org/releases/individual/lib/libXext-1.3.7.tar.xz
+  version: 1.3.7
+libxfixes:
+  sha256: 39f115d72d9c5f8111e4684164d3d68cc1fd21f9b27ff2401b08fddfc0f409ba
+  url: https://www.x.org/releases/individual/lib/libXfixes-6.0.2.tar.xz
+  version: 6.0.2
+libxi:
+  sha256: 7ad60056f01af4f786cfe93b3a7707447711626fc8da2637bec71a90409babe5
+  url: https://www.x.org/releases/individual/lib/libXi-1.8.3.tar.xz
+  version: 1.8.3
+libxinerama:
+  sha256: d00fc1599c303dc5cbc122b8068bdc7405d6fcb19060f4597fc51bd3a8be51d7
+  url: https://www.x.org/releases/individual/lib/libXinerama-1.1.6.tar.xz
+  version: 1.1.6
 libxml2:
   sha256: 78262a6e7ac170d6528ebfe2efccdf220191a5af6a6cd61ea4a9a9a5042c7a07
   url: https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz
@@ -162,6 +210,26 @@ libxmlb:
   sha256: 5982b4fe344deb36e57b40d7582f594ecd9414f86fb8258bb56f8b1a38e1d527
   url: https://github.com/hughsie/libxmlb/releases/download/0.3.28/libxmlb-0.3.28.tar.xz
   version: 0.3.28
+libxrandr:
+  sha256: 72b922c2e765434e9e9f0960148070bd4504b288263e2868a4ccce1b7cf2767a
+  url: https://www.x.org/releases/individual/lib/libXrandr-1.5.5.tar.xz
+  version: 1.5.5
+libxrender:
+  sha256: b832128da48b39c8d608224481743403ad1691bf4e554e4be9c174df171d1b97
+  url: https://www.x.org/releases/individual/lib/libXrender-0.9.12.tar.xz
+  version: 0.9.12
+libxshmfence:
+  sha256: d4a4df096aba96fea02c029ee3a44e11a47eb7f7213c1a729be83e85ec3fde10
+  url: https://www.x.org/releases/individual/lib/libxshmfence-1.3.3.tar.xz
+  version: 1.3.3
+libxxf86vm:
+  sha256: ae50c0f669e0af5a67cc4cd0f54f21d64a64d2660af883e80e95d3fe51b945d8
+  url: https://www.x.org/releases/individual/lib/libXxf86vm-1.1.7.tar.xz
+  version: 1.1.7
+mesa:
+  sha256: 1628058a8d2c0615975de5a15ab7bbb9638c50000b5bed9456ff423ea034a81f
+  url: https://archive.mesa3d.org/mesa-26.2.3.tar.xz
+  version: 26.2.3
 pango:
   sha256: 342385b6ca3b7c73455d7c80a13b7dbe4489e00bc3bd4c5bd6ed4dce421e374a
   url: https://download.gnome.org/sources/pango/1.58/pango-1.58.2.tar.xz
@@ -190,6 +258,10 @@ spirv-tools:
   sha256: d31e7109b6ef3559067e53e520870eafed7c9534d00db9728814b6df03fa4a5e
   url: https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
   version: 1.4.357.0
+util-macros:
+  sha256: 9ac269eba24f672d7d7b3574e4be5f333d13f04a7712303b1821b2a51ac82e8e
+  url: https://www.x.org/releases/individual/util/util-macros-1.20.2.tar.xz
+  version: 1.20.2
 vulkan-headers:
   sha256: e87dce08116151f6b6d7de6b6faf41498e87e6cf848ff16fa3bd5402190ad4a3
   url: https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
@@ -198,6 +270,18 @@ vulkan-loader:
   sha256: 54f2537df22313768da0317dda2abdaaab7711b4081c48c869a79db343d0ae70
   url: https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
   version: 1.4.357.0
+xcb-proto:
+  sha256: 2c1bacd2110f4799f74de6ebb714b94cf6f80fb112316b1219480fd22562148c
+  url: https://www.x.org/releases/individual/proto/xcb-proto-1.17.0.tar.xz
+  version: 1.17.0
+xorgproto:
+  sha256: 56898c716c0578df8a2d828c9c3e5c528277705c0484381a81960fe1a67668e8
+  url: https://www.x.org/releases/individual/proto/xorgproto-2025.1.tar.xz
+  version: '2025.1'
+xtrans:
+  sha256: faafea166bf2451a173d9d593352940ec6404145c5d1da5c213423ce4d359e92
+  url: https://www.x.org/releases/individual/lib/xtrans-1.6.0.tar.xz
+  version: 1.6.0
 xz:
   sha256: bdbc23fbf9098843357e71e49685724fda2c320c29cb1b25fd90505f14bb0b3d
   url: https://codeload.github.com/tukaani-project/xz/tar.gz/refs/tags/v5.8.1

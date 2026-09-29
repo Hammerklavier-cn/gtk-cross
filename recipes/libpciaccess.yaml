@@ -1,0 +1,12 @@
+name: libpciaccess
+version: "0.19"
+source:
+  url: https://www.x.org/releases/individual/lib/libpciaccess-0.19.tar.xz
+build: meson
+# PCI 访问抽象层。Mesa（libGL 的 DRI 路径）要它，实测 0.19 的归档根目录**只有**
+# meson.build/meson_options.txt（没有 configure），所以这里是 meson 引擎——
+# 与 X 栈其余包统一走 autotools 的做法在本包不适用（引擎按归档实际内容定）。
+deps:
+  - xorgproto
+test:
+  enabled: false
