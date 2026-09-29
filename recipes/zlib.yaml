@@ -11,8 +11,13 @@ cmake:
     ZLIB_BUILD_STATIC: "ON"
     # 只构建不跑测试（zlib 上游无 meson/ctest 套件接入）
     ZLIB_BUILD_TESTING: "OFF"
-patches:
-  # Windows 下上游把静态库命名为 libzs.a（zlib_static_suffix="s"），
-  # 而 zlib.pc 与下游 find_package(ZLIB) 都按 -lz 查找；去掉该后缀使
-  # 静态库名为 libz.a，链接名与 .pc 一致。
-  - zlib-0001-drop-windows-static-suffix.patch
+# libzs.a 那个 "s" 后缀是上游 `if(WIN32)` 分支里设的（实测补丁上下文即
+# `if(WIN32) set(zlib_static_suffix "s")`），Linux 上根本不进该分支，打这个补丁
+# 既无效果也可能因上下文漂移而失败，所以只登记在 windows 家族块。
+targets:
+  - for: [windows]
+    patches:
+      # Windows 下上游把静态库命名为 libzs.a（zlib_static_suffix="s"），
+      # 而 zlib.pc 与下游 find_package(ZLIB) 都按 -lz 查找；去掉该后缀使
+      # 静态库名为 libz.a，链接名与 .pc 一致。
+      - zlib-0001-drop-windows-static-suffix.patch

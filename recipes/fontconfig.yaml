@@ -14,16 +14,31 @@ meson:
     - -Ddoc=disabled
     - -Dtests=disabled
     - -Dtools=disabled
-patches:
-  # conf.d 默认片段（hinting/lcdfilter 等）经 link_confs.py 安装，上游用
-  # 符号链接且首次失败即 break：Windows 无符号链接权限（NotImplementedError
-  # / winerror 1314）时 conf.d 只剩 README。即便链接创建成功也不可靠——
-  # fontconfig 会回读这些条目，目录扫描遇到第一个打不开/解析失败的条目就
-  # 中止，后续规则被静默丢弃。改为安装实体文件（对齐 MSYS2 官方包）。
-  - fontconfig-0001-install-conf-d-as-regular-files.patch
-  # fonts.conf 的 <include ignore_missing="yes">conf.d</include> 上游会去掉前缀
-  # 变相对路径，改由 fontconfig 搜索路径（FONTCONFIG_PATH + 编译内置默认值）
-  # 解析；一旦落点不是本配置所在目录就会静默解析为空（ignore_missing="yes"
-  # 不报错），conf.d 全部规则失效。写入绝对路径，使安装配置自足。
-  # 见 pango-0002 / test-ellipsize / test-font-data 的 CI 失败。
-  - fontconfig-0002-absolute-confdir-in-fonts-conf.patch
+# 两个补丁都是 Windows 侧问题的产物，Linux 走上游原生路径（conf.d 用符号链接、
+# fonts.conf 用相对 include）。理由：
+#   * 0001 针对 os.symlink 在无特权 Windows 上抛 NotImplementedError /
+#     winerror 1314（补丁正文即删掉这两处 except 分支）；Linux 符号链接可用，
+#     上游形态就是对的。
+#   * 0002 针对相对 include 解析不到本前缀的 conf.d。Linux 原生构建里
+#     fontconfig 编译内置的 FONTCONFIG_PATH 取自 fc_baseconfigdir
+#     （补丁上下文即 `conf.set_quoted('FONTCONFIG_PATH', fc_baseconfigdir)`），
+#     其默认值是 meson 的 `<prefix>/etc`，本框架 prefix = $SYSROOT，所以相对
+#     `conf.d` 与该目录同处一个 sysroot——是否真的无需绝对路径，待 linux-x64
+#     首跑由 pango 的 test-ellipsize / test-font-data 度量结果验证（见下）。
+# 若 Linux 上出现 conf.d 规则未生效的征兆，把 0002 移回 base 复现验证即可，
+# 不要顺手改补丁。
+targets:
+  - for: [windows]
+    patches:
+      # conf.d 默认片段（hinting/lcdfilter 等）经 link_confs.py 安装，上游用
+      # 符号链接且首次失败即 break：Windows 无符号链接权限（NotImplementedError
+      # / winerror 1314）时 conf.d 只剩 README。即便链接创建成功也不可靠——
+      # fontconfig 会回读这些条目，目录扫描遇到第一个打不开/解析失败的条目就
+      # 中止，后续规则被静默丢弃。改为安装实体文件（对齐 MSYS2 官方包）。
+      - fontconfig-0001-install-conf-d-as-regular-files.patch
+      # fonts.conf 的 <include ignore_missing="yes">conf.d</include> 上游会去掉前缀
+      # 变相对路径，改由 fontconfig 搜索路径（FONTCONFIG_PATH + 编译内置默认值）
+      # 解析；一旦落点不是本配置所在目录就会静默解析为空（ignore_missing="yes"
+      # 不报错），conf.d 全部规则失效。写入绝对路径，使安装配置自足。
+      # 见 pango-0002 / test-ellipsize / test-font-data 的 CI 失败。
+      - fontconfig-0002-absolute-confdir-in-fonts-conf.patch

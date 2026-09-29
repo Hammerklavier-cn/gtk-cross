@@ -8,12 +8,31 @@ deps:
 cmake:
   defines:
     BUILD_TESTS: "OFF"
+    # WSI 开关留在 base 两平台同值，但含义不同，后续会分叉：
+    #   * Windows 上这些后端（X11/XCB/Wayland/DirectFB）根本不存在，OFF 是
+    #     "关掉不适用的东西"。
+    #   * Linux 上它们是真实功能，OFF 是本框架当前的主动裁剪——因为 sysroot 里
+    #     还没有 X11/Wayland 客户端栈可链。后果要记住：loader 不导出
+    #     VK_KHR_xlib_surface / _xcb_surface / _wayland_surface，GTK 的 Vulkan
+    #     渲染器在 Linux 上就**无法呈现到窗口**（编译不受影响，运行期
+    #     vkCreateSwapchainKHR 拿不到扩展）。X11/Wayland recipe 落地后，这几项
+    #     应移进 windows 家族块、linux 侧按 X11/Wayland 打开。
     BUILD_WSI_X11_SUPPORT: "OFF"
     BUILD_WSI_WAYLAND_SUPPORT: "OFF"
     BUILD_WSI_DIRECTFB_SUPPORT: "OFF"
     BUILD_WSI_XCB_SUPPORT: "OFF"
-patches:
-  # 上游只为 Apple 提供静态 loader（APPLE_STATIC_LOADER），Windows 分支硬编码
-  # SHARED；改为遵循 BUILD_SHARED_LIBS 产出 libvulkan-1.a，并把静态构建下的
-  # DllMain 关掉（否则会变成宿主的 DLL 入口点）。
-  - vulkan-loader-0001-static-library-support.patch
+# 补丁只改上游的 WIN32 分支（loader/CMakeLists.txt 的 `if(WIN32)` 段、
+# loader_windows.c 的 DllMain、以及 `if(WIN32)` 里的 VULKAN_LIB_SUFFIX），
+# Linux 分支一字未动，所以只在 windows 家族块打。
+# Linux 上由此产生的差异是**有意**的，且已核实上游形态：loader/CMakeLists.txt
+# 的非 Windows 分支是 `else() → add_library(vulkan SHARED ...)`，完全不读
+# BUILD_SHARED_LIBS（只有 APPLE_STATIC_LOADER 才给静态），所以本项目在 Linux 上
+# 产出 libvulkan.so —— 这正是本平台想要的形态（loader 运行期 dlopen ICD，静态
+# 进每个消费者会各持一份状态，与本项目对 gstreamer/libffi 的判断同理）。
+targets:
+  - for: [windows]
+    patches:
+      # 上游只为 Apple 提供静态 loader（APPLE_STATIC_LOADER），Windows 分支硬编码
+      # SHARED；改为遵循 BUILD_SHARED_LIBS 产出 libvulkan-1.a，并把静态构建下的
+      # DllMain 关掉（否则会变成宿主的 DLL 入口点）。
+      - vulkan-loader-0001-static-library-support.patch

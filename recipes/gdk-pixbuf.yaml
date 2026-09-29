@@ -43,8 +43,42 @@ meson:
     # 结论：这批 upstream "weakly maintained" loader 对畸形输入既慢又可能
     # 触发断言，未达"重跑实测通过"的门槛，故本 recipe 保持上游默认（不开）。
     # 若将来要重开，建议先在上游定位 io-ico/io-bmp 等的 updated-before-
-    # prepared 路径，或把可视图像格式需求交给 glycin/librsvg 路线。
+    # prepared 路径，或把可视图像格式需求交给外部 loader（librsvg 之类；
+    # glycin 在 Linux 上被上游提成硬依赖后又因是 Rust 工程而裁掉，见下面的
+    # linux 家族块）。
     # 注：native_windows_loaders（GDI+ 路径）同样刻意不开——它会接管
     # png/jpeg/gif/tiff 换成 GDI+ 实现，与自建 libjpeg/libpng 链路不一致。
+# 上游按宿主系统分叉的强制依赖，只有非 Windows/macOS/android 才需要，故放
+# linux 家族块（Windows 目标下这个 dep 根本不参与 configure，不加才是对的）。
+targets:
+  - for: [linux]
+    deps:
+      # src/meson.build:208-212：
+      #   if get_option('gio_sniffing') and host_system not in
+      #      ['windows','darwin','android']
+      #     shared_mime_dep += dependency('shared-mime-info')   # required
+      #     gdk_pixbuf_conf.set('GDK_PIXBUF_USE_GIO_MIME', 1)
+      # dependency() 无 required: false ⇒ 找不到 .pc 直接
+      # "Dependency "shared-mime-info" not found" 中止 configure。shared-mime-info
+      # 的 .pc 装在 $SYSROOT/share/pkgconfig（PKG_CONFIG_LIBDIR 已含该目录），
+      # 它同时提供运行期 share/mime + mime.cache——GIO 内容类型嗅探
+      # （g_content_type_guess）要有编译后的 MIME 数据库才有效，这正是
+      # GDK_PIXBUF_USE_GIO_MIME 打开后走的代码路径。
+      - shared-mime-info
+    meson:
+      options:
+        # 上游 meson.build:259 `get_option('glycin').enable_auto_if(system ==
+        # 'linux')`——只有 Linux 把该 feature 从 auto 提成 enabled，于是 :263 的
+        # dependency('glycin-2', required: glycin_opt) 变成硬依赖，实测报
+        # src/meson.build:263:15: ERROR: Dependency "glycin-2" not found。
+        # Windows/macOS 上 auto 仍是 auto，找不到就静默不启用，所以这条只在
+        # Linux 家族块里写。glycin 是 Rust 写的 loader daemon（SVG/HEIF 等），
+        # 上游没有给它 wrap 回退，而本框架的引擎表只有 meson/cmake/autotools
+        # （gtkcross/builder.py），没有 cargo 路径 ⇒ 不可自建（见
+        # recipes/platform-notes.md）。关掉后 png/jpeg/tiff/
+        # gif loader 走 :289/:316/:360/:391 的 disable_auto_if(glycin found)
+        # 反分支，即仍用本闭包自建的 libpng/libjpeg-turbo/libtiff，与 Windows
+        # 形态一致。
+        - -Dglycin=disabled
 test:
   enabled: true

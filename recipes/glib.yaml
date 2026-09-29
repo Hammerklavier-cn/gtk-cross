@@ -22,10 +22,6 @@ meson:
     - -Dlibelf=disabled
     - -Dsystemtap=disabled
     - -Dsysprof=disabled
-    # 修复 "TLS callback not invoked"：GCC 分支的 G_DEFINE_TLS_CALLBACK 缺少
-    # MSVC 分支的 /INCLUDE:_tls_used 等价物；GNU bfd ld 仅在 _tls_used 被引用时
-    # 才生成 PE TLS directory 并收集 .CRT$XL* 回调（修复后 306 项测试全过）。
-    - -Dc_link_args=-Wl,--undefined=_tls_used
 test:
   enabled: true
   # mkenums.py / codegen.py 原登记为"负载相关偶发"，2026-09-26 排查确证实为
@@ -38,3 +34,30 @@ test:
   # 修复：toolchain env 统一设 PYTHONUTF8=1（与上游 glib .gitlab-ci.yml 一致），
   # 已实测 306 项全过，两项移出 known_failures。
   known_failures: []
+# PE 专属修复（见 recipes/glib-base.yaml 同名项与 recipes/platform-notes.md）：
+# Linux 上 _tls_used 不是符号，注入会让所有链接失败，故只在 windows 家族块生效。
+targets:
+  - for: [windows]
+    meson:
+      options:
+        # 修复 "TLS callback not invoked"：GCC 分支的 G_DEFINE_TLS_CALLBACK 缺少
+        # MSVC 分支的 /INCLUDE:_tls_used 等价物；GNU bfd ld 仅在 _tls_used 被引用时
+        # 才生成 PE TLS directory 并收集 .CRT$XL* 回调（修复后 306 项测试全过）。
+        - -Dc_link_args=-Wl,--undefined=_tls_used
+  # Linux 原生目标的测试环境差异（实测 linux-x64 首跑有 3 项 SIGABRT
+  # ——glib:spawn-test / glib:gschema-compile / glib:gsubprocess；钉住 locale 并
+  # 给产物加 RUNPATH 后复跑为 424 个顶层测试退出码全 0、meson 汇总
+  # Ok 418 / Fail 0 / Skipped 6，见下面两条根因与 NOTES 的"计数口径"段）。
+  # 失败原因不是产物缺陷，而是"诊断文案被翻译"：glib 从源码构建时会把自己 po/
+  # 目录的编译产物装进 sysroot 的 share/locale（实测 out/linux-x64/share/locale/
+  # zh_CN/LC_MESSAGES/glib20.mo 存在），宿主 LANG=zh_CN.UTF-8 就让 glib 的工具
+  # 输出中文诊断，而 tests/spawn-test.c:303 断言的是
+  #   strstr (erroutput, g_strerror (ENOENT))
+  # ——子进程输出与父进程取到的 strerror 不同语言时必然不匹配。
+  # 实测同一二进制：中文 locale 下 /spawn/basics FAIL，LC_ALL=C.UTF-8 下 ok。
+  # 固定测试 locale 而不是把它登记成 known_failure：这三项（含 gschema-compile /
+  # gsubprocess 的 rpath 问题）都是环境敏感，钉住环境后回归信号才是真的。
+  - for: [linux]
+    test:
+      env:
+        LC_ALL: C.UTF-8

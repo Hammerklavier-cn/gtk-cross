@@ -3,31 +3,18 @@ version: 1.28.7
 source:
   url: https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-1.28.7.tar.xz
 build: meson
-# 同 gstreamer/gst-plugins-base：插件是运行期加载的 DLL，库必须动态
+# 同 gstreamer/gst-plugins-base：插件是运行期加载的共享模块，库必须动态
 default_library: shared
 deps:
   - gstreamer
   - gst-plugins-base
   - glib
-  # d3d11/d3d12 插件需要 dependency('DirectX-Headers')（>= 1.611）；本仓库
-  # 已有该 recipe（gtk 的 gdk/win32 d3d12 纹理路径同样用它）
-  - directx-headers
-  # d3d11 与 d3d12 的 gst-libs 都还要 dependency('DirectXMath','directxmath')
-  # （d3d11/meson.build:203、d3d12/meson.build:129）——头文件库，从源码构建，
-  # 不依赖 MSYS2 的 mingw-w64-directxmath 包
-  - directxmath
 meson:
   options:
-    # GTK 的 media-gstreamer 硬性依赖两个 .pc：
-    #   gstreamer-play-1.0：gstplay 是 gst-libs/gst/play（另有 gstplayer）的
-    #     常驻库——gst-libs/gst/meson.build 里是裸的 subdir('play')/
-    #     subdir('player')，没有选项门控，所以只要本包能配置出 gst-libs 就有。
-    #   gstreamer-d3d12-1.0：由 -Dd3d12 门控，必须显式开
-    #     （auto_features=disabled 会把所有 value:'auto' 的特性关掉）。
-    - -Dd3d12=enabled
-    # D3D11 插件：给出一条 GPU 视频输出路径（d3d11videosink 等），
-    # autovideosink 在 Windows 上会优先选它；也是后续若要开 DXVA 解码的入口。
-    - -Dd3d11=enabled
+    # GTK 的 media-gstreamer 需要的 gstreamer-play-1.0：gstplay 是
+    # gst-libs/gst/play（另有 gstplayer）的常驻库——gst-libs/gst/meson.build 里
+    # 是裸的 subdir('play')/subdir('player')，没有选项门控，所以只要本包能配置出
+    # gst-libs 就有。
     # 不要的东西（bad 的插件列表极长，auto_features=disabled 已把其余全关）
     - -Dtests=disabled
     - -Dexamples=disabled
@@ -36,12 +23,35 @@ meson:
     - -Dauto_features=disabled
     # 上游默认即 disabled，显式写出来表示不引入 GPL 侧编解码
     - -Dgpl=disabled
-patches:
-  # d3d11 的 UWP(WinRT) 窗口源用 <windows.ui.xaml.media.dxinterop.h>，而该头
-  # 是 Windows SDK 的 XAML/DirectX interop 头，mingw-w64 头文件里没有。上游
-  # 的 winapi_app 探测只判"是否 Windows 10+ 的 UWP 目标"，不判该头能否编译，
-  # 于是探测通过→编入 corewindow/swapchainpanel 源→fatal error。
-  # 探测能否通过取决于前缀的 _WIN32_WINNT 默认值（ucrt64=0xA00，mingw64=0x601），
-  # 这正是 msys2-ucrt64 挂而 msys2-mingw64 过、本机曾"侥幸"的原因。
-  # 补丁把该头加进探测，使探测回归其真实语义（MinGW 报 NO、MSVC 仍 YES）。
-  - gst-plugins-bad-0001-check-xaml-interop-header.patch
+# D3D11/D3D12 是 Windows 专属图形后端（Linux 上对应物是 vaapi/egl/drm 等，
+# 本框架当前不引入），其依赖与补丁同样只在 Windows 有意义，全部收进
+# windows 家族块；deps 在家族块里是**追加**，base 保持平台中立。
+targets:
+  - for: [windows]
+    deps:
+      # d3d11/d3d12 插件需要 dependency('DirectX-Headers')（>= 1.611）；本仓库
+      # 已有该 recipe（gtk 的 gdk/win32 d3d12 纹理路径同样用它）
+      - directx-headers
+      # d3d11 与 d3d12 的 gst-libs 都还要 dependency('DirectXMath','directxmath')
+      # （d3d11/meson.build:203、d3d12/meson.build:129）——头文件库，从源码构建，
+      # 不依赖 MSYS2 的 mingw-w64-directxmath 包
+      - directxmath
+    meson:
+      options:
+        # GTK 的 media-gstreamer 在 Windows 上还硬性要 gstreamer-d3d12-1.0.pc：
+        # 它由 -Dd3d12 门控，必须显式开（auto_features=disabled 会把所有
+        # value:'auto' 的特性关掉）。
+        - -Dd3d12=enabled
+        # D3D11 插件：给出一条 GPU 视频输出路径（d3d11videosink 等），
+        # autovideosink 在 Windows 上会优先选它；也是后续若要开 DXVA 解码的入口。
+        - -Dd3d11=enabled
+    patches:
+      # d3d11 的 UWP(WinRT) 窗口源用 <windows.ui.xaml.media.dxinterop.h>，而该头
+      # 是 Windows SDK 的 XAML/DirectX interop 头，mingw-w64 头文件里没有。上游
+      # 的 winapi_app 探测只判"是否 Windows 10+ 的 UWP 目标"，不判该头能否编译，
+      # 于是探测通过→编入 corewindow/swapchainpanel 源→fatal error。
+      # 探测能否通过取决于前缀的 _WIN32_WINNT 默认值（ucrt64=0xA00，mingw64=0x601），
+      # 这正是 msys2-ucrt64 挂而 msys2-mingw64 过、本机曾"侥幸"的原因。
+      # 补丁把该头加进探测，使探测回归其真实语义（MinGW 报 NO、MSVC 仍 YES）。
+      # 该探测整体在 winapi 分支里，Linux 不编译这段，故不打。
+      - gst-plugins-bad-0001-check-xaml-interop-header.patch

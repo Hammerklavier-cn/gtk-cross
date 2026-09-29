@@ -15,8 +15,9 @@ autotools:
   # die_unknown），所以目标平台与库形态都在这里写全。
   raw_configure: true
   configure:
-    - --target=x86_64-win64-gcc
-    # 库形态：Windows 上只出静态库（框架的自动注入在 raw 模式下不生效）
+    # 目标三元组由平台决定，见下面 targets:（base 里不写，避免把 win64 带给 Linux）
+    # 库形态：框架的自动注入在 raw 模式下不生效，故显式写全；两平台同值以保持
+    # closure 形态一致（Linux 是 ELF，共享库其实可选）。
     - --disable-shared
     - --enable-static
     # 与 MSYS2 官方包对齐的编解码开关：VP8/VP9（含 high-bitdepth 与时间降噪，
@@ -28,8 +29,8 @@ autotools:
     - --enable-experimental
     - --enable-runtime-cpu-detect
     - --enable-postproc
-    # 汇编器：本机已装 nasm（两个工具链各一份），显式指定以免 configure
-    # 自动探测到别的（yasm 缺失时 auto 会 die）
+    # 汇编器：显式指定以免 configure 自动探测到别的（yasm 缺失时 auto 会 die）。
+    # 依赖宿主装 nasm（Linux 侧见 README 的"宿主工具"清单）。
     - --as=nasm
     # 不要的东西
     - --disable-unit-tests
@@ -37,3 +38,14 @@ autotools:
     - --disable-docs
     - --disable-install-docs
     - --disable-install-srcs
+# libvpx 的 --target=<arch>-<os>-<toolchain> 是它自己的命名约定（不是 autoconf
+# 三元组），win64 与 linux 必须分别给值。
+targets:
+  - for: [windows]
+    autotools:
+      configure:
+        - --target=x86_64-win64-gcc
+  - for: [linux]
+    autotools:
+      configure:
+        - --target=x86_64-linux-gcc

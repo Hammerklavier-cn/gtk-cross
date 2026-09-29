@@ -19,3 +19,30 @@ cmake:
     LIBXML2_WITH_ICONV: "ON"
     LIBXML2_WITH_ZLIB: "ON"
     LIBXML2_WITH_TESTS: "OFF"
+# 只 Linux 需要的 iconv 探测纠偏（Windows 上 FindIconv 的自然探测结论就是对的）。
+targets:
+  - for: [linux]
+    cmake:
+      defines:
+        # Linux 上 libxml2 能 configure、却在与自建库无关的**工具**链接阶段炸：
+        #   libxml2.a(encoding.c.o): undefined reference to `libiconv_open'
+        # 根因是 CMake FindIconv 的探测不对称（cmake 4.3 Modules/FindIconv.cmake:110）：
+        # 它的 "iconv 是否在 libc 里" 测试用 check_c_source_compiles，只带
+        # CFLAGS（含 -fPIC）与 LDFLAGS（含 -L$SYSROOT/lib），**不带 CPPFLAGS 里的
+        # -I$SYSROOT/include**（CMake 从环境只取 CFLAGS/CXXFLAGS/LDFLAGS，不取
+        # CPPFLAGS）。于是那次探测看到的是 glibc 的 iconv.h，判成
+        # "Found Iconv: built in to C library"（Iconv_IS_BUILT_IN=1）⇒ 不给库参数。
+        # 而真正编译 encoding.c 时走的是 target 的 include 目录，
+        # find_path(Iconv_INCLUDE_DIR) 受本项目 CMAKE_FIND_ROOT_PATH=$SYSROOT +
+        # CMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY 约束，命中的是**闭包内 GNU
+        # libiconv** 的 iconv.h —— 它把 iconv_open 宏重写成 libiconv_open
+        # （本项目保留 GNU libiconv 以与 Windows 同一 closure，见
+        # recipes/platform-notes.md 第 8 条），符号只存在于 libiconv.so/.a 里，
+        # 于是 xmllint / xmlcatalog 链接必失败。
+        # 修法：显式定义 Iconv_IS_BUILT_IN ⇒ FindIconv 跳过那次会误判的探测
+        # （它的条件就是 NOT DEFINED Iconv_IS_BUILT_IN），改走 find_path +
+        # find_library(NAMES iconv libiconv) 分支；两者都只在 sysroot 内搜索，
+        # 正好拿到 $SYSROOT/include 与 $SYSROOT/lib/libiconv.so，与被遮蔽的
+        # 头文件同源。msys2-* 上不需要这条：mingw 的 libc 没有内置 iconv，那次
+        # 探测自然失败，结论本来就对。
+        Iconv_IS_BUILT_IN: "OFF"

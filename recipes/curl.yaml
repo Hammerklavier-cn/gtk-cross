@@ -12,8 +12,6 @@ cmake:
     BUILD_CURL_EXE: "OFF"
     BUILD_TESTING: "OFF"
     BUILD_EXAMPLES: "OFF"
-    # schannel 后端避免 openssl/libssh2 大链
-    CURL_USE_SCHANNEL: "ON"
     CURL_USE_OPENSSL: "OFF"
     CURL_USE_LIBSSH2: "OFF"
     CURL_USE_LIBPSL: "OFF"
@@ -22,3 +20,17 @@ cmake:
     CURL_DISABLE_LDAP: "ON"
     ENABLE_ARES: "OFF"
     ENABLE_IDN2: "OFF"
+# TLS 后端按平台而不同：schannel 是 Windows 的 SSPI 实现，Linux 上不存在
+# （对应物是 openssl/gnutls/mbedtls，本框架不引入，见 README：appstream 链
+# 自 libadwaita 1.10 起已不在闭包内，curl 只为该链存在，HTTP 能力不是目标）。
+targets:
+  - for: [windows]
+    cmake:
+      defines:
+        # schannel 后端避免 openssl/libssh2 大链
+        CURL_USE_SCHANNEL: "ON"
+  - for: [linux]
+    cmake:
+      defines:
+        # 无 TLS 后端（curl 仍可构建，只是 https:// 不可用）
+        CURL_USE_SCHANNEL: "OFF"
