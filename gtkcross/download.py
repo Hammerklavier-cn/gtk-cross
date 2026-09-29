@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import shutil
+import socket
 import tarfile
 import urllib.request
 import zipfile
@@ -12,6 +14,43 @@ from typing import Dict, List
 
 _UA = f"gtkcross/0.1 (+https://atomgit.com/gtk-cross)"
 _OK_MARKER = ".gtkcross-extract-ok"
+
+
+@contextlib.contextmanager
+def _prefer_ipv4():
+    """把 A 记录排到 AAAA 之前（只改顺序，不禁用 IPv6）。
+
+    存在这样一类网络故障：同一主机名的 IPv4 与 IPv6 出口返回**不同的证书**，
+    IPv6 那条被中间设备换成一张 subject 为空、SAN 里只有 IP 地址的证书，于是
+    按主机名校验的 TLS 客户端必然报 CERTIFICATE_VERIFY_FAILED / Hostname
+    mismatch。实测（2026-09-29，本机 Fedora 44）：
+      gstreamer.freedesktop.org
+        IPv4 199.232.115.52      -> CN=gstreamer.freedesktop.org, SAN 同名  ✓
+        IPv6 2406:cb42:0:2018::2 -> subject 空，SAN=critical {IP 117.55.193.154,
+                                    IP 2406:CB42:...}                        ✗
+    curl 看不出来是因为它先试 IPv4；`socket.create_connection` 按 getaddrinfo
+    的返回顺序走，走到 IPv6 就失败。
+    这里只在重试时调整顺序；机器若只有 IPv6 连通（过滤后为空）则退回原始结果。
+    """
+    orig = socket.getaddrinfo
+
+    def reordered(*args, **kwargs):
+        res = orig(*args, **kwargs)
+        v4 = [r for r in res if r[0] == socket.AF_INET]
+        return (v4 + [r for r in res if r[0] != socket.AF_INET]) if v4 else res
+
+    socket.getaddrinfo = reordered
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = orig
+
+
+def _download_to(req: "urllib.request.Request", archive: Path) -> None:
+    """抓取 url 内容写入 archive（超时兜底：黑洞主机不应卡死整个构建）。"""
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        with open(archive, "wb") as out:
+            shutil.copyfileobj(resp, out)
 
 
 def compute_sha256(path: Path) -> str:
@@ -52,10 +91,14 @@ def fetch(
                 archive.unlink()
             print(f"  downloading {url}")
             req = urllib.request.Request(url, headers={"User-Agent": _UA})
-            # 超时兜底：黑洞/挂起的主机不应卡死整个构建
-            with urllib.request.urlopen(req, timeout=180) as resp:
-                with open(archive, "wb") as out:
-                    shutil.copyfileobj(resp, out)
+            try:
+                _download_to(req, archive)
+            except Exception:
+                # 首次失败先按"IPv6 出口证书被换"这一类故障重试一次（A 记录优先），
+                # 仍失败才判这个源不可用、继续下一个候选源。
+                archive.unlink(missing_ok=True)
+                with _prefer_ipv4():
+                    _download_to(req, archive)
             actual = compute_sha256(archive)
             if want and actual != want:
                 raise ValueError(f"sha256 mismatch: expected {want}, got {actual}")
