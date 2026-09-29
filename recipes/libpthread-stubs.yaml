@@ -3,6 +3,7 @@ version: "0.5"
 source:
   url: https://www.x.org/releases/individual/lib/libpthread-stubs-0.5.tar.xz
 build: autotools
+platforms: [linux]
 # 只提供 `pthread-stubs.pc` 的桩包：X.org/xcb 体系用它在 glibc 之外补
 # pthread_atfork 之类的符号，在 glibc 上几乎不产出内容。仍然要建，因为下游
 # （libxcb）的探测是按 pkg-config 找这个 .pc，找不到就中止配置——具体那句

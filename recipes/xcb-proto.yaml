@@ -3,22 +3,22 @@ version: 1.17.0
 source:
   url: https://www.x.org/releases/individual/proto/xcb-proto-1.17.0.tar.xz
 build: autotools
+platforms: [linux]
 # XCB 协议 XML + Python 代码生成器（xcbgen 包）。它不产出 C 库，但 libxcb 构建期
 # 要 `import xcbgen`，所以它是**构建期依赖**而非运行期依赖，随闭包装进
 # $SYSROOT 下的 python site-packages（安装目录由本包 configure 依据宿主 Python
 # 算出，libxcb 再从 xcb-proto.pc 的变量里取用）。
 #
-# PKG_CONFIG_PATH 指向宿主 /usr/lib64/pkgconfig 只为让 configure 用 pkg-config
-# 定位**宿主 Python**（Python.h / libpython 路径）。框架把 PKG_CONFIG_LIBDIR
-# 整体替换成 sysroot 以保证 hermetic，宿主 Python 的 .pc 因此在默认搜索路径外。
-# 放开的只是 PKG_CONFIG_PATH（pkg-config 追加搜索路径），且只作用于本 recipe 的
-# configure 命令行前缀。这不算破 hermetic：Python 与 meson/ninja/perl 同类，
-# 属"宿主构建工具"，从不在 target 侧闭包里（gobject-introspection 依赖同一个
-# python3-devel，见 NOTES 的 linux-x64 首跑记录）。
+# 宿主 Python 不需要任何例外：本包的 configure 用 AM_PATH_PYTHON 按 **PATH** 找
+# 解释器（实测 `checking for a Python interpreter with version >= 2.5... python`
+# → `checking for python... /usr/bin/python`，并推出 pythondir 与 site-packages），
+# 全程不调用 pkg-config——把生成的 configure 里 `$PKG_CONFIG` 的调用数 grep 出来是
+# **0**。所以框架的 PKG_CONFIG_LIBDIR 隔离对本包没有影响，也不该把宿主发行版的
+# pkgconfig 目录布局（Fedora 的 /usr/lib64、Debian 的 /usr/lib/<arch>-linux-gnu）
+# 写进 recipe：那是本 target 要在 x86_64 与 aarch64 上共用一份定义的前提。
 autotools:
   env:
     ACLOCAL_PATH: $SYSROOT/share/aclocal
-    PKG_CONFIG_PATH: /usr/lib64/pkgconfig
 deps:
   - util-macros
 test:

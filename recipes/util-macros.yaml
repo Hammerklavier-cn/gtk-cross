@@ -3,6 +3,7 @@ version: 1.20.2
 source:
   url: https://www.x.org/releases/individual/util/util-macros-1.20.2.tar.xz
 build: autotools
+platforms: [linux]
 # X.org  autotools 宏包（只装 $prefix/share/aclocal/xorg-macros.m4，不产出库）。
 # 它是后面所有 libX* 的**构建期**前置：那些包自带的 configure 脚本在运行时会去
 # 找 xorg-macros.m4 校验版本，找不到就报

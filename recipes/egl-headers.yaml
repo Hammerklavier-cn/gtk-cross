@@ -10,6 +10,9 @@ source:
 # 故用框架的 data 引擎声明式安装（见 gtkcross/engines.py 的 DataEngine），
 # 不再需要"造一个 meson.build + 手写创建文件补丁"。
 build: data
+# 只属于 Windows：Linux 侧 EGL 的头与实现都由本闭包自建的 Mesa 提供，
+# 在这里构建它会与 Mesa 争抢 sysroot 的 include/EGL 与 egl.pc。
+platforms: [windows]
 data:
   install_files:
     api/EGL: include/EGL

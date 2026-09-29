@@ -3,6 +3,7 @@ version: 1.6.0
 source:
   url: https://www.x.org/releases/individual/lib/xtrans-1.6.0.tar.xz
 build: autotools
+platforms: [linux]
 # X 传输层**头文件**包（Xtrans*.h + xtrans.pc），无库产物。
 # 实测 libX11 1.8.13 的 configure 那句是
 #   Package requirements (xproto >= 7.0.25 xextproto xtrans xcb >= 1.11.1 kbproto inputproto)

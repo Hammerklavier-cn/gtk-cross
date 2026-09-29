@@ -43,6 +43,9 @@ def cmd_info(args) -> int:
     selectors = r.selectors()
     if selectors:
         print(f"targets: {', '.join(selectors)}")
+    # 归属与覆盖是两件事：platforms 说"这个包只在这些平台上构建"
+    if r.platforms:
+        print(f"platforms: {', '.join(r.platforms)}")
     return 0
 
 

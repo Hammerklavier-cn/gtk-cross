@@ -3,6 +3,7 @@ version: 2.4.134
 source:
   url: https://dri.freedesktop.org/libdrm/libdrm-2.4.134.tar.xz
 build: meson
+platforms: [linux]
 # DRI/KMS 用户态接口库。Mesa 的硬前置。实测 2.4.134 归档根目录只有
 # meson.build/meson_options.txt。
 # 归档地址取 dri.freedesktop.org/libdrm/（上游发布目录，索引里最新为 2.4.134）。

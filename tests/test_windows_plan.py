@@ -72,6 +72,10 @@ def capture_plan(target: str) -> dict:
             "deps": list(recipe.deps),
             "patches": list(recipe.patches),
             "submodules": dict(recipe.submodules),
+            # 平台归属是快照的一部分：Windows 侧必须看到 X11/Mesa 那批包声明了
+            # `platforms: [linux]`（它们不进任何 Windows build plan，CI 全量枚举
+            # 时靠这条跳过），directx-headers/directxmath/egl-headers 反之。
+            "platforms": list(recipe.platforms),
             "configure_cmd": cmd,
             "test_cmd": _rel(engine.test_command()) if test_enabled else None,
             "test_enabled": test_enabled,
@@ -132,6 +136,19 @@ class WindowsPlanUnchanged(unittest.TestCase):
                 got = plan["recipes"][name]
                 with self.subTest(target=target, recipe=name):
                     self.assertEqual(want, got)
+
+    def test_build_plans_unchanged(self):
+        """闭包拓扑序也进比对：以前只写进快照没人查，等于没守。
+
+        deps 的家族门控、新包、`platforms:` 归属都会改变 order() 的结果，
+        而计划顺序直接决定"谁先装进 sysroot"——Mesa 那种隐性依赖就是靠
+        顺序侥幸通过的，顺序变化必须显式暴露出来。
+        """
+        for target in WINDOWS_TARGETS:
+            plan = capture_plan(target)
+            for root, want in sorted(self.golden[target]["plans"].items()):
+                with self.subTest(target=target, root=root):
+                    self.assertEqual(want, plan["plans"][root])
 
 
 if __name__ == "__main__":

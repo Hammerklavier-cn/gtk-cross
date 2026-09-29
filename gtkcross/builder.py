@@ -128,7 +128,29 @@ class Builder:
             n: list(r.for_target(self.target, self.target_os).deps)
             for n, r in self.recipes.items()
         }
+        # 平台归属的一致性检查：把"某平台的包依赖了不属于该平台的包"当作配置错误
+        # 直接报出，而不是让它在 build plan 里冒出来（那会产出一个本平台不该有
+        # 的 sysroot 条目，例如 Linux 侧混进 egl-headers 与 Mesa 争抢 EGL 头）。
+        # 只检查**本身属于本平台**的包：libdrm 的 deps 里写 libpciaccess 是对的，
+        # 它在 Windows 目标上根本不会被构建，它的依赖边与 Windows 无关。
+        for name, deps in graph.items():
+            if not self.recipes[name].applies_to(self.target, self.target_os):
+                continue
+            for dep in deps:
+                if not self.recipes[dep].applies_to(self.target, self.target_os):
+                    raise ValueError(
+                        f"{name}: depends on {dep!r}, which declares "
+                        f"platforms={self.recipes[dep].platforms} and does not "
+                        f"apply to target {self.target}"
+                    )
         return resolve(graph, names)
+
+    def not_applicable(self, names: List[str]) -> List[str]:
+        """requests 里声明了"不属于本平台"的那部分（`platforms:`）。"""
+        return [
+            n for n in names
+            if not self.recipes[n].applies_to(self.target, self.target_os)
+        ]
 
     # -- per-recipe build ---------------------------------------------------
 
@@ -415,7 +437,13 @@ class Builder:
     # -- entry point ---------------------------------------------------------
 
     def build(self, names: List[str]) -> None:
-        order = self.order(names)
+        skipped = self.not_applicable(names)
+        if skipped:
+            print(
+                f"[skip] 不属于 {self.target}（recipe 的 platforms 声明）: "
+                f"{', '.join(skipped)}"
+            )
+        order = self.order([n for n in names if n not in set(skipped)])
         print(f"=== build plan ({self.target}): {' -> '.join(order)}")
         self.sysroot.mkdir(parents=True, exist_ok=True)
         self.events.log("run-start", f"plan: {' -> '.join(order)}")

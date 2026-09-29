@@ -3,6 +3,7 @@ version: "2025.1"
 source:
   url: https://www.x.org/releases/individual/proto/xorgproto-2025.1.tar.xz
 build: autotools
+platforms: [linux]
 # X11 协议头与 .pc 的合集包（xproto/inputproto/renderproto/randrproto/… 自 2018
 # 年起合并成单一 tarball）。纯头文件 + pkgconfig，无库产物。
 #

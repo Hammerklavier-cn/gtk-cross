@@ -3,6 +3,7 @@ version: 26.2.3
 source:
   url: https://archive.mesa3d.org/mesa-26.2.3.tar.xz
 build: meson
+platforms: [linux]
 # OpenGL 实现（libGL + gl.pc）。Linux 目标上唯一"驱动侧"的自建包，决定过程与
 # 代价记录在 recipes/platform-notes.md 的 Mesa 一节。
 #
@@ -54,6 +55,11 @@ meson:
     - -Dvideo-codecs=
     # 只需要 x11 平台（wayland 不在闭包里，auto 会去探它）。
     - -Dplatforms=x11
+    # VK_EXT_acquire_xlib_display（meson.options:574-578 的自述）。它是 feature
+    # 且默认 auto，在 `-Dplatforms=x11` 下会命中 → 触发 src/meson.build:2375 的
+    # `dependency('xrandr')`（无 required:false）。本闭包一个 Vulkan 驱动都不建，
+    # 这条扩展没有消费者 ⇒ 显式关，别把 libxrandr 变成 Mesa 的隐性依赖。
+    - -Dxlib-lease=disabled
     # 注：不再传 `-Ddri3=true`——实测 26.2.3 的 meson.options 里**没有**这个
     # 选项（DRI3 已不可关），传了会 src/meson.build:4:0 ERROR: Unknown option。
     # dri 驱动安装路径也不用设：`dri-drivers-path` 默认空串即 "$libdir/dri"，
@@ -71,6 +77,12 @@ deps:
   - xorgproto
   - libx11
   - libxext
+  # `if with_platform_x11` 之后紧接着就是两句**无 required:false** 的探测
+  # （src/meson.build:2308-2310：`dependency('xcb')`、`dependency('xcb-randr')`），
+  # glx=dri 那条分支还要 xcb-dri3/xcb-present/xcb-shm/xcb-sync——全部由 libxcb 提供。
+  # 这条以前没声明：首次全量干净构建（CI 等价环境）就是在 Mesa 之前少了它而
+  # configure 失败；先前"能过"是因为 sysroot 里恰好已有上一次构建留下的 xcb .pc。
+  - libxcb
   # libGL 的 GLX 路径实测还硬要 xxf86vm（src/glx/meson.build 的 dependencies 里
   # 与 x11/xext/xshmfence 并列），缺它 configure 直接 ERROR。
   - libxxf86vm

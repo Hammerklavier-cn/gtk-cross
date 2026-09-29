@@ -3,6 +3,7 @@ version: 1.1.7
 source:
   url: https://www.x.org/releases/individual/lib/libXdamage-1.1.7.tar.xz
 build: autotools
+platforms: [linux]
 # DAMAGE 扩展（窗口内容失效区域）。双构建包，X 栈统一 autotools。
 autotools:
   env:

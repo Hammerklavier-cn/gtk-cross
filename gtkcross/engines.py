@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import Dict, List
 
 from .recipe import Recipe
 from .toolchain import Toolchain, posix
+
+
+def test_wrapper() -> str:
+    """宿主环境注入的测试命令前缀，来自 GTKCROSS_TEST_WRAPPER。
+
+    无头容器（CI）里跑需要 X 的测试（gtk 的 1 项、libadwaita 的 68 个测试程序）得先
+    有 DISPLAY。用"整条命令前缀"而不是 meson 的 `--wrapper`：后者按测试程序逐个包，
+    libadwaita 会起 68 个 Xvfb；前缀在本次 test 调用外层只起一个，被并发测试共用，
+    而且 ctest 那条路径没有 --wrapper，只能用前缀统一两条路径。
+    本地有桌面时不设该变量，命令与从前逐字节相同。
+    """
+    w = (os.environ.get("GTKCROSS_TEST_WRAPPER") or "").strip()
+    return f"{w} " if w else ""
 
 
 class BuildError(RuntimeError):
@@ -153,8 +167,8 @@ class MesonEngine(Engine):
         prefix = " ".join(f"{k}={v}" for k, v in env.items())
         prefix = f"env {prefix} " if prefix else ""
         return (
-            f"{prefix}meson test -C {posix(self.build_dir)} --print-errorlogs "
-            f"-j {self.jobs}"
+            f"{test_wrapper()}{prefix}meson test -C {posix(self.build_dir)} "
+            f"--print-errorlogs -j {self.jobs}"
         )
 
 
@@ -199,8 +213,8 @@ class CmakeEngine(Engine):
 
     def test_command(self) -> str | None:
         return (
-            f"ctest --test-dir {posix(self.build_dir)} --output-on-failure "
-            f"-j {self.jobs}"
+            f"{test_wrapper()}ctest --test-dir {posix(self.build_dir)} "
+            f"--output-on-failure -j {self.jobs}"
         )
 
 

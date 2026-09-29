@@ -37,13 +37,15 @@ targets:
   msys2-ucrt64:
     toolchain: msys2-ucrt64
     prefix: out/msys2-ucrt64
-  # Linux 原生（非交叉）：宿主 = 目标 = x86_64-linux-gnu，工具链来自发行版
-  # （系统 gcc/clang），target 侧依赖仍全部自建到 out/linux-x64。
-  # 与 msys2-* 的关键差别：不需要 --host/--build 三元组、没有 MSYS2 路径转换、
-  # 没有 Win32 专属后端（win32/d3d11/d3d12/directsound/schannel…），改由
-  # recipe 的 linux 家族块给出本平台选项。
-  linux-x64:
-    toolchain: linux-x64
-    prefix: out/linux-x64
+  # Linux 原生（非交叉）：宿主 = 目标，工具链来自发行版（系统 gcc/clang），
+  # target 侧依赖仍全部自建到 out/linux-native。**名字里不写 arch**：本 target 与
+  # 架构无关，CI 用 ubuntu-latest（x86_64）与 ubuntu-26.04-arm（aarch64）两个容器跑
+  # 同一份配置，arch 由宿主编译器决定——不给 autotools 喂 --host/--build 三元组，
+  # libvpx 之类也不写 --target（见 toolchains/linux-native.yaml）。
+  # 与 msys2-* 的关键差别：没有 MSYS2 路径转换、没有 Win32 专属后端
+  # （win32/d3d11/d3d12/directsound/schannel…），改由 recipe 的 linux 家族块给本平台选项。
+  linux-native:
+    toolchain: linux-native
+    prefix: out/linux-native
 downloads_dir: downloads
 build_dir: build

@@ -23,6 +23,15 @@ The legacy mapping form still works (each key is one selector):
       msys2-mingw64:
         patches: [gtk-0001-fallback-to-windows-locale.patch]
 
+`platforms:` is orthogonal and answers a different question — not "what does
+this package look like on each platform" but "does this package exist on this
+platform at all" (e.g. the X11/Mesa stack is only self-built on Linux, while
+egl-headers is only needed on Windows and would fight Mesa for include/EGL in
+the sysroot).  Selectors use the same language as `for:`; omitted means "all
+platforms".  `Builder.build` skips requests outside the current target and
+`Builder.order` raises when a package that *is* in scope depends on one that
+is not.
+
 Merge semantics relative to the recipe base — which is meant to hold only
 platform-neutral items:
 
@@ -167,6 +176,14 @@ class Recipe:
     submodules: Dict[str, str] = field(default_factory=dict)
     # 平台/目标覆盖块；形态见模块 docstring（映射或 for: 列表）
     targets: Any = field(default_factory=dict)
+    # 本包**属于哪些 target 的构建范围**（选择器语法与 targets: 的 `for:` 相同：
+    # OS 家族名或精确 target 名；空 = 全平台）。与 targets: 的区别：targets: 是
+    # "同一个包在不同平台上取不同值"，platforms: 是"这个包只在某些平台上存在"。
+    # 典型例子：X 客户端栈与 Mesa 只在 Linux 侧自建，Windows 侧既不需要也不该
+    # 构建（egl-headers 会与之争抢 sysroot 里的 EGL 头）；反之 directx-headers/
+    # directxmath/egl-headers 只属于 Windows。CI 按 `list` 全量枚举 recipe，
+    # 归属由这里声明，不在 workflow 里抄一份排除名单（那份必然与 recipe 漂移）。
+    platforms: List[str] = field(default_factory=list)
     # 库链接形态覆盖（static | shared）；空 = 用项目级 default_library。
     # 少数包必须保留动态产物时（上游无静态构建路径）用它单独放开。
     default_library: str = ""
@@ -190,6 +207,13 @@ class Recipe:
                 if s not in seen:
                     seen.append(s)
         return seen
+
+    def applies_to(self, target: str, target_os: str = "") -> bool:
+        """本包是否属于该 target 的构建范围（`platforms:` 为空则属于所有平台）。"""
+        if not self.platforms:
+            return True
+        return any(s == target or (target_os and s == target_os)
+                   for s in self.platforms)
 
     def _fields(self) -> Dict[str, Any]:
         return {
@@ -229,6 +253,9 @@ class Recipe:
             name=self.name,
             version=self.version,
             targets={},
+            # platforms 是"包属于哪些平台"的身份信息，不随 target 覆盖变化，
+            # 也不在 _fields() 里（否则一个 targets: 块就能改自己的归属）
+            platforms=list(self.platforms),
             **fields,
         )
 
@@ -253,6 +280,11 @@ def load_recipe(path: Path) -> Recipe:
     targets = data.get("targets", {})
     # 早失败：targets 形态写错时立刻报出文件名，而不是等到某个 target 构建时
     _normalize_targets(data["name"], targets)
+    platforms = data.get("platforms") or []
+    if not isinstance(platforms, list) or any(
+        not isinstance(s, str) or not s for s in platforms
+    ):
+        raise ValueError(f"{path}: platforms 必须是非空字符串列表")
     return Recipe(
         name=data["name"],
         version=str(data["version"]),
@@ -268,6 +300,7 @@ def load_recipe(path: Path) -> Recipe:
         patches=data.get("patches", []),
         submodules=data.get("submodules", {}),
         targets=targets,
+        platforms=list(platforms),
         default_library=data.get("default_library", ""),
     )
 

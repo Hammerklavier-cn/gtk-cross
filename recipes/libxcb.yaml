@@ -3,6 +3,7 @@ version: 1.17.0
 source:
   url: https://www.x.org/releases/individual/xcb/libxcb-1.17.0.tar.xz
 build: autotools
+platforms: [linux]
 # X C Binding：libX11 的传输层，也是 cairo `-Dxcb=enabled` / GTK x11 后端的底座。
 # 实测本包 tarball 根目录**只有 configure**（没有 meson.build），故走 autotools。
 # 构建期需要 xcb-proto 的 xcbgen 代码生成器把协议 XML 生成 C 源，所以它必须在

@@ -3,6 +3,7 @@ version: 1.3.7
 source:
   url: https://www.x.org/releases/individual/lib/libXext-1.3.7.tar.xz
 build: autotools
+platforms: [linux]
 # X 扩展公共库（XShape/XSync/Xdbe/…）；libXi / libXrandr / libXinerama 与
 # GTK 的 x11 后端都要它。
 autotools:

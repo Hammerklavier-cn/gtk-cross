@@ -23,7 +23,7 @@ meson:
 #     fontconfig 编译内置的 FONTCONFIG_PATH 取自 fc_baseconfigdir
 #     （补丁上下文即 `conf.set_quoted('FONTCONFIG_PATH', fc_baseconfigdir)`），
 #     其默认值是 meson 的 `<prefix>/etc`，本框架 prefix = $SYSROOT，所以相对
-#     `conf.d` 与该目录同处一个 sysroot——是否真的无需绝对路径，待 linux-x64
+#     `conf.d` 与该目录同处一个 sysroot——是否真的无需绝对路径，待 linux-native
 #     首跑由 pango 的 test-ellipsize / test-font-data 度量结果验证（见下）。
 # 若 Linux 上出现 conf.d 规则未生效的征兆，把 0002 移回 base 复现验证即可，
 # 不要顺手改补丁。

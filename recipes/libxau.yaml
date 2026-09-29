@@ -3,6 +3,7 @@ version: 1.0.12
 source:
   url: https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz
 build: autotools
+platforms: [linux]
 # X 授权文件解析（.Xauthority）。libxcb 依赖它，于是 X 客户端栈的底层顺序是
 # util-macros → xorgproto → libXau / libpthread-stubs / xcb-proto → libxcb → libX11。
 #

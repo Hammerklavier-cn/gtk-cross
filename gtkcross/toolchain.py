@@ -16,6 +16,7 @@ that PATH/MSYSTEM are set up correctly on every host platform.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -206,7 +207,7 @@ class Toolchain:
             )
             # 构建与测试期不得读开发机的桌面配置（hermetic 的一部分，和
             # PKG_CONFIG_LIBDIR 整体替换、XDG_DATA_DIRS 前置 sysroot 同一类）。
-            # 实测触发过程（linux-x64，libadwaita 首跑）：68 项测试**全部**
+            # 实测触发过程（linux-native，libadwaita 首跑）：68 项测试**全部**
             # SIGABRT，报错只有一行，而且与本项目产物无关——
             #   Gtk-WARNING **: Unknown key gtk-modules in
             #     /home/<user>/.config/gtk-4.0/settings.ini
@@ -293,4 +294,13 @@ class Toolchain:
                 problems.append(f"{name} ({tool}): not found on PATH")
         if self.host == "windows" and not Path(self.cfg["msys2_root"]).exists():
             problems.append(f"MSYS2 root {self.cfg['msys2_root']} does not exist")
+        # 无头容器（CI）用 GTKCROSS_TEST_WRAPPER 给测试命令加前缀（见
+        # gtkcross/engines.py 的 test_wrapper）。变量设了但命令不存在时，失败会
+        # 表现为每个测试非零退出——所以在这里直接报出缺哪个可执行文件。
+        wrapper = (os.environ.get("GTKCROSS_TEST_WRAPPER") or "").strip()
+        if wrapper and not shutil.which(wrapper.split()[0]):
+            problems.append(
+                f"GTKCROSS_TEST_WRAPPER={wrapper}: "
+                f"{wrapper.split()[0]} not found on PATH"
+            )
         return problems

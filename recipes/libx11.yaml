@@ -3,6 +3,7 @@ version: 1.8.13
 source:
   url: https://www.x.org/releases/individual/lib/libX11-1.8.13.tar.xz
 build: autotools
+platforms: [linux]
 # Xlib。实测本包根目录只有 configure（无 meson.build）。
 # 需要独立的 xtrans 包（Xtrans 头文件已从 libX11 拆出，见 recipes/xtrans.yaml）。
 autotools:
