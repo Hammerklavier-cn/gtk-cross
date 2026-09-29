@@ -282,6 +282,12 @@ Linux 上无法实跑 msys2-* 目标，所以 Windows 侧用"构建计划快照"
   arch 字面量（x86_64/aarch64/…），因为同一个 target 要在两种架构的宿主上成立；
 - `TestWrapperHook`：`GTKCROSS_TEST_WRAPPER` 作为前缀包住 meson 与 ctest 两条
   测试命令，且位于 recipe `test.env` 的 `env K=V` 之外；不设时命令逐字节不变。
+- `OpensslTlsBackend`：OpenSSL 走自己的入口脚本与 `install_sw`（默认 `install` 会
+  往 `/etc/ssl` 写文件）、`--libdir=lib` 必须显式给（否则 x86_64 的 multilib 把它
+  变成 `lib64`）、curl 两平台各选各的后端，以及 `autotools.script` /
+  `install_target` 两个新键缺省时命令串逐字节不变。
+- `tests/test_download_guard.py`：新下载的内容必须是可识别的 tar/zip 才接受
+  （文件名不是证据——404 错误页也顶着 `*.tar.gz`），拒绝后不得留在缓存里。
 
 ```bash
 PYTHONPATH=. python3 -m unittest discover -s tests   # 全部通过即 Windows 行为未变
@@ -545,7 +551,7 @@ tag 归档不含 git submodule，由框架 `submodules` 字段从已构建依赖
 
 媒体链各包的构建开关、EGL 现状与逐次验证范围见 [NOTES.md](NOTES.md)。
 
-## linux-native 的依赖链（62 recipes，多出的 21 个都是 Linux 侧专属）
+## linux-native 的依赖链（63 recipes，多出的 22 个都是 Linux 侧专属）
 
 Windows 那 42 个 recipe 里，除 `directx-headers`/`directxmath`/`egl-headers`
 外全部复用；linux-native 的闭包在此基础上增加：
@@ -561,14 +567,17 @@ GL/EGL 实现（自建 Mesa，softpipe 路线因而不需要 LLVM）
 上游在非 Windows 宿主强制要求的功能数据/依赖
   libxml2 → shared-mime-info  （gdk-pixbuf 的 src/meson.build:209 硬要
   shared-mime-info.pc；Windows 不进那段）
+TLS 后端（Windows 侧是系统自带的 schannel，不占 recipe；这里只有 curl 消费）
+  openssl → curl 的 CURL_USE_OPENSSL=ON
 ```
 
 逐项判断依据（版本为何对齐 x.org 而非 MSYS2、构建引擎如何实测选定、
 缺 xmlto/fop 为何不用加开关等）见
 [recipes/platform-notes.md](recipes/platform-notes.md)。
 
-CI 跑的不是这 62 个而是**全量**：`list` 的全部 73 个 recipe 交给 build，其中
-3 个只属于 Windows 的被 `platforms` 跳过，实测 **70 recipe 构建完成、`exit 0`**
-（2026-09-29 干净 sysroot 复验）。尚未打通与已知缺口（Wayland、Vulkan 无驱动
-ICD、Linux 上 curl 没有 TLS 后端）记录在该文件的末尾两节。
+CI 跑的不是这 63 个而是**全量**：`list` 的全部 74 个 recipe 交给 build，其中
+3 个只属于 Windows 的被 `platforms` 跳过。加入 openssl 之前的实测是
+**70 recipe 构建完成、`exit 0`**（2026-09-29 干净 sysroot 复验）；本轮加了
+TLS 后端，待复验的期望值是 71/74。尚未打通与已知缺口（Wayland、Vulkan 无驱动
+ICD）记录在该文件的末尾两节。
 

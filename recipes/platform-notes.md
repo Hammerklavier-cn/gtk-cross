@@ -33,7 +33,7 @@ sysroot 里的 `include/EGL` 与 `egl.pc`）。集合由
 | gtk | 补丁 `gtk-0001-fallback-to-windows-locale.patch` | **精确 target 块**（msys2-mingw64）：msvcrt 不认 `en_US.UTF-8`，ucrt64 认——同族两个 target 结论不同 |
 | vulkan-loader | 补丁 `vulkan-loader-0001-static-library-support.patch` | 补丁只改上游 WIN32 分支；Linux 分支是 `add_library(vulkan SHARED)` |
 | libvpx | `--target=x86_64-win64-gcc`、`--as=nasm` | libvpx 自己的 `<arch>-<os>-<toolchain>` 命名与 x86 汇编器。**Linux 侧两条都不写**：`--target` 交给上游按 `gcc -dumpmachine` 探测，`--as` 交给 auto 探测（x86_64→nasm、aarch64→gas）。因为 target 名里不带架构，架构取值必须来自宿主——依据见"架构中立"一节 |
-| curl | `CURL_USE_SCHANNEL=ON` | schannel = Windows SSPI；Linux 侧显式 `OFF`（无 TLS 后端） |
+| curl | `CURL_USE_SCHANNEL=ON` | schannel = Windows 的 SSPI 实现，Linux 上没有对应物，那边用自建 OpenSSL（见「OpenSSL：curl 的 TLS 后端」一节）。Linux 块里**不写** `CURL_USE_SCHANNEL=OFF`：`CMakeLists.txt:735-736` 的非 WIN32 分支自己 `set(CURL_USE_SCHANNEL OFF)`，那个 `-D` 在本平台不会被读取 |
 | gobject-introspection | `test.env GI_SCANNER_DISABLE_CACHE=1` + `known_failures: test_scanner.py` | 前者是 Windows 上 `shutil.move` 不能原子替换导致的并发竞争；后者断言的是盘符语义 |
 | shared-mime-info | `meson.env GETTEXTDATADIR=$SRC/data` + 补丁 | 前者绕开盘符冒号把 GETTEXTDATADIRS 切碎；后者绕开 Windows 的裸名 bash 搜索顺序 |
 | fontconfig / pango / zlib | 见 `patches/README.md` | 补丁正文即 Windows 分支 |
@@ -54,6 +54,7 @@ sysroot 里的 `include/EGL` 与 `egl.pc`）。集合由
 | glib | `test.env LC_ALL: C.UTF-8` | sysroot 会把自己 `po/` 的产物装进 `share/locale/zh_CN/.../glib20.mo`，宿主 `LANG=zh_CN.UTF-8` 时诊断被翻译，而 `spawn-test.c` 断言 `strstr(erroutput, g_strerror(ENOENT))` ⇒ 必不匹配。Windows 的 CRT 不走这条 gettext locale 路径 |
 | mesa | `-Dxlib-lease=disabled` | 该 feature 的自述是 `VK_EXT_acquire_xlib_display`（`meson.options:574-578`），消费者是 Vulkan 驱动，而本闭包 `-Dvulkan-drivers=` 为空 ⇒ 没有消费者；开着会让 `src/meson.build:2375` 的 `dependency('xrandr')`（无 `required:false`）成为硬需求。Windows 上 `-Dplatforms` 里根本没有 x11，这段代码不进入 |
 | vulkan-loader | `BUILD_WSI_XCB_SUPPORT=ON`、`BUILD_WSI_XLIB_SUPPORT=ON`、`BUILD_WSI_XLIB_XRANDR_SUPPORT=ON` + deps `libxcb libx11 libxrandr` | 这三个 `option()` 只存在于 `CMakeLists.txt:115` 的 Linux/BSD `elseif` 分支，WIN32 分支完全不读 ⇒ 在 Windows 上传它们只会得到"变量未被使用"的警告。Linux 上它们是真实功能：GTK 的 Vulkan 渲染器要 `VK_KHR_xlib_surface`/`VK_KHR_xcb_surface`。实测产物 `libvulkan.so.1` 导出 `vkCreateXlibSurfaceKHR`/`vkCreateXcbSurfaceKHR` |
+| curl | `CURL_USE_OPENSSL=ON` + dep `openssl` | base 里的 `CURL_USE_OPENSSL=OFF` 是"默认无 TLS 后端"的姿态（Windows 靠它走 schannel，未来新平台也不会意外链上 crypto），Linux 块把这个叶子值改成 ON。为何选 OpenSSL 而不是 mbedTLS/GnuTLS，见「OpenSSL：curl 的 TLS 后端」一节 |
 
 ## 留在 base 的"看着像 Windows 但其实是跨平台决策"
 
@@ -201,12 +202,13 @@ libadwaita 68 个测试程序 = **430 个子用例**（与 Windows 记录的 430
 
 ### 全量干净构建（2026-09-29，改名 linux-native 之后）
 
-`build libadwaita` 只覆盖 62 个包，其余 8 个（curl、xz、libyaml、libxmlb、
-libfyaml、appstream、adwaita-icon-theme、gst-plugins-good + libvpx）从未在 Linux
-上构建过。按 CI 的做法把 `list` 的全量交给 build（3 个只属于 Windows 的包由
-`platforms` 跳过）：
+`build libadwaita` 只覆盖 62 个包，其余 9 个（adwaita-icon-theme、appstream、
+curl、gst-plugins-good、libfyaml、libvpx、libxmlb、openssl、xz）从未在 Linux 上
+构建过（末项是本轮新加的 TLS 后端）。按 CI 的做法把 `list` 的全量交给 build
+（3 个只属于 Windows 的包由 `platforms` 跳过，即 74 − 3 = 71）：
 
-- **70 recipe 全建完，`exit 0`**；重跑 220 个阶段全部 `[skip]`（幂等）。
+- **70 recipe 全建完，`exit 0`**（本轮加入 openssl 之前的实测）；重跑 220 个阶段
+  全部 `[skip]`（幂等）。并入 TLS 后端后期望 71，待复验。
 - 形态：`.a` 83、共享库文件 92、`bin/` 80、`.pc` 193、typelib 35、
   `lib/dri` 3 个驱动（swrast/kms_swrast/dril），**没有 `lib64/`**。
 - 架构取值确实来自宿主：libvpx 生成的 `config.mk` 里
@@ -230,9 +232,11 @@ libfyaml、appstream、adwaita-icon-theme、gst-plugins-good + libvpx）从未�
 一个**真实能力缺口**（不影响构建，影响用途）：curl 在 Linux 上没有 TLS 后端。
 Windows 侧走 `CURL_USE_SCHANNEL=ON`（系统 SSPI），Linux 家族块显式 `OFF` 之后
 cmake 找不到任何 crypto 库（OpenSSL/GnuTLS/mbedTLS 都不在闭包里），产物不支持
-https。appstream 依赖 curl 取远端数据，所以这条要补就得决定自建哪个 TLS 栈
-（OpenSSL 体量最大，mbedTLS/GnuTLS 也有各自的依赖链）——与"Mesa 要不要自建"
-是同一类边界判断，留给用户裁决。
+https。appstream 依赖 curl 取远端数据，所以这条要补就得决定自建哪个 TLS 栈。
+↑ **本轮已裁决并落地**：自建 OpenSSL 3.5.8（用户裁决，理由与被否掉的两个候选
+见「OpenSSL：curl 的 TLS 后端」一节）。当时那句"与 Mesa 是同一类边界判断"并不
+成立——Mesa 的结论是"自建反而更便宜"，这里则是"多一个消费者值得不值得"。
+recipe 与引擎改动的状态：configure 阶段实测通过，**编译/安装待构建复验**。
 
 ## X11 客户端栈（2026-09-29 落地，全部从源码建）
 
@@ -368,6 +372,124 @@ libxcb 构建期按 `xcb-proto.pc` 里的路径取用（实测目录存在）。
   `pkg_check_modules(XRANDR REQUIRED ... xrandr)` → 干净 sysroot 里 configure
   直接失败。详见下面"隐性依赖"一节。
 
+## OpenSSL：curl 的 TLS 后端（2026-09-29）
+
+上一轮"Linux 上不引入 TLS 后端"的结论由用户裁决推翻，改为自建 OpenSSL 3.5.8。
+三个候选都对着 curl 的源码核过接入成本：
+
+| 候选 | 接入成本（实测依据） | 结论 |
+| --- | --- | --- |
+| OpenSSL | 1 个 recipe，但要给 autotools 引擎加两个旋钮（见下） | **选它**：curl 在 Linux 上的默认后端就是它（`CMakeLists.txt:750-754`——非 WIN32 且没开别的时 `_openssl_default=ON`，本项目此前一直在显式覆盖为 OFF）；更关键的是它是"栈级"的，以后 glib-networking / nghttp2 这类要 TLS 的包都讲 OpenSSL |
+| mbedTLS | 最低：纯 CMake、零依赖，`CMake/FindMbedTLS.cmake` 有 `find_path`/`find_library` 兜底（不要求上游装 `.pc`） | 落选：嵌入式取向（无系统信任库集成、无硬件加速），且只服务 curl 一个消费者 |
+| GnuTLS | 最长：curl 除了 `find_package(GnuTLS MODULE REQUIRED)` 还硬要 `find_package(Nettle MODULE REQUIRED)`（`CMakeLists.txt:926-931`）⇒ 闭包里得放 gmp + nettle + libtasn1 + gnutls 四个 autotools 包 | 落选：链最长、失败面最大，收益却不比 mbedTLS 多 |
+
+wolfSSL 未纳入考虑：GPL/商业双许可，与"分发一整套 GTK 依赖树"的用途相冲。
+
+### 上游既不是 autotools 也不是 CMake
+
+顶层没有 `CMakeLists.txt`（实测 `openssl-3.5.8` 归档），入口是 perl 的
+`./Configure`，而 `./config` 只是 `THERE=\`dirname $0\`; exec "$THERE/Configure" "$@"`
+一层包装。autotools 引擎的两个硬编码因此都不成立：脚本名写死 `./configure`
+（两支都是），install 阶段写死 `make install`。给 `autotools` 加了两个字段：
+`script`（默认 `./configure`）与 `install_target`（默认 `install`）。缺省时命令串
+逐字节不变，护栏是 `OpensslTlsBackend`，实测 Windows 快照的 `configure_cmd`
+零差异。
+
+不给 `./config` 传平台名：`Configure:1271-1285` 的注释就是
+"If no target was given, try guessing"（`INSTALL.md:1793` 同义），宿主探测由上游
+完成 ⇒ 与 libvpx 缺省 `--target` 同构，见"架构中立"一节。
+
+**configure 阶段实测**（本机 x86_64 / Fedora 44 / perl 5.42.3，只跑配置不编译）：
+recipe 里那整条 `./config --prefix=… --libdir=lib --openssldir=/etc/ssl no-shared
+no-docs no-tests no-fips no-legacy` 成功，回显
+`Configuring OpenSSL version 3.5.8 for target linux-x86_64`（即不传平台名也确实由
+宿主推出），生成的 Makefile 里 `LIBDIR=lib`、`OPENSSLDIR=/etc/ssl`、
+`all: build_sw`（文档确实被 `no-docs` 摘掉了）。把 `--libdir=lib` 删掉重跑，
+同一份 Makefile 变成 **`LIBDIR=lib64`** —— 下一节那条警告不是推理。
+编译与安装阶段本轮未在本机跑过（用户负责构建）。
+
+宿主前置只有 perl ≥ 5.10，CI 的 apt 名单里本来就有（`NOTES-PERL.md:28`）。上游
+另外提醒 RPM 系要装 `perl-core` 而非 `perl`（:21-24），这条在本机被实测否证：
+Fedora 44 只装了 `perl-5.42.3-525.fc44`、`rpm -q perl-core` 报未安装，而整条
+configure 照样跑通。`Text::Template` 上游随源码带兜底副本（:74-76），
+`Test::More` 只在跑测试时才需要（:80-85）而本 recipe 关了测试 ⇒ 都不需要额外
+装包。
+
+**为什么必须走 raw 支**：引擎的常规支会补 `-C` 与 `--disable-shared --enable-static`，
+而 `./config` 对 autoconf 式参数一律退出 0；关键是库形态那两条**完全不改变结果**。
+本机实测（只跑 configure，数生成的 Makefile 里 `libcrypto.so` 出现次数）：
+
+| 参数 | `libcrypto.so` 命中 |
+| --- | --- |
+| `--disable-shared --enable-static` | 236 |
+| 不给任何东西 | 236 |
+| 上游关键字 `no-shared` | 0 |
+
+也就是说用常规支会得到一个"recipe 声明静态、产物却是共享库"的 sysroot，且没有任何
+响动 —— 比响亮失败更值得防的那一类，所以库形态必须由 recipe 用 `no-shared` 写全。
+
+### 两个不写就会出事的开关
+
+- **`--libdir=lib`**：默认 libdir 是 `lib$target{multilib}`
+  （`Configurations/unix-Makefile.tmpl:329-333`），而 `linux-x86_64` 的 conf 里
+  `multilib => "64"`（`Configurations/10-main.conf:894`）、`linux-aarch64` 没有
+  这一项 ⇒ 不写这条，x86_64 装进 `$SYSROOT/lib64`、aarch64 装进 `$SYSROOT/lib`，
+  同一份 target 定义在两个 CI 容器里产出**不同布局**，而且只有 x86_64 那侧会被
+  sysroot 的 lib64 守卫拦下。上游 `INSTALL.md:343-353` 正是这么建议的。
+- **`install_target: install_sw`**：默认 `install` = `install_sw` +
+  `install_ssldirs`（+ `install_docs`），而 `install_ssldirs` 是唯一写
+  `$(DESTDIR)$(OPENSSLDIR)` 的目标（`unix-Makefile.tmpl:707-750`，另有
+  `install_fips:679-691`）。下面的 `--openssldir` 是运行期绝对路径，于是它会试图
+  往 `/etc/ssl` 装 `openssl.cnf`：既破 hermetic，又在无 root 时直接失败。
+
+`--openssldir=/etc/ssl` 取绝对路径是有意的：绝对值原样写进 OPENSSLDIR，相对值会被
+拼到 `--prefix`（= sysroot）下面（三分支逻辑见 `unix-Makefile.tmpl:312-325`）。
+拼进 sysroot 虽然更"干净"，但运行期就得由使用者设 `SSL_CERT_FILE`/`SSL_CERT_DIR`；
+`/etc/ssl` 在两大发行版家族都能直接命中系统信任库（Ubuntu
+`/etc/ssl/certs/ca-certificates.crt`；Fedora 的 `/etc/ssl/certs`、`cert.pem` 是指向
+`/etc/pki/tls` 的符号链接）。
+
+其余开关：`no-shared`（项目 default_library: static）、`no-docs`（默认
+`all: build_sw build_docs`，见 `unix-Makefile.tmpl:548`，不关掉就得为 man/html 备
+pod2man 一类的 perl 文档工具链，CI 的 apt 名单里没有）、`no-fips`/`no-legacy`
+（两者是 provider **模块** `.so`，会随 `install_modules` 落进 `lib/os-modules/`：
+静态为主的 sysroot 里不该有游离 `.so`，legacy 只为 MD4/DES 一类旧算法存在而
+TLS 1.2/1.3 用不到，fips 还需要运行期 `fipsmodule.cnf`）。
+
+### 它的测试套件没有接进框架
+
+`no-tests` 不是"不想跑"，而是框架跑不了：上游测试输出既不是 meson 也不是 ctest
+的行式，`Builder._parse_test_output`（`_TEST_LINE`/`_CTEST_LINE`）解析不出来，而
+`AutotoolsEngine` 根本没有 `test_command()`。要手工验证（也是**唯一**能验证
+aarch64 汇编路径的手段，asm 在本包是默认开启的）：
+
+```sh
+cd build/linux-native/openssl/src && make tests && make test
+```
+
+安装产物本身也能先验一把：`out/linux-native/bin/openssl version -d` 应报
+`OPENSSLDIR: "/etc/ssl"`，再 `openssl dgst -sha256` 走一遍 libcrypto。
+
+### 源码 URL 只能实测，HEAD 会骗人
+
+`versions.lock.yaml` 现在锁的是
+`https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz`
+（53,213,818 字节，sha256 `a8f84a39…`）。两条看着更像"官方源"的路都探过、都不采用：
+
+- `https://openssl-library.org/source/binaries/openssl-3.5.8.tar.gz` —— 实际下载
+  下来是 **31,669 字节的 HTML 错误页**（`file` 判为 HTML document）。而 `curl -sIL`
+  对它返回 200、带 Range 的 GET 返回 206：只有把正文取回来验哈希才看得出问题。
+  更糟的是框架的 `lock` 在**没有预期哈希**时"算出即接受"，于是这个 404 页被当成
+  源码包写进了 lock（本轮现场踩到，已改）。
+- `https://www.openssl.org/source/openssl-3.5.8.tar.gz` —— 301 之后续连 github.com，
+  最终落在同一个 release 资产上，列为镜像不增加任何独立冗余。
+
+留一个待办：`fetch()` 接受任意字节流当源码包，值得加一道"是不是可识别的
+tar/zip"的最低校验，否则一个 404 页会被静默锁进版本文件。
+↑ **同一轮已补**：`gtkcross/download.py` 的 `archive_kind()` 按内容判类型（tar/zip，
+扩展名不参与判断），`fetch()` 在新下载后先过这道再比哈希，不通过就按"这个源不可用"
+处理（继续下一个候选、清掉残留）。护栏见 `tests/test_download_guard.py`。
+
 ## 架构中立：linux-native 这个名字里没有 arch
 
 target 从 `linux-x64` 改名 `linux-native`（用户裁决），含义是"同一份工具链与
@@ -380,6 +502,8 @@ recipe 定义在多种架构的原生宿主上都成立"。CI 因此跑两个容
 | libvpx `--target` | base 之外各写一值（linux 侧 `x86_64-linux-gcc`） | Linux 不传，交给上游探测 | `build/make/configure.sh:789` 的 `gcctarget="${CHOST:-$(gcc -dumpmachine)}"`，case 表 `*x86_64*→x86_64`、`aarch64*→arm64`、`*linux*→linux` |
 | libvpx `--as=nasm` | base（两平台同值） | 只在 windows 家族块 | nasm 只在 x86 分支被探测（同文件 1474-1484）；aarch64 的 `AS` 来自 `${CROSS}as`（749 行）即 gas，塞 nasm 会把 ARM 的 `.s` 交给错误汇编器 |
 | xcb-proto `PKG_CONFIG_PATH` | `/usr/lib64/pkgconfig`（连 x86_64 的 Debian 都不成立） | 删掉 | 本包 configure 用 `AM_PATH_PYTHON` 按 **PATH** 找解释器，`$PKG_CONFIG` 调用数 grep 出来是 0；宿主 Python 与 meson/ninja/perl 同类，本就不需要 pkg-config 例外 |
+| openssl 平台名 | —— | 不传给 `./config` | `Configure:1271-1285` "If no target was given, try guessing"，x86_64 得到 `linux-x86_64`、aarch64 得到 `linux-aarch64` |
+| openssl libdir | —— | 显式 `--libdir=lib` | 默认值是 `lib$target{multilib}`（`unix-Makefile.tmpl:329-333`），而 `10-main.conf:894` 给 linux-x86_64 设 `multilib => "64"`、aarch64 没这一项 ⇒ 不写就是两个容器产出不同目录布局 |
 
 已经天生中立、不需要动的地方：不给 autotools 喂 `--host/--build`
 （`toolchains/linux-native.yaml` 不写 `host_triple`，让 autoconf 自己探测）；

@@ -358,9 +358,25 @@ epoxy_is_desktop_gl() → epoxy_eglGetCurrentContext → egl_provider_resolver
   （`gettext-tools/src/search-path.c:52` 的 foreach_elements），盘符冒号把路径
   切成 "C" 与 "/msys64/…" 两个无效项，msgfmt 报 "cannot locate ITS rules"；
   改用单数、不参与切分的 `GETTEXTDATADIR` 指向源码 its/ 目录即解。
-- `autotools.raw_configure`：手工 configure（libvpx）不注入
-  `-C/--host/--build` 与共享/静态开关——libvpx 的 configure 对未知参数直接
-  `die_unknown`。
+- `autotools.raw_configure`：手工 configure（libvpx、openssl）不注入
+  `-C/--host/--build` 与共享/静态开关。两类动机都要防：libvpx 的 configure 对
+  未知参数直接 `die_unknown`（响亮）；openssl 的 `./config` 一律退出 0 而
+  `--disable-shared` **根本不生效**（静默，实测生成的 Makefile 里仍有 236 处
+  `libcrypto.so`），库形态只能用上游关键字 `no-shared` 由 recipe 写全。
+
+### 2026-09-29 追加
+
+- `autotools.script`：配置入口脚本名，默认 `./configure`（raw 与常规两支都用它）。
+  OpenSSL 的入口是 `./config`（在 3.5.8 里就是 `exec "$THERE/Configure" "$@"`）。
+- `autotools.install_target`：安装目标名，默认 `install`。OpenSSL 必须换成
+  `install_sw` —— 默认 `install` 含 `install_ssldirs`，它会往运行期绝对路径
+  `$(OPENSSLDIR)`（`/etc/ssl`）装 `openssl.cnf`。
+  两个新键缺省时命令串逐字节不变（Windows 快照实测零差异）。
+- 下载内容校验（`gtkcross/download.py` 的 `archive_kind`）：`fetch` 在新下载后先确认
+  内容是可识别的 tar/zip 再比哈希。起因是一个 404 的 HTML 错误页顶着
+  `openssl-3.5.8.tar.gz` 的文件名被 `lock` 写进了 versions.lock.yaml（当时没有预期
+  哈希可比，"算出即接受"）。护栏测试 `tests/test_download_guard.py`；被拒绝的内容
+  不会留在 `downloads/`，否则下次会走"缓存命中"绕过校验。
 - `build: data`（DataEngine）：纯数据/头文件包按 `data.install_files` /
   `data.text_files`（`@PREFIX@` 展开为 sysroot 路径）安装，用于 egl-headers。
   `install_files` 的**目标路径一律是目录**（同 meson 的
@@ -885,11 +901,58 @@ libxfixes）是真实变化，但这三个包都声明了 `platforms: [linux]`�
 - **本机验证 Xvfb 路径**：装 `xorg-x11-server-Xvfb` 后
   `GTKCROSS_TEST_WRAPPER='xvfb-run -a' gtkcross build libadwaita -t linux-native`
   应该与有桌面时同样 68 项全过。
-- **curl 的 TLS 后端（Linux）**：全量构建实测产物 `Enabled SSL backends:` 为空，
-  即不支持 https。Windows 靠系统 schannel，Linux 侧三个候选都不在闭包里
-  ⇒ 需要用户裁决自建哪个（OpenSSL / mbedTLS / GnuTLS 及其依赖链）。
-  appstream 依赖 curl，缺口会传导。
+- ~~curl 的 TLS 后端（Linux）~~ **本轮裁决并落地**：自建 OpenSSL 3.5.8（改动清单
+  与两个引擎旋钮见下一节）。此前实测的"产物 `Enabled SSL backends:` 为空"是
+  上一版 recipe 的结论，OpenSSL 并入后要重新确认那一行：构建日志里 curl 的
+  `Enabled SSL backends:`（`CMakeLists.txt:2101` 的摘要输出）应为 `OpenSSL`，
+  且 `pkg-config --static --libs libcurl` 应带出 `-lssl -lcrypto`（本 recipe
+  `BUILD_CURL_EXE=OFF`，sysroot 里没有 curl 可执行文件，别指望 `curl -V`）。
 - **Vulkan 可用性的另一半**：WSI 已通（导出 xlib/xcb surface），但
   `-Dvulkan-drivers=` 为空 ⇒ 没有 ICD，运行期取不到物理设备。要真正跑 Vulkan
   需要选自建驱动路径（panvk/virtio 都要 LLVM；lvp 也要），这是另一个边界判断。
+
+## OpenSSL：linux-native 的 TLS 后端（2026-09-29）
+
+用户裁决"Linux 上 curl 自建哪个 TLS 栈"→ OpenSSL。否决 mbedTLS（接入最省事，
+但只服务 curl 一个消费者）与 GnuTLS（要为它放 gmp+nettle+libtasn1+gnutls 四个
+包）；依据带行号记在 `recipes/platform-notes.md` 的「OpenSSL：curl 的 TLS 后端」。
+
+**框架侧**：autotools 引擎加两个字段，都是 OpenSSL 的构建入口逼出来的 ——
+`autotools.script`（入口脚本名，默认 `./configure`，raw 与常规两支都用）与
+`autotools.install_target`（默认 `install`）。缺省时命令串逐字节不变，实测
+Windows 快照的 `configure_cmd` 字段零差异。
+
+**recipe 侧**：新增 `recipes/openssl.yaml`（3.5.8，`platforms: [linux]`）与
+`versions.lock.yaml` 的对应锁；`recipes/curl.yaml` 的 linux 块改成
+`CURL_USE_OPENSSL=ON` + dep `openssl`，并删掉那条在本平台不会被读取的
+`CURL_USE_SCHANNEL=OFF`。windows 块与 base 未动 ⇒ Windows 闭包与命令行不变。
+
+**上游实测的两个陷阱**（不写就出事）：
+- 默认 libdir 是 `lib$target{multilib}`：x86_64 得 `lib64`、aarch64 得 `lib`
+  ⇒ 同一份 target 定义在两个 CI 容器里产出不同布局。本机实测：把 `--libdir=lib`
+  从 configure 命令里去掉重跑，生成的 Makefile 从 `LIBDIR=lib` 变 `LIBDIR=lib64`。
+- 默认 install 目标含 `install_ssldirs`，它往运行期绝对路径 `/etc/ssl` 装
+  `openssl.cnf`（破 hermetic，无 root 即失败）⇒ 必须 `install_target: install_sw`。
+- 引擎常规支补的 `--disable-shared --enable-static` 会被 `./config` **静默忽略**
+  （退出 0、不生效；实测生成的 Makefile 里仍有 236 处 `libcrypto.so`，只有上游
+  关键字 `no-shared` 才是 0）⇒ 必须 `raw_configure` + 自己写全库形态。这类
+  "声明与产物不符且无声"的变形比响亮失败危险得多。
+
+**过程错误（记下防再犯）**：`openssl-library.org/source/binaries/…tar.gz` 用
+`curl -sIL` 探返回 200、带 Range 的 GET 返回 206，真下载下来是 31,669 字节的
+HTML 错误页；而框架的 `lock` 在没有预期 sha256 时"算出即接受"，于是那个 404 页
+被当源码包写进了 `versions.lock.yaml`（现场发现并改回）。最终锁 GitHub 的 release
+资产（53,213,818 字节，sha256 `a8f84a39…`）；`www.openssl.org/source/…` 实测 301
+后落的也是同一资产，没有独立冗余价值。**待办**：给 `fetch()` 加一道"是不是可识别
+的 tar/zip"的最低校验，否则 404 页会被静默锁进版本文件。
+
+**验证状态**：`./config` 的整条参数在本机实测通过（仅 configure 阶段，回显
+`Configuring OpenSSL version 3.5.8 for target linux-x86_64`）；**编译、安装、以及
+OpenSSL 并进 curl 之后的链接都还没跑** —— 本轮按约定停在改动，构建由用户执行。
+单测 45 → 50（新增 `OpensslTlsBackend`：入口脚本、install 目标、libdir、curl 两
+平台各自的后端选择、两个新键的缺省行为）。快照差异按字段分类：`new-recipe` 2 处
+（openssl 在两个 Windows target 的条目）、`test_cmd` 20 处（`-j` 随宿主核数漂移，
+`tests/test_windows_plan.py` 现已把并行度与 `GTKCROSS_TEST_WRAPPER` 钉死，注释
+归因于 CI 首跑的 20 项失败）、`configure_cmd` / `prelude` / `bash_argv` / `plans`
+零变化。
 
