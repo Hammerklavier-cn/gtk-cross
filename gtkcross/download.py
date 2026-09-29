@@ -61,6 +61,28 @@ def compute_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def archive_kind(path: Path) -> str:
+    """按**内容**判断容器类型（'tar' | 'zip' | '' = 都不是）。
+
+    文件名不是证据：上游/CDN 的 404 错误页会原样顶着 `openssl-3.5.8.tar.gz`
+    这个名字返回（2026-09-29 实测 31,669 字节的 HTML 页就这么被 lock 写进了
+    versions.lock.yaml —— 没有预期 sha256 时"算出即接受"）。`tarfile` 与
+    `zipfile` 都只读头部若干块，成本可忽略。
+    """
+    if zipfile.is_zipfile(path):
+        return "zip"
+    if tarfile.is_tarfile(path):
+        return "tar"
+    return ""
+
+
+def _looks_like_error_page(path: Path) -> bool:
+    """给报错用的提示：内容开头是 HTML 就直说，省得人去猜哪一步坏了。"""
+    with open(path, "rb") as f:
+        head = f.read(2048).lower()
+    return b"<!doctype html" in head or b"<html" in head
+
+
 def fetch(
     sources: List[Dict[str, str]],
     dest_dir: Path,
@@ -70,6 +92,7 @@ def fetch(
 
     sources: [{url, sha256}]，按顺序尝试；候选自带 sha256 优先，
     否则用共享的 sha256 参数（'' = 算出即接受并自动锁定）。
+    新下载的内容必须先通过 `archive_kind`（内容确实是 tar/zip），哈希不能替代它。
     缓存文件哈希与预期不符时丢弃重下；下载失败会清理残留文件。
 
     Returns (archive_path, actual_sha256, url_used).
@@ -100,6 +123,15 @@ def fetch(
                 with _prefer_ipv4():
                     _download_to(req, archive)
             actual = compute_sha256(archive)
+            # 先验内容类型、再验哈希：错误页的哈希当然也不对，但"这是 HTML 错误页"
+            # 才是能一眼看懂的病因（见 archive_kind）。只校验新下载的内容——缓存命中
+            # 的文件要么当年从这里过去，要么是人工放进来的。
+            if not archive_kind(archive):
+                hint = ("，内容是 HTML，多半是错误页而不是源码包"
+                        if _looks_like_error_page(archive) else "")
+                raise ValueError(
+                    f"下载内容不是可识别的 tar/zip: "
+                    f"{archive.stat().st_size} bytes{hint}")
             if want and actual != want:
                 raise ValueError(f"sha256 mismatch: expected {want}, got {actual}")
             return archive, actual, url
