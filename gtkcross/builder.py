@@ -96,6 +96,8 @@ class Builder:
         tconf = project.target(target)
         tc_path = project.root / "toolchains" / f"{tconf['toolchain']}.yaml"
         self.tc = Toolchain.load(tc_path, self.sysroot)
+        # recipe 的 targets: 家族选择器按它匹配（windows | linux）
+        self.target_os = self.tc.target_os
         # 追加式事件日志：记录构建起止与测试异常事件（known 失败出现/缺席等）
         self.events = EventLog(project.root / "gtkcross-events.log", target)
 
@@ -118,13 +120,20 @@ class Builder:
     # -- recipe ordering ----------------------------------------------------
 
     def order(self, names: List[str]) -> List[str]:
-        graph = {n: list(r.deps) for n, r in self.recipes.items()}
+        # 依赖图必须按**目标**解析：recipe 的 targets: 家族块可以给特定平台增删
+        # deps（例如 directx-headers/directxmath 只属于 Windows）。用未解析的 base
+        # deps 建图的话，被裁掉的依赖仍会进入 build plan，而按名字预置依赖时又
+        # 会在 Linux 计划里带上 Windows 专属包。
+        graph = {
+            n: list(r.for_target(self.target, self.target_os).deps)
+            for n, r in self.recipes.items()
+        }
         return resolve(graph, names)
 
     # -- per-recipe build ---------------------------------------------------
 
     def build_recipe(self, name: str) -> None:
-        recipe = self.recipes[name].for_target(self.target)
+        recipe = self.recipes[name].for_target(self.target, self.target_os)
         ws = self.project.build_dir / self.target / name
         src = ws / "src"
         ok_marker = ws / "src" / ".gtkcross-extract-ok"
@@ -226,11 +235,15 @@ class Builder:
     def _pc_is_static(self, pc: Path) -> bool:
         """判断 .pc 描述的库在本 sysroot 里是否为静态。
 
-        依据 `Libs:` 里的 -lNAME 反查：libNAME.a 存在且 libNAME.dll.a 不存在
-        即为静态。共享库的导入库是 libNAME.dll.a，因此能区分开。
+        依据 `Libs:` 里的 -lNAME 反查：libNAME.a 存在、且本平台"共享变体"不存
+        在，即为静态。共享变体的名字随平台而不同（Windows 是导入库
+        libNAME.dll.a，ELF 是 libNAME.so），故由 toolchain 的 shared_suffixes
+        给出，不能在这里硬编码 Windows 形态——否则 Linux 上共享包的 .pc 会被
+        误判成静态并把 Libs.private 提升进 Libs。
         不依赖 mtime——CMake/meson 重装时常报 "Up-to-date" 而不改写 .pc。
         """
         libdir = self.sysroot / "lib"
+        suffixes = self.tc.shared_suffixes
         try:
             text = pc.read_text(encoding="utf-8")
         except OSError:
@@ -242,10 +255,13 @@ class Builder:
                 if not tok.startswith("-l") or len(tok) <= 2:
                     continue
                 name = tok[2:]
-                if (libdir / f"lib{name}.a").exists() and not (
-                    libdir / f"lib{name}.dll.a"
-                ).exists():
-                    return True
+                if not (libdir / f"lib{name}.a").exists():
+                    continue
+                if any(
+                    (libdir / f"lib{name}{sfx}").exists() for sfx in suffixes
+                ):
+                    continue
+                return True
         return False
 
     def _publish_static_pc(self) -> List[str]:

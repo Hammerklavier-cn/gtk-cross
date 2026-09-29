@@ -38,8 +38,11 @@ def cmd_info(args) -> int:
     print(f"deps:    {', '.join(r.deps) or '(none)'}")
     print(f"source:  {r.source['url']}")
     print(f"sha256:  {r.source.get('sha256') or '(auto-locked in versions.lock.yaml)'}")
-    if r.targets:
-        print(f"targets: {', '.join(sorted(r.targets))}")
+    # 选择器（OS 家族名或 target 名）。不能用 sorted(r.targets)：列表形态下元素
+    # 是 dict，排序会 TypeError；家族名的书写顺序本身就有意义。
+    selectors = r.selectors()
+    if selectors:
+        print(f"targets: {', '.join(selectors)}")
     return 0
 
 
@@ -50,7 +53,12 @@ def cmd_graph(args) -> int:
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    recipes = b.recipes
+    # 依赖树按目标解析：家族块可以增删 deps（Windows 专属依赖不该出现在 Linux
+    # 的图里），所以这里必须用 resolved recipe，而不是 base 形态。
+    recipes = {
+        name: r.for_target(args.target, b.tc.target_os)
+        for name, r in b.recipes.items()
+    }
     visited = set()
 
     def walk(name: str, depth: int) -> None:
@@ -99,7 +107,7 @@ def cmd_lock(args) -> int:
     b = _builder(args)
     order = b.order(args.names)
     for name in order:
-        recipe = b.recipes[name].for_target(args.target)
+        recipe = b.recipes[name].for_target(args.target, b.tc.target_os)
         locked = b.lock().get(name) or {}
         want = recipe.source.get("sha256") or locked.get("sha256", "")
         from .download import fetch
