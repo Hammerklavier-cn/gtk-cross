@@ -85,6 +85,12 @@ class Toolchain:
             entries += [f"{root}/{sub}/bin", f"{root}/usr/bin"]
         else:
             entries += ["/usr/local/bin", "/usr/bin", "/bin"]
+            # Linux 宿主保留调用方 PATH 的剩余部分：固定列表**覆盖**外层环境，
+            # 而 CI（pipx/用户级安装，~/.local/bin）与发行版都可能把工具装在
+            # 固定列表之外。追加在末尾——sysroot/系统目录仍优先，hermetic 不破。
+            # Windows/MSYS2 不做：那边 PATH 由 MSYSTEM 子系统目录决定，引入外部
+            # 路径反而会破坏工具链一致性。
+            entries += ['${PATH:+:$PATH}']
         return ":".join(entries)
 
     def prelude(self) -> List[str]:
