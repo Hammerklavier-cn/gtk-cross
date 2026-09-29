@@ -493,3 +493,325 @@ MinGW 下探测转为 NO（头不存在）、MSVC 下仍为 YES（SDK 带该头�
   原因是媒体链按上游设计必须动态；非媒体链的包仍是"仅 .a"。
 - **未做**：清空 `out/` 的从零全链重建（时间不允许），上列结果均为增量重建 +
   项目自带测试的实测；msys2-ucrt64 未同步本次改动。
+
+## linux-x64 原生编译：门控机制与首跑记录（2026-09-28）
+
+### 为什么必须先有门控
+
+Linux 原生目标一上手就撞上两条硬事实（均为实测上游，非推测）：
+
+1. **`-Wl,--undefined=_tls_used` 会让 Linux 全线链接失败**——`_tls_used` 是 PE
+   的 TLS 目录锚点，ELF 没有这个符号。它原先在 glib / glib-base / cairo 三个
+   recipe 的 base 里，属于"Windows 修复被全局启用"的典型。
+2. **GTK 在 Linux 上必须至少开一个窗口后端**——`gtk/meson.build` 在非 win32
+   宿主执行 `win32_enabled = false`，而 `gdk/meson.build` 有
+   `if gdk_backends.length() == 0 error('No backends enabled')`。旧配方在 base
+   里把 x11/wayland/broadway 全写 `false`，在 Linux 上必然 configure 失败。
+
+同类项共 22 处（PE TLS 链接参数、DirectWrite、gl_winsys=win32/gl_platform=wgl、
+d3d11/d3d12 + DirectX 依赖、directsound、schannel、libvpx 的
+`--target=x86_64-win64-gcc`、Windows 专属补丁、盘符类 known_failures 等），
+逐项依据见 [recipes/platform-notes.md](recipes/platform-notes.md) 与
+[patches/README.md](patches/README.md)。
+
+### 机制：targets: 选择器 + target_os
+
+- `toolchains/*.yaml` 新增 `target_os`（windows | linux；缺省回退到 `host`）。
+  家族名按**目标 OS** 匹配而不是按宿主，未来 linux→mingw 交叉目标仍会正确
+  拿到 Windows 侧补丁。
+- recipe 的 `targets:` 支持两种形态：旧的映射（键 = 选择器）继续可用；新增
+  列表 + `for:`，一个块的 `for:` 可列**多个**选择器（家族名或精确 target 名），
+  多个 target 共用一套条目，不必逐 target 抄写。
+- 合并语义按"base 只放平台中立项"的约定定为：`patches` / `deps` /
+  `submodules` / `meson.options` / `autotools.configure` /
+  `test.known_failures` **一律追加且去重**（共享块只增不减）；dict 深合并、
+  叶子按 key 覆盖；标量覆盖；家族块先应用、精确 target 块后应用。
+- 语义缺陷由测试抓到并修正一处：最初把"精确 target 块"按旧的**替换**语义处理，
+  于是 `for: [msys2-mingw64, msys2-ucrt64]` 会静默丢掉 base 的补丁/依赖——
+  正是这次改造要消灭的问题类别。改为统一追加 + 去重。
+
+### 三处必须先修的门控阻塞点（不修则机制不成立）
+
+| 位置 | 症状（若不修） | 修法 |
+| --- | --- | --- |
+| `Builder.order()` | 依赖图用未解析的 base `deps` 建图：家族块裁不掉 directx-headers/directxmath，Linux 的 build plan 仍会带上 Windows 专属包 | 图改为 `r.for_target(target, target_os).deps`；`cmd_graph` 同步按目标解析 |
+| `Toolchain.run()` | 无条件注入 `MSYSTEM`（缺省 MINGW64），Linux 宿主的上游脚本按 `test -n "$MSYSTEM"` 判定 MSYS2 而走错分支 | 仅 `host: windows` 时注入 |
+| `Builder._pc_is_static()` | 硬编码 `libNAME.dll.a`：Linux 上共享包若同时有 `.a` 会被误判为静态并把 `Libs.private` 提升进 `Libs` | 改由 `Toolchain.shared_suffixes`（windows→`.dll.a`，linux→`.so`） |
+
+另两处 Linux 侧结构性差异：`default_library: static` 下 `.a` 要链进 `.so`，
+故 prelude 对非 Windows 目标注入 `CFLAGS/CXXFLAGS=-fPIC`；`XDG_DATA_DIRS` 在
+Linux 上改为**前置** sysroot 而非独占（独占会丢掉 `/usr/share` 的图标主题）。
+`toolchains/linux-x64.yaml` 故意不写 `host_triple`，让 autotools 原生构建不传
+`--host/--build`（避免 autoconf 误判交叉）。
+
+### Windows 行为等价性怎么证的
+
+本机是 Linux，无法实跑 msys2-* 目标，所以用**构建计划快照**：
+`tests/windows-plan.golden.json` 记录 52 recipe × 2 Windows 目标的实际 configure
+命令行、补丁/依赖列表、测试命令与环境、post_install、build plan 拓扑序；
+`tests/test_windows_plan.py` 逐字段比对。生成器 `tests/gen_windows_plan.py`
+复用测试里的 `capture_plan`（生产者与校验者必须是同一实现——此前独立写了一份
+的生成器漏传 `target_os`，重新生成的基线里 Windows 选项全部消失，就是这个坑）。
+
+门控改造那一轮对 `git archive HEAD` 导出的旧实现做 token 多重集比对：
+**1238 个字段逐字节相同、22 处仅顺序不同、0 处真实差异**；`prelude` 与
+`bash_argv` 完全一致。仅顺序的 22 处来源是家族块把选项追加到末尾、gtk 的
+`deps` 里 directx-headers 移到尾部（拓扑序仍保证它在 gtk 之前：位置 37 vs 40），
+以及由此引发的 build plan 平序调整。
+
+### 首跑实测结论（Fedora 44，gcc 16.2.1 / meson 1.11.2 / cmake 4.3.0）
+
+`build pango -t linux-x64` 当时的计划是 18 recipe（**没有任何 DirectX 包**；
+同一命令现在解析出 28 个，因为 cairo 在 Linux 上开始依赖 X11 栈）：
+zlib → libffi → pcre2 → libiconv → gettext → glib-base → pixman → freetype →
+expat → fontconfig → libpng → cairo → gobject-introspection → glib →
+harfbuzz-base → harfbuzz → fribidi → pango。
+
+已实测通过：
+
+- 三种引擎都在 Linux 上跑通：cmake（zlib/pcre2/freetype/expat/libpng）、
+  autotools（libffi/libiconv/gettext）、meson（glib-base/pixman/fontconfig/…）。
+- **expat 自带测试 1/1 通过、libpng 37/37 通过**。这 37 项正是靠
+  `libpng-0001-tests-against-static-library.patch` 才没被静默跳过——它在 ELF 上
+  同样必要，实测支持"该补丁属跨平台、留在 base"的判断。
+- libiconv / gettext 在 Linux 闭包内构建安装成功（本轮决定与 Windows 保持完全
+  同一 closure，不因 glibc 自带 iconv/libintl 而裁剪）。
+
+首跑撞出并修掉四类真实问题（都是实测，不是推测的风险）：
+
+1. **glib-base 链接失败**：`libglib-2.0.so` 的 DT_NEEDED 出现 `libiconv.so.2`
+   （glib 经 sysroot 的 `iconv.h` 用的就是 GNU libiconv），meson 链接
+   `gtester` / `gobject-query` 时带 `-Wl,--no-undefined`，只有 `-L` 不够，报
+   `ld: warning: libiconv.so.2 ... not found (try using -rpath or -rpath-link)`
+   与 `undefined reference to libiconv_open`。
+   修法：非 Windows 目标的 `LDFLAGS` 加 `-Wl,-rpath-link,$SYSROOT/lib`。
+   这是"闭包保留 GNU libiconv"这一决定的直接代价；Windows 侧无此步。
+2. **libffi 装到 `$prefix/lib64`**：其 configure 里
+   `` multi_os_directory=`$CC $CFLAGS -print-multi-os-directory` `` 在本机返回
+   `../lib64`，命中 `toolexeclibdir=$toolexeclibdir/$multi_os_directory`，
+   破坏"sysroot 只有一个 lib 目录"的前提（meson 传 `--libdir=lib`、cmake 传
+   `CMAKE_INSTALL_LIBDIR=lib`，autotools 侧此前没有对等约束）。
+   修法：给 libffi 的 **linux 家族块** 传上游开关
+   `--disable-multi-os-directory`。重编后实测 `out/linux-x64/lib/libffi.so.8.5.0`
+   且 `libffi.pc` 的 `toolexeclibdir=${libdir}`，`lib64/` 不再出现。
+3. **glib 自带测试 3 项 SIGABRT**：`glib:spawn-test`、`glib:gschema-compile`、
+   `glib:gsubprocess`（这三项由 `gtkcross-events.log` 的 `tests-unexpected` 事件
+   记录；当轮 meson 汇总未落盘，故不引用其总数。修复后复跑：424 个顶层测试
+   退出码全 0，`Ok: 418 / Fail: 0 / Skipped: 6`）。逐项实测后定位到**两个不同
+   根因**，都不是产物缺陷：
+   - *空环境的子进程找不到自建库*。`gschema-compile.c` 用
+     `execve(argv[0], argv, (gchar *[]) { NULL })` 跑 `glib-compile-schemas`，
+     `gsubprocess` 的 `/env` 用 `g_subprocess_launcher_setenv` 整张替换环境表，
+     两者都不继承 `LD_LIBRARY_PATH`。直接复刻即复现：
+     `env -i ./build/gio/glib-compile-schemas --strict --dry-run
+     --schema-file …/no-default.gschema.xml` 报
+     `error while loading shared libraries: libiconv.so.2`（exit 127）；
+     `gsubprocess-testprog` 同样报 libiconv 缺失，随后断言 `ONE == NULL`。
+     修法：Linux 目标的 `LDFLAGS` 再加 `-Wl,-rpath,$SYSROOT/lib`，让闭包**自定位**。
+     Windows 上这些测试本来就过——PE 的 DLL 搜索含可执行文件所在目录，不看环境
+     变量。副作用是正向的：sysroot 产物不再依赖 `LD_LIBRARY_PATH` 才能运行。
+   - *诊断文案被翻译*。glib 从源码构建会把自己 `po/` 的产物装进 sysroot 的
+     `share/locale`（实测有 `zh_CN/LC_MESSAGES/glib20.mo`），宿主 LANG 是
+     zh_CN.UTF-8 ⇒ glib 工具输出中文诊断，而 `spawn-test.c:303` 断言的是
+     `strstr (erroutput, g_strerror (ENOENT))`。实测同一二进制：中文 locale 下
+     `/spawn/basics` FAIL，`LC_ALL=C.UTF-8` 下 `ok 1 /spawn/basics`。
+     修法：给 glib 的 **linux 家族块** 设 `test.env: LC_ALL: C.UTF-8`
+     （本机 `locale -a` 提供 `C.utf8`，`LC_ALL=C.UTF-8 locale charmap` 得 UTF-8），
+     而不是登记成 known_failure——环境钉住后回归信号才为真。
+4. **libtiff 的 cmake configure 直接失败**（`find_package(CMath REQUIRED)` →
+   `Configuring incomplete`）。读 `cmake/FindCMath.cmake` 得到确切链条：先
+   `check_symbol_exists(pow "math.h" CMath_HAVE_LIBC_POW)`（不带 -lm ⇒ 失败），
+   再 `find_library(CMath_LIBRARY NAMES m)`——被本框架的
+   `CMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY` 挡在 sysroot 内（sysroot 里当然没有
+   libm）⇒ 空，于是两次探测都失败。Windows 上同一包同一探测是过的：mingw 的 spec
+   文件默认就把 `pow` 链上了（libmingwex）。
+   修法：Linux 目标的 `LDFLAGS` 追加 `-lm`。定位上这等于承认"ELF 的 libm 与
+   Windows 的 CRT 同类"——它不是 target 侧依赖包，不该被 hermetic 隔离挡住，
+   但也不该因此把 `MODE_LIBRARY` 放宽成 BOTH（那会让 libtiff 嗅到发行版的
+   libjpeg/libpng，真正的 hermetic 破口）。实测 libtiff 4.7.2 通过，
+   `libtiff-4.pc` 的私有字段照常提升。
+
+### 前段链收尾（2026-09-29 凌晨，同一轮首跑）
+
+把计划推到 `build pango gdk-pixbuf -t linux-x64`（当时 19 recipe，含 harfbuzz/fribidi/
+pango/gdk-pixbuf 与 Linux 侧新增的两包）后，后半段又撞出三处**只在 Linux 成立**
+的真实问题。全部按平台门控修，Windows 侧一条不受影响（快照 29 项测试仍全过）。
+
+1. **gdk-pixbuf configure 失败**：`src/meson.build:209 ERROR: Dependency
+   "shared-mime-info" not found`。读上游源码确认这不是可选特性——
+   `if get_option('gio_sniffing') and host_system not in
+   ['windows','darwin','android']` 分支里的 `dependency('shared-mime-info')`
+   **没有** `required: false`，而 `use_gio_mime` 一旦为真就
+   `GDK_PIXBUF_USE_GIO_MIME=1`。也就是说 Windows 目标根本不进这段，Linux 必须给。
+   修法：`for: [linux] deps: [shared-mime-info]`（它的 `.pc` 装在
+   `$SYSROOT/share/pkgconfig`，已在 `PKG_CONFIG_LIBDIR` 内），顺带把 libxml2
+   拉进 Linux 闭包。它同时提供运行期 `share/mime/mime.cache`（实测 157560 字节），
+   GIO 内容类型嗅探才有数据可查。
+2. **gdk-pixbuf 第二个 Linux 硬依赖**：`src/meson.build:263 ERROR: Dependency
+   "glycin-2" not found`。机制更隐蔽：`get_option('glycin')` 的声明默认值是
+   `auto`，但上游包了一层
+   `.enable_auto_if(host_machine.system() == 'linux')` ⇒ **只有 Linux** 把
+   `auto` 提成 `enabled`，`required:` 随即变成真，缺包直接中止配置。Windows 上
+   `auto` 保持 `auto`，找不到就静默不启用（第 9 条那套 loader 组合因此不变）。
+   glycin 是 Rust 写的图像 loader daemon：上游 `subprojects/` 里没有它的 wrap
+   回退（只有 gi-docgen/glib/libjpeg-turbo/libpng 四个），而本框架的引擎表只有
+   meson/cmake/autotools（`gtkcross/builder.py`），没有 cargo 路径
+   ⇒ 不可自建，`for: [linux]` 里显式 `-Dglycin=disabled`。
+   副作用可控：`:289/:316/:360/:391` 的 `disable_auto_if(glycin_dep.found())`
+   走反分支，png/jpeg/tiff/gif 仍用本闭包自建的 libpng/libjpeg-turbo/libtiff。
+3. **libxml2 能 configure、却在链接工具时炸**：
+   `libxml2.a(encoding.c.o): undefined reference to libiconv_open`（xmllint、
+   xmlcatalog 两个可执行文件）。根因是 **CMake FindIconv 的探测不对称**：
+   它判断"iconv 是否在 libc 里"用的是 `check_c_source_compiles`
+   （cmake 4.3 `Modules/FindIconv.cmake:110`），那次编译只带环境里的
+   `CFLAGS`/`LDFLAGS`——**CMake 不读环境的 `CPPFLAGS`**，所以 `-I$SYSROOT/include`
+   不在里面，探测看到的是 glibc 的 `iconv.h`，判成
+   `Found Iconv: built in to C library` ⇒ 不给任何库参数。而真正编译 `encoding.c`
+   时走 target 的 include 目录，`find_path(Iconv_INCLUDE_DIR)` 受本项目
+   `CMAKE_FIND_ROOT_PATH=$SYSROOT` + `MODE_INCLUDE=ONLY` 约束，命中的是**闭包内
+   GNU libiconv** 的头（它把 `iconv_open` 宏重写成 `libiconv_open`）。两头不一致
+   ⇒ 编译期要 libiconv_*，链接期不给 `-liconv`。
+   修法：`for: [linux] cmake.defines: Iconv_IS_BUILT_IN=OFF`——FindIconv 的探测
+   条件正是 `NOT DEFINED Iconv_IS_BUILT_IN`，显式定义即跳过误判，改走
+   `find_path` + `find_library(NAMES iconv libiconv)`，两者都只在 sysroot 内搜，
+   恰好拿到与被遮蔽同源的头和库。mingw 上不需要这条：msvcrt/ucrt 没有内置
+   iconv，那次探测自然失败，结论本来就对。
+   这是"闭包保留 GNU libiconv"（与 Windows 同一 closure 的决定）的**第二笔**
+   直接代价，第一笔是 rpath-link/rpath。
+
+**前段链最终实测**（当时 `out/linux-x64` 23 recipe 有完整 stamp；全链完成后是 62，
+见后面的 X11/Mesa 一节）：
+
+| 项 | 结果 |
+| --- | --- |
+| 自带测试 | expat 1/1、libpng 37/37、gobject-introspection 65/65、glib **424 项 = 418 通过 + 6 跳过、0 失败**、fribidi 8/8、pango **29 项 = 27 通过 + 2 跳过、0 失败**、gdk-pixbuf 23/23、shared-mime-info 8/8 |
+| pango 的 Linux 结论 | Windows 登记的 `test-font / test-fonts / test-font-data` 在 Linux 上**全部通过**，故未新增任何 `known_failures` |
+| pango 的 2 项跳过 | **与平台无关**，读源码可确认：`test-shape` 迭代 `tests/shape/` 目录，而 1.58.2 的 tarball 里没有该目录（`tests/` 下只有 breaks/fonts/fontsets/itemize/layouts/markup-parse/nofonts…），`main()` 遇 `G_FILE_ERROR_NOENT` 直接 `return 0` ⇒ 0 个用例；`cxx-test` 是 C++ 编译链接冒烟程序，本身不注册 g_test 用例。两者在 Windows 上同样不会产出用例 |
+| pango 用例总数 | junit 汇总 348 个子测试、failures=0 errors=0 —— 与 Windows 记录的 348 一致，说明测试集合相同，只是 Windows 上那 4 项失败在 Linux 为绿 |
+| 闭包对比（前段链时点） | 当时三个 target 都是 **42** recipe，但**不是同一组包**：Windows 有 `directx-headers`/`directxmath`，Linux 有 `libxml2`/`shared-mime-info`。两个方向的差集已钉进 `tests/test_platform_gating.py`。（X11 栈与 Mesa 落地后 linux-x64 变成 **62**，见下一节） |
+| 产物 | 静态 `.a` 12、共享库主版本 23、可执行 47、`.pc` 46、typelib 29、无 `lib64/` |
+| 端到端（空环境） | `env -i out/linux-x64/bin/gdk-pixbuf-csource <png/jpg/jpeg/tiff 各一>` 全部成功产出 pixdata；`lib/gdk-pixbuf-2.0/2.10.0/` 下 loader 模块 0 个（`builtin_loaders=all` 生效，只有 loaders.cache）。这同时验证了 RUNPATH 自定位与自建 libpng/libjpeg-turbo/libtiff 的真实解码路径 |
+
+> **计数口径**：上表的测试数字是**框架按测试名去重后的通过项数**（解析
+> `meson test` 的进度行，取 `"suite - name"` 的后半段并去重），与本文件上方
+> Windows 表同一口径，可直接横向比较。meson 自己的汇总对 glib 是
+> `Ok: 418 / Skipped: 6 / Fail: 0`。两个数字的差已按 meson 的
+> `testlog.txt` 逐步核对：424 个顶层测试 → 短名去重后 391 个（13 个名字跨
+> suite 重复，如 `glib:max-version`/`glib:cxx` 各出现 4 次）→ 再减去 6 个
+> skipped = **385**，与框架报出的数字一致，不是漏跑。
+> Linux 的 glib 数（385）高于 Windows（309）是上游在 ELF 上注册了更多测试
+> 可执行文件，与本项目配置无关。
+>
+> glib 的 skipped 与本轮改动**无关**，是上游的运行期条件跳过：424 个顶层测试
+> 退出码全为 0（无一项以 77 退出），其 TAP 输出里共 76 个 `# SKIP` 子测试，
+> 分布在 28 个测试中。实测原因样例：`glib:g-file-info-filesystem-readonly`
+> 的 `# SKIP 'bindfs' and 'fusermount' commands are needed to run this test`
+> （本机未装 bindfs）、`Not running timing heavy test`、
+> `Skipping slow >4GB file test`、`Environment variable expansion is only
+> supported on Windows`（这条正说明它是 Windows 专属分支，在 ELF 上跳过是对的）、
+> `Failed to reproduce race (…) skipping test`（并发探测类）。框架不把 skipped
+> 计为失败，也不需要登记。
+>
+> 原先失败的 3 项已**单独复跑**确认是真通过而不是跳过：`glib:spawn-test` 在
+> 宿主 `LANG=zh_CN.UTF-8` 下仍 SIGABRT（即根因可复现），带
+> `LC_ALL=C.UTF-8` 则 `OK — 2 subtests passed`；`glib:gschema-compile`
+> 82 个子测试通过、`glib:gsubprocess` 84 个子测试通过。
+
+> 本机 GitHub 直连在这一轮多次卡死（`Remote end closed connection`、以及
+> `urlopen` 挂进不通的连接不返回），临时以 `HTTPS_PROXY=http://127.0.0.1:10808`
+> 启动构建即恢复（框架的下载器用 urllib，会读该环境变量）。**没有**为此改动
+> 仓库任何配置——换网络环境时不需要代理，也不需要把它写进 recipe。
+
+### X11 客户端栈 + 自建 Mesa + GTK/libadwaita（2026-09-29 同日推进）
+
+前段链打通后接着推全链，结果 **`build libadwaita -t linux-x64` 闭包 62 recipe
+全部构建、安装、测试通过**（`exit 0`，重跑幂等）。过程里撞出的阻塞点全部
+按"读上游源码定位 → 平台门控修"处理，没有一处用 known_failures 掩盖。
+
+**新增 21 个 recipe**：X11 客户端栈 17 个（util-macros、xorgproto、xtrans、
+libpthread-stubs、xcb-proto、libxau、libxcb、libx11、libxext、libxfixes、
+libxrender、libxi、libxrandr、libxcursor、libxdamage、libxinerama、
+libxxf86vm）+ GL/EGL 侧 4 个（mesa、libdrm、libpciaccess、libxshmfence）。
+逐项依据见 `recipes/platform-notes.md` 的 X11 与 Mesa 两节。
+
+按发生顺序记录的五个真实阻塞点：
+
+1. **X.org 的 configure 运行时要找 `xorg-macros.m4`**：框架的
+   `CPPFLAGS`/`PKG_CONFIG_LIBDIR` 覆盖不到 `$prefix/share/aclocal`，必须显式
+   `autotools.env: ACLOCAL_PATH=$SYSROOT/share/aclocal`，并把 util-macros
+   列进每个 X 包的 deps。（框架早已支持 `autotools.env`，无需改动。）
+2. **`xtrans` 是 libX11 1.8.13 的真实 pkg-config 依赖**：
+   `Package requirements (xproto >= 7.0.25 xextproto xtrans xcb >= 1.11.1
+   kbproto inputproto)` → `Package 'xtrans' not found`。旧说法"Xtrans 自 1.6
+   起 vendored 在 libX11 里"对 1.8.x 不成立。
+3. **gst 的 GLX 需要两处补**：`-Dgl_winsys=x11` 之外还必须 `-Dx11=enabled`
+   ——base 里的 `-Dauto_features=disabled` 把 `x11` 这个 `value:'auto'` 的
+   feature 一并关了，`src/meson.build:336` 的 `dependency('x11',
+   required: get_option('x11'))` 整条被跳过（日志原文
+   `Dependency x11 for host machine skipped: feature x11 disabled`），
+   于是在 `gst-libs/gst/gl/meson.build:741` 报
+   `Could not find requested X11 libraries`。另一处是 GL 实现本身（见第 4 条）。
+4. **决定自建 Mesa**（本轮的方向变更）。链条是硬的：gst 的
+   `cc.find_library('GL')` + `cc.has_header('GL/gl.h')`（`gl_api=opengl` 时
+   缺任一即 error）→ `gstreamer-gl-1.0` 又被 gtk 以
+   `required: get_option('media-gstreamer')` 硬要。Linux 上
+   `GL/gl.h`+`libGL.so` 属系统图形栈（`dnf repoquery` 实测只命中
+   libglvnd-devel 与 mingw 交叉头包），不像 Windows 那样天然来自工具链，
+   所以"用宿主"在这里等于交出 GL ABI。**softpipe 不需要 LLVM**
+   （meson.build 里写着 "requires LLVM" 的只有 llvmpipe/i915/r300-IGP/
+   radeonsi/lavapipe；本机也没有 llvm-config/llvm-devel），因此配置为
+   `-Dglx=dri -Degl=enabled -Dllvm=disabled -Dgallium-drivers=softpipe
+   -Dvulkan-drivers= -Dvideo-codecs= -Dplatforms=x11`，`-j8` 约 50 秒建完。
+   顺带把 EGL 的归属从 egl-headers 换成 Mesa（`egl-headers` 因此收进
+   libepoxy 的 windows 块）。
+5. **libadwaita 68 项测试首跑全部 SIGABRT**，报错只有一行且与本项目无关：
+   `Gtk-WARNING **: Unknown key gtk-modules in /home/jimmy/.config/gtk-4.0/settings.ini`
+   ——libadwaita 的测试环境自带 `G_DEBUG=fatal-warnings`，宿主桌面上 GTK3 时代
+   的遗留配置就足以让每个测试进程 abort。修在框架侧：prelude 对非 Windows 目标
+   设 `XDG_CONFIG_HOME="$SYSROOT/etc/xdg"`（与 `PKG_CONFIG_LIBDIR` 整体替换、
+   `XDG_DATA_DIRS` 前置 sysroot 同一类隔离）。修完 68 项全过。
+
+**本轮推翻/改正的上一轮结论**（都写进了 platform-notes，避免下一个人再踩）：
+
+- "GL/EGL 实现（mesa）不在自建范围" → 已自建，理由与代价见上。
+- "libepoxy 在没有 X11 时能否编译通过尚未实测" → 已实测：能建；
+  但 `-Degl=no` 在 Linux 上会导致 GTK x11 后端**编译不过**
+  （`gdk/x11/gdkdisplay-x11.c:61` 无条件 `#include <epoxy/egl.h>`），
+  已改为两平台分块。
+- "GTK4 在 Linux 上还会拉 at-spi2-core" → 证伪：gtk-4.24.0 根 meson.build 里
+  grep `at-spi|dbus|accessibility` 零命中，4.24 的 AT-SPI 在树内实现。
+- "本轮只验证不依赖显示的部分" → 不准确：libadwaita 的 68 项是**在宿主
+  X.Org 会话上真跑并全过**的（证据：测试 stderr 里的
+  `MESA-EGL: warning: DRI3 error`）。无头 runner 上不会通过，这是 CI 的
+  唯一硬缺口。
+
+**端到端验证**（都实测过）：`tests/libadwaita-demo` 仅靠
+`PKG_CONFIG_LIBDIR` 指向 sysroot 就能配置编译；在 `env -i`（不设
+`LD_LIBRARY_PATH`）下经**自建 gtk4-broadwayd** 跑 `--smoke` 退出码 0
+——坑是 broadway 的 socket 在 `XDG_RUNTIME_DIR` 里，server 与 app 必须共用
+同一个目录，否则 `Failed to open display`。另用只链接 sysroot 头/库的 C
+程序验证 X11 与 GLX：`XRRQueryVersion` 得 1.6、`XineramaQueryExtension`
+为真、`glXQueryVersion` 得 **1.4（来自自建 libGL）**。
+
+**Windows 等价性**：本轮把 cairo 的 `-Dxlib/-Dxcb` 从 base 挪进 windows
+家族块、把 libepoxy 的 `-Degl` 拆成分平台、并新增 21 个 recipe，快照两次
+刷新（先证明原有 52 个 recipe **0 真实差异且 0 顺序差异**、4 个 build plan
+拓扑序一致、prelude/bash_argv 一致，再重生成基线）。闭包差集已改成按
+三类原因分组的集合断言；门控单测从 29 增至 32 项（新增
+`test_cairo_x_backends_are_linux_only` 等），全过。
+
+### 待办
+
+- ~~前段链后半的测试结论与 known_failures 需按 Linux 实测重新登记~~ 已完成。
+- ~~GTK/libadwaita：先以 broadway 后端把 GTK 编出来，再补 X11/Wayland 客户端栈~~
+  已完成：X11 后端 + broadway 都开，GTK/libadwaita 全链通过（见上一节）。
+- **Wayland**：唯一还没做的后端。硬卡点是 `gtk-4.24.0/meson.build:588` 的
+  `dependency('wayland-egl')`（无 `required: false`，GTK 自带 wrap 里也没有
+  wayland-egl），它属 Mesa 的 wayland 平台 ⇒ 顺序必须是
+  `wayland → mesa(-Dplatforms=x11,wayland) → libxkbcommon(+xkeyboard-config)
+  → wayland-protocols → gtk`（详见 platform-notes 末尾）。
+- **vulkan-loader 的 XCB/X11 WSI**：X11/xcb 已就位，放开只剩"要不要"。
+- **CI 的 linux job**：`ci.yml` 仍只覆盖两个 msys2 目标；加 Linux job 的
+  前提是先解决图形测试对真实显示的依赖（`xvfb-run` 或自建 broadway，
+  见上一节第 5 条之后的说明），需要框架提供一个测试命令包装点。
+
