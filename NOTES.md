@@ -494,7 +494,7 @@ MinGW 下探测转为 NO（头不存在）、MSVC 下仍为 YES（SDK 带该头�
 - **未做**：清空 `out/` 的从零全链重建（时间不允许），上列结果均为增量重建 +
   项目自带测试的实测；msys2-ucrt64 未同步本次改动。
 
-## linux-x64 原生编译：门控机制与首跑记录（2026-09-28）
+## linux-native 原生编译：门控机制与首跑记录（2026-09-28）
 
 ### 为什么必须先有门控
 
@@ -541,7 +541,7 @@ d3d11/d3d12 + DirectX 依赖、directsound、schannel、libvpx 的
 另两处 Linux 侧结构性差异：`default_library: static` 下 `.a` 要链进 `.so`，
 故 prelude 对非 Windows 目标注入 `CFLAGS/CXXFLAGS=-fPIC`；`XDG_DATA_DIRS` 在
 Linux 上改为**前置** sysroot 而非独占（独占会丢掉 `/usr/share` 的图标主题）。
-`toolchains/linux-x64.yaml` 故意不写 `host_triple`，让 autotools 原生构建不传
+`toolchains/linux-native.yaml` 故意不写 `host_triple`，让 autotools 原生构建不传
 `--host/--build`（避免 autoconf 误判交叉）。
 
 ### Windows 行为等价性怎么证的
@@ -561,7 +561,7 @@ Linux 上改为**前置** sysroot 而非独占（独占会丢掉 `/usr/share` �
 
 ### 首跑实测结论（Fedora 44，gcc 16.2.1 / meson 1.11.2 / cmake 4.3.0）
 
-`build pango -t linux-x64` 当时的计划是 18 recipe（**没有任何 DirectX 包**；
+`build pango -t linux-native` 当时的计划是 18 recipe（**没有任何 DirectX 包**；
 同一命令现在解析出 28 个，因为 cairo 在 Linux 上开始依赖 X11 栈）：
 zlib → libffi → pcre2 → libiconv → gettext → glib-base → pixman → freetype →
 expat → fontconfig → libpng → cairo → gobject-introspection → glib →
@@ -592,7 +592,7 @@ harfbuzz-base → harfbuzz → fribidi → pango。
    破坏"sysroot 只有一个 lib 目录"的前提（meson 传 `--libdir=lib`、cmake 传
    `CMAKE_INSTALL_LIBDIR=lib`，autotools 侧此前没有对等约束）。
    修法：给 libffi 的 **linux 家族块** 传上游开关
-   `--disable-multi-os-directory`。重编后实测 `out/linux-x64/lib/libffi.so.8.5.0`
+   `--disable-multi-os-directory`。重编后实测 `out/linux-native/lib/libffi.so.8.5.0`
    且 `libffi.pc` 的 `toolexeclibdir=${libdir}`，`lib64/` 不再出现。
 3. **glib 自带测试 3 项 SIGABRT**：`glib:spawn-test`、`glib:gschema-compile`、
    `glib:gsubprocess`（这三项由 `gtkcross-events.log` 的 `tests-unexpected` 事件
@@ -633,7 +633,7 @@ harfbuzz-base → harfbuzz → fribidi → pango。
 
 ### 前段链收尾（2026-09-29 凌晨，同一轮首跑）
 
-把计划推到 `build pango gdk-pixbuf -t linux-x64`（当时 19 recipe，含 harfbuzz/fribidi/
+把计划推到 `build pango gdk-pixbuf -t linux-native`（当时 19 recipe，含 harfbuzz/fribidi/
 pango/gdk-pixbuf 与 Linux 侧新增的两包）后，后半段又撞出三处**只在 Linux 成立**
 的真实问题。全部按平台门控修，Windows 侧一条不受影响（快照 29 项测试仍全过）。
 
@@ -679,7 +679,7 @@ pango/gdk-pixbuf 与 Linux 侧新增的两包）后，后半段又撞出三处**
    这是"闭包保留 GNU libiconv"（与 Windows 同一 closure 的决定）的**第二笔**
    直接代价，第一笔是 rpath-link/rpath。
 
-**前段链最终实测**（当时 `out/linux-x64` 23 recipe 有完整 stamp；全链完成后是 62，
+**前段链最终实测**（当时 `out/linux-native` 23 recipe 有完整 stamp；全链完成后是 62，
 见后面的 X11/Mesa 一节）：
 
 | 项 | 结果 |
@@ -688,9 +688,9 @@ pango/gdk-pixbuf 与 Linux 侧新增的两包）后，后半段又撞出三处**
 | pango 的 Linux 结论 | Windows 登记的 `test-font / test-fonts / test-font-data` 在 Linux 上**全部通过**，故未新增任何 `known_failures` |
 | pango 的 2 项跳过 | **与平台无关**，读源码可确认：`test-shape` 迭代 `tests/shape/` 目录，而 1.58.2 的 tarball 里没有该目录（`tests/` 下只有 breaks/fonts/fontsets/itemize/layouts/markup-parse/nofonts…），`main()` 遇 `G_FILE_ERROR_NOENT` 直接 `return 0` ⇒ 0 个用例；`cxx-test` 是 C++ 编译链接冒烟程序，本身不注册 g_test 用例。两者在 Windows 上同样不会产出用例 |
 | pango 用例总数 | junit 汇总 348 个子测试、failures=0 errors=0 —— 与 Windows 记录的 348 一致，说明测试集合相同，只是 Windows 上那 4 项失败在 Linux 为绿 |
-| 闭包对比（前段链时点） | 当时三个 target 都是 **42** recipe，但**不是同一组包**：Windows 有 `directx-headers`/`directxmath`，Linux 有 `libxml2`/`shared-mime-info`。两个方向的差集已钉进 `tests/test_platform_gating.py`。（X11 栈与 Mesa 落地后 linux-x64 变成 **62**，见下一节） |
+| 闭包对比（前段链时点） | 当时三个 target 都是 **42** recipe，但**不是同一组包**：Windows 有 `directx-headers`/`directxmath`，Linux 有 `libxml2`/`shared-mime-info`。两个方向的差集已钉进 `tests/test_platform_gating.py`。（X11 栈与 Mesa 落地后 linux-native 变成 **62**，见下一节） |
 | 产物 | 静态 `.a` 12、共享库主版本 23、可执行 47、`.pc` 46、typelib 29、无 `lib64/` |
-| 端到端（空环境） | `env -i out/linux-x64/bin/gdk-pixbuf-csource <png/jpg/jpeg/tiff 各一>` 全部成功产出 pixdata；`lib/gdk-pixbuf-2.0/2.10.0/` 下 loader 模块 0 个（`builtin_loaders=all` 生效，只有 loaders.cache）。这同时验证了 RUNPATH 自定位与自建 libpng/libjpeg-turbo/libtiff 的真实解码路径 |
+| 端到端（空环境） | `env -i out/linux-native/bin/gdk-pixbuf-csource <png/jpg/jpeg/tiff 各一>` 全部成功产出 pixdata；`lib/gdk-pixbuf-2.0/2.10.0/` 下 loader 模块 0 个（`builtin_loaders=all` 生效，只有 loaders.cache）。这同时验证了 RUNPATH 自定位与自建 libpng/libjpeg-turbo/libtiff 的真实解码路径 |
 
 > **计数口径**：上表的测试数字是**框架按测试名去重后的通过项数**（解析
 > `meson test` 的进度行，取 `"suite - name"` 的后半段并去重），与本文件上方
@@ -724,7 +724,7 @@ pango/gdk-pixbuf 与 Linux 侧新增的两包）后，后半段又撞出三处**
 
 ### X11 客户端栈 + 自建 Mesa + GTK/libadwaita（2026-09-29 同日推进）
 
-前段链打通后接着推全链，结果 **`build libadwaita -t linux-x64` 闭包 62 recipe
+前段链打通后接着推全链，结果 **`build libadwaita -t linux-native` 闭包 62 recipe
 全部构建、安装、测试通过**（`exit 0`，重跑幂等）。过程里撞出的阻塞点全部
 按"读上游源码定位 → 平台门控修"处理，没有一处用 known_failures 掩盖。
 
@@ -800,18 +800,96 @@ libxxf86vm）+ GL/EGL 侧 4 个（mesa、libdrm、libpciaccess、libxshmfence）
 三类原因分组的集合断言；门控单测从 29 增至 32 项（新增
 `test_cairo_x_backends_are_linux_only` 等），全过。
 
+### 改名 linux-native、双架构 CI、platforms 归属（2026-09-29 同日第二轮）
+
+用户裁决两件相关的事：target 名去掉架构（`linux-x64` → `linux-native`），CI 增加
+`ubuntu-latest`（x86_64）与 `ubuntu-26.04-arm`（aarch64）两个容器。这两条合起来
+是一个**断言**：同一份工具链与 recipe 定义在多种架构的原生宿主上都成立。要让它
+不是空话，架构相关的取值必须交给宿主。
+
+改名本身的机械部分：`linux-x64` 字面量共 51 处（README 19、NOTES 9、
+platform-notes 9、gtk-cross.yaml 4、toolchain.py 1、门控测试 9）+ 文件名与
+`name:`。真正的影响是 **sysroot 前缀变了**：`out/linux-x64` 里的 `.pc`、RUNPATH、
+schemas 都嵌了绝对路径，`mv` 目录会造出一个自洽性被破坏的 sysroot，所以改名必然
+要求全新重建（这也顺带成了"全量干净构建"的契机，见下面的隐性依赖）。
+
+三处架构取值改造（依据全部来自上游源码，逐条见 platform-notes 的"架构中立"一节）：
+
+| 位置 | 改法 | 判据 |
+| --- | --- | --- |
+| libvpx `--target` | Linux 不传 | `build/make/configure.sh:789` 用 `${CHOST:-$(gcc -dumpmachine)}` 推 `tgt_isa`，case 表覆盖 `aarch64*→arm64` |
+| libvpx `--as=nasm` | 移进 windows 家族块 | 那段 nasm/yasm 探测只在 x86 分支；aarch64 的 `AS` 来自 `${CROSS}as`（gas），硬塞 nasm 会把 ARM `.s` 交给错误汇编器 |
+| xcb-proto `PKG_CONFIG_PATH=/usr/lib64/pkgconfig` | 删除 | 本包 configure 用 `AM_PATH_PYTHON` 按 PATH 找解释器，`$PKG_CONFIG` 调用数 grep 为 0；而 `/usr/lib64` 连 x86_64 的 Debian 都不成立 |
+
+新增 `platforms:` 归属键（`gtkcross/recipe.py` + `builder.py`）。动机是 CI 的
+"全量枚举"在**两个方向**都会出问题：Linux job 若构建 egl-headers，它会与 Mesa
+争抢 sysroot 里的 `include/EGL` 与 `egl.pc`；Windows job 若构建 libx11/mesa 则是
+无意义产物。行为：请求级跳过并打印名单，`order()` 里"本平台的包依赖对侧平台的
+包"直接 `ValueError`（`plan`/`graph` 会打成一行 `error:`）；而**对侧平台自己的包
+的依赖边不检查**（第一版在这里误报过：
+libdrm 在 Windows 上因它自己的 `platforms: [linux]` 依赖而炸，实际上 libdrm 根本
+不在 Windows 的构建集合里），这条反向语义也有测试。
+
+测试命令包装点 `GTKCROSS_TEST_WRAPPER`（`gtkcross/engines.py` 的 `test_wrapper()`）：
+无头容器里 gtk 的 1 项与 libadwaita 的 68 个测试程序需要 DISPLAY。选"整条命令前缀"
+而不是 meson 的 `--wrapper`：后者按测试程序逐个包 ⇒ libadwaita 起 68 个 Xvfb；
+且 ctest 没有 `--wrapper`。本机**未装** `xorg-x11-server-Xvfb`，所以真实 Xvfb 路径
+还没跑过：用 `GTKCROSS_TEST_WRAPPER="env"`（一个无副作用的前缀）实测了管道本身
+——expat（ctest 路径）OK=1、fribidi（meson 路径）OK=8，前缀确实落到命令上；
+`doctor` 会在前缀命令不存在时直接报出。要本机复现 CI 的显示条件：
+`sudo dnf install xorg-x11-server-Xvfb`。
+
+**全量干净构建抓到三个隐性依赖**（本机以前只跑 `build libadwaita` 的增量链，
+sysroot 里有上次留下的 .pc，所以从未暴露；CI 的干净构建是这类问题的兜底）：
+
+| recipe | 症状 | 根因与修法 |
+| --- | --- | --- |
+| mesa | `Dependency "xrandr" not found`（`src/meson.build:2375`） | `-Dxlib-lease` 默认 auto 命中 `VK_EXT_acquire_xlib_display`，而本闭包不建 Vulkan 驱动 ⇒ 显式 `disabled`；同处还发现 `dependency('xcb')`/`('xcb-randr')`（2308-2310）无 `required:false` 却没声明 ⇒ deps 补 `libxcb` |
+| vulkan-loader | `FindPkgConfig.cmake:1093: required packages were not found: - xrandr` | base 里写的 `BUILD_WSI_X11_SUPPORT` **上游不存在**（整树 grep 0 命中），一直是空转 -D，真名 `BUILD_WSI_XLIB_SUPPORT`/`..._XLIB_XRANDR_SUPPORT` 保持默认 ON，而其下 XRANDR 是 REQUIRED ⇒ 改用真名，Linux 打开三个 WSI 开关并补 `libxcb libx11 libxrandr`；Windows 不补（WIN32 分支不读这些，传了只得到"变量未被使用"警告） |
+| libxi | `configure: error: Package requirements (xfixes >= 5) were not met` | `configure.ac` 的 `PKG_CHECK_MODULES(XFIXES, xfixes >= 5)` 是必需探测，以前靠 GTK 的 deps 里恰好有 libxfixes 且拓扑平序排在前面 ⇒ deps 补 `libxfixes` |
+
+顺带把 X11 WSI 打开做了实测确认：`nm -D out/linux-native/lib/libvulkan.so.1` 导出
+`vkCreateXlibSurfaceKHR` 与 `vkCreateXcbSurfaceKHR`（GTK 的 Vulkan 渲染器在 X11 上
+需要它们）。注意这仍不等于"Vulkan 可用"：`-Dvulkan-drivers=` 为空，没有 ICD，
+运行期取不到物理设备。
+
+快照与测试的加强：`platforms` 进 `capture_plan` 的记录字段；**新增
+`test_build_plans_unchanged`** ——`plans`（4 个入口的闭包拓扑序）以前只写进快照
+却没人比对，等于没守；现在比对，所以"谁先装进 sysroot"这类变化会显式暴露
+（正是隐性依赖那一类问题的探测器）。测试数从 32 增到 45。
+
+本轮的 Windows 等价性证明（按字段分类，逐条可复核）：
+`platforms` 字段 146 处新增；`libvpx` 与 `vulkan-loader` 的 Windows 命令行差异分别是
+"选项移到家族块后的仅顺序变化（token 多重集相同）"与"消失了一个上游不认识的
+空转 -D"；`mesa`（deps + 命令行）、`xcb-proto`（命令行）、`libxi`（deps 补
+libxfixes）是真实变化，但这三个包都声明了 `platforms: [linux]`，实测不在
+4 个 Windows build plan 的任何 plan 里；prelude、bash_argv、以及 4 个 plan 的
+拓扑序逐字节相同。
+
 ### 待办
 
 - ~~前段链后半的测试结论与 known_failures 需按 Linux 实测重新登记~~ 已完成。
 - ~~GTK/libadwaita：先以 broadway 后端把 GTK 编出来，再补 X11/Wayland 客户端栈~~
   已完成：X11 后端 + broadway 都开，GTK/libadwaita 全链通过（见上一节）。
+- ~~CI 的 linux job~~ **已加**：`ubuntu-latest` + `ubuntu-26.04-arm` 两个容器，
+  测试显示靠 `GTKCROSS_TEST_WRAPPER=xvfb-run -a`。待 CI 首跑确认的点：arm64 上
+  全部 recipe 是否真的架构中立（本机只有 x86_64，无法验证）、apt 名单是否有缺项
+  （本机是 Fedora，装过的包看不出漏了哪个）。
+- ~~vulkan-loader 的 XCB/X11 WSI~~ **已放开并实测到符号**（见上一节表格）。
 - **Wayland**：唯一还没做的后端。硬卡点是 `gtk-4.24.0/meson.build:588` 的
   `dependency('wayland-egl')`（无 `required: false`，GTK 自带 wrap 里也没有
   wayland-egl），它属 Mesa 的 wayland 平台 ⇒ 顺序必须是
   `wayland → mesa(-Dplatforms=x11,wayland) → libxkbcommon(+xkeyboard-config)
-  → wayland-protocols → gtk`（详见 platform-notes 末尾）。
-- **vulkan-loader 的 XCB/X11 WSI**：X11/xcb 已就位，放开只剩"要不要"。
-- **CI 的 linux job**：`ci.yml` 仍只覆盖两个 msys2 目标；加 Linux job 的
-  前提是先解决图形测试对真实显示的依赖（`xvfb-run` 或自建 broadway，
-  见上一节第 5 条之后的说明），需要框架提供一个测试命令包装点。
+  → wayland-protocols → gtk`（详见 platform-notes 末尾）。开了它，
+  vulkan-loader 的 `BUILD_WSI_WAYLAND_SUPPORT` 才有意义。
+- **本机验证 Xvfb 路径**：装 `xorg-x11-server-Xvfb` 后
+  `GTKCROSS_TEST_WRAPPER='xvfb-run -a' gtkcross build libadwaita -t linux-native`
+  应该与有桌面时同样 68 项全过。
+- **curl 的 TLS 后端（Linux）**：全量构建实测产物 `Enabled SSL backends:` 为空，
+  即不支持 https。Windows 靠系统 schannel，Linux 侧三个候选都不在闭包里
+  ⇒ 需要用户裁决自建哪个（OpenSSL / mbedTLS / GnuTLS 及其依赖链）。
+  appstream 依赖 curl，缺口会传导。
+- **Vulkan 可用性的另一半**：WSI 已通（导出 xlib/xcb surface），但
+  `-Dvulkan-drivers=` 为空 ⇒ 没有 ICD，运行期取不到物理设备。要真正跑 Vulkan
+  需要选自建驱动路径（panvk/virtio 都要 LLVM；lvp 也要），这是另一个边界判断。
 

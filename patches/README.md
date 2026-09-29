@@ -31,11 +31,11 @@
 | `spirv-tools-0001-skip-shared-variant.patch` | 静态构建下不产出 `SPIRV-Tools-shared`（上游无条件 `add_library(... SHARED)`） |
 | `shaderc-0001-skip-shared-variant.patch` | 同上：不产出 `shaderc_shared`，并把 `shaderc.pc` 的 `Libs` 改成 `-lshaderc` |
 
-这三条在 Linux 上**同样必需**（2026-09-29 在 linux-x64 实测，闭包 62 recipe 全部构建通过）：
+这三条在 Linux 上**同样必需**（2026-09-29 在 linux-native 实测，闭包 62 recipe 全部构建通过）：
 
 - `libpng-0001`：不打就没有任何自带测试——Linux 上打完实测 **37 项**全过，说明
   `PNG_SHARED=OFF` 那道门控在 ELF 上与 PE 上一样生效。
-- `spirv-tools-0001` / `shaderc-0001`：`out/linux-x64/lib/` 里只有
+- `spirv-tools-0001` / `shaderc-0001`：`out/linux-native/lib/` 里只有
   `libSPIRV-Tools*.a` 与 `libshaderc*.a`，**没有** `libSPIRV-Tools-shared.so` 或
   `libshaderc_shared.so`；上游那句 `add_library(... SHARED)` 是无条件的，
   不打补丁就会装出共享变体。

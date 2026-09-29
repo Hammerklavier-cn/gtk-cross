@@ -9,6 +9,17 @@
 `for: [linux]` 家族块；只有"某个 target 与其他同族 target 不同"时才用精确
 target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw64）。
 
+与 `targets:` 正交的另一件事是**包本身的归属**：`platforms:`（选择器语法同
+`for:`，不写 = 全平台）。当前有 24 个包带这条声明——21 个 X/GL 包
+`platforms: [linux]`，directx-headers / directxmath / egl-headers
+`platforms: [windows]`。框架在不匹配的 target 上跳过请求、在"本平台的包依赖
+对侧平台的包"时报错（`gtkcross/builder.py`）。CI 的两个 job 都按 `list` 全量
+枚举 recipe，跳过名单由这里声明而不是在工作流里抄第二份——Windows job 因此不会
+去构建 libx11/mesa，Linux job 不会去构建 egl-headers（后者会与 Mesa 争抢
+sysroot 里的 `include/EGL` 与 `egl.pc`）。集合由
+`tests/test_platform_gating.py::PlatformsApplicability` 钉住，并作为 `platforms`
+字段进 Windows 计划快照。
+
 ## 已门控到 windows 的项
 
 | recipe | 项 | 为什么是 Windows 专属 |
@@ -21,7 +32,7 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
 | gtk | `-Dx11-backend=false -Dwayland-backend=false -Dbroadway-backend=false` + dep `directx-headers` | Windows 只要 win32 后端（上游在非 win32 宿主自动关 win32，故不必反向写 `-Dwin32-backend=false`）；DirectX-Headers 供 gdk/win32 的 d3d12 纹理路径 |
 | gtk | 补丁 `gtk-0001-fallback-to-windows-locale.patch` | **精确 target 块**（msys2-mingw64）：msvcrt 不认 `en_US.UTF-8`，ucrt64 认——同族两个 target 结论不同 |
 | vulkan-loader | 补丁 `vulkan-loader-0001-static-library-support.patch` | 补丁只改上游 WIN32 分支；Linux 分支是 `add_library(vulkan SHARED)` |
-| libvpx | `--target=x86_64-win64-gcc` | libvpx 自己的 `<arch>-<os>-<toolchain>` 命名；Linux 侧给 `--target=x86_64-linux-gcc` |
+| libvpx | `--target=x86_64-win64-gcc`、`--as=nasm` | libvpx 自己的 `<arch>-<os>-<toolchain>` 命名与 x86 汇编器。**Linux 侧两条都不写**：`--target` 交给上游按 `gcc -dumpmachine` 探测，`--as` 交给 auto 探测（x86_64→nasm、aarch64→gas）。因为 target 名里不带架构，架构取值必须来自宿主——依据见"架构中立"一节 |
 | curl | `CURL_USE_SCHANNEL=ON` | schannel = Windows SSPI；Linux 侧显式 `OFF`（无 TLS 后端） |
 | gobject-introspection | `test.env GI_SCANNER_DISABLE_CACHE=1` + `known_failures: test_scanner.py` | 前者是 Windows 上 `shutil.move` 不能原子替换导致的并发竞争；后者断言的是盘符语义 |
 | shared-mime-info | `meson.env GETTEXTDATADIR=$SRC/data` + 补丁 | 前者绕开盘符冒号把 GETTEXTDATADIRS 切碎；后者绕开 Windows 的裸名 bash 搜索顺序 |
@@ -41,6 +52,8 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
 | libxml2 | `-DIconv_IS_BUILT_IN=OFF` | 见第 9 条的 CMake 探测不对称。mingw 上那次探测自然失败、结论本来就对，加这个 define 反而多余 |
 | libffi | `--disable-multi-os-directory` | libtool 的 `multi_os_directory` 取自 `gcc -print-multi-os-directory`，Linux 返回 `../lib64` ⇒ 产物装进 `lib64/`，破坏"sysroot 只有一个 lib 目录"。PE 上没有这套布局 |
 | glib | `test.env LC_ALL: C.UTF-8` | sysroot 会把自己 `po/` 的产物装进 `share/locale/zh_CN/.../glib20.mo`，宿主 `LANG=zh_CN.UTF-8` 时诊断被翻译，而 `spawn-test.c` 断言 `strstr(erroutput, g_strerror(ENOENT))` ⇒ 必不匹配。Windows 的 CRT 不走这条 gettext locale 路径 |
+| mesa | `-Dxlib-lease=disabled` | 该 feature 的自述是 `VK_EXT_acquire_xlib_display`（`meson.options:574-578`），消费者是 Vulkan 驱动，而本闭包 `-Dvulkan-drivers=` 为空 ⇒ 没有消费者；开着会让 `src/meson.build:2375` 的 `dependency('xrandr')`（无 `required:false`）成为硬需求。Windows 上 `-Dplatforms` 里根本没有 x11，这段代码不进入 |
+| vulkan-loader | `BUILD_WSI_XCB_SUPPORT=ON`、`BUILD_WSI_XLIB_SUPPORT=ON`、`BUILD_WSI_XLIB_XRANDR_SUPPORT=ON` + deps `libxcb libx11 libxrandr` | 这三个 `option()` 只存在于 `CMakeLists.txt:115` 的 Linux/BSD `elseif` 分支，WIN32 分支完全不读 ⇒ 在 Windows 上传它们只会得到"变量未被使用"的警告。Linux 上它们是真实功能：GTK 的 Vulkan 渲染器要 `VK_KHR_xlib_surface`/`VK_KHR_xcb_surface`。实测产物 `libvulkan.so.1` 导出 `vkCreateXlibSurfaceKHR`/`vkCreateXcbSurfaceKHR` |
 
 ## 留在 base 的"看着像 Windows 但其实是跨平台决策"
 
@@ -50,15 +63,16 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
   `default_library: static`（本项目两平台共用同一形态），不是 Windows。
 - glib/glib-base 的 `-Dselinux=disabled -Dlibmount=disabled -Dlibelf=disabled
   -Dsysprof=disabled`、gtk 的 `-Dsysprof/-Dcloudproviders/-Dtracker/-Dcolord/
-  -Dprint-cups=disabled`、appstream 的 `-Dsystemd=false`、vulkan-loader 的
-  `BUILD_WSI_*=OFF`、gstreamer 的 `-Dlibunwind/-Dlibdw/-Ddbghelp=disabled`：
-  这些特性在 Windows 上是空操作、在 Linux 上**真实存在**，关掉是"不引入系统
-  依赖、保持 hermetic"的主动裁剪，两平台同值。Linux 侧的代价已在
-  vulkan-loader recipe 里写明（不导出 xlib/xcb/wayland surface 扩展 → Vulkan
-  渲染器无法呈现到窗口）。
-  其中 `-Ddbghelp=disabled` 值得单说：`dbghelp` 是 Windows 独有的回溯来源，
+  -Dprint-cups=disabled`、appstream 的 `-Dsystemd=false`、gstreamer 的
+  `-Dlibunwind/-Dlibdw/-Ddbghelp=disabled`：这些特性在 Windows 上是空操作、在
+  Linux 上**真实存在**，关掉是"不引入系统依赖、保持 hermetic"的主动裁剪，两平台
+  同值。其中 `-Ddbghelp=disabled` 值得单说：`dbghelp` 是 Windows 独有的回溯来源，
   Linux 上这个选项存在但无对应实现，所以它是"显式声明不要"而非"平台专属配置"，
   与 `-Dlibunwind/-Dlibdw=disabled`（Linux 独有）成对留在 base 更连贯。
+- `vulkan-loader` 的 WSI 开关**已不在这条清单里**：XCB/Xlib/Xrandr 在 Linux 上是
+  真实功能且已打开（代价从"Vulkan 渲染器无法呈现"变成了三个新增依赖，见下面
+  "隐性依赖"一节），只有 Wayland/DirectFB 仍两平台同值 OFF（本闭包没有
+  wayland-client/directfb 可链）。
 - 各 recipe 的 `default_library: shared` 例外（glib/cairo/pango/gtk/gstreamer
   链/libffi）：理由文案里满是"DLL"字眼，但同样的机理对 `.so` 成立
   （g-ir-scanner 无法 introspect 静态库、typelib 运行期 dlopen、插件按地址
@@ -69,14 +83,14 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
 - 源码 URL 里的 Debian pool / codeload 替换：那是当时那台机器的**网络可达性**
   问题，与平台无关，Linux 上不要"顺手改回上游"。
 - `PYTHONUTF8=1`：只在 msys2-* 的 toolchain env 里设（Windows 代码页问题），
-  linux-x64 不设；glib 的 `glib:mkenums.py` 等在 Linux 上本就不受影响。
+  linux-native 不设；glib 的 `glib:mkenums.py` 等在 Linux 上本就不受影响。
 
 ## Linux 目标的结构性差异（不是"补丁"，是平台事实）
 
 1. **必须 PIC**：静态 `.a` 会被链进 `.so`，所以 toolchain prelude 对非 Windows
    目标注入 `CFLAGS/CXXFLAGS=-fPIC`。不加的症状是链接共享库时报
    `relocation R_X86_64_32 ... can not be used when making a shared object`。
-2. **不传 `--host/--build`**：`toolchains/linux-x64.yaml` 故意**不写**
+2. **不传 `--host/--build`**：`toolchains/linux-native.yaml` 故意**不写**
    `host_triple`。autotools 的 `--host=` 是给交叉编译用的，喂一个"看着不同其实
    相同"的三元组会让 autoconf 误判为交叉，改写若干运行期探测。
 3. **XDG_DATA_DIRS 是前置而非独占**：Windows 上 glib 对非空 `XDG_DATA_DIRS`
@@ -99,7 +113,7 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
 7. **产物要带 RUNPATH**（`-Wl,-rpath,$SYSROOT/lib`）：ELF 上没有"可执行文件所在
    目录天然参与 DLL 搜索"这回事，凡是用**清洗过的环境**启动子进程的上游测试
    （glib 的 gschema-compile / gsubprocess）都会找不到自建库。实测
-   `env -i out/linux-x64/bin/glib-compile-schemas --version` 可正常输出，说明
+   `env -i out/linux-native/bin/glib-compile-schemas --version` 可正常输出，说明
    闭包自定位成立，消费者也不必再设 `LD_LIBRARY_PATH`。
 8. **GNU libiconv / gettext 仍在 Linux 闭包内**（本轮明确决定：与 Windows
    保持**完全同一 closure**，不因 glibc 自带 iconv/libintl 就裁掉）。风险已
@@ -111,7 +125,7 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
      ——GNU libiconv 把符号改名成 `libiconv_*`，宏重写了 `iconv_open`。
      结论：Linux 上一旦**看见** sysroot 的 `iconv.h`，就必须自己给 `-liconv`，
      不能指望 glibc 的隐式 iconv 符号。
-   - 但要注意两包在 ELF 上的**实际作用并不对称**（实测 `out/linux-x64`）：
+   - 但要注意两包在 ELF 上的**实际作用并不对称**（实测 `out/linux-native`）：
      - libiconv 是"活的"：`include/iconv.h` 遮蔽 glibc 头，`libglib-2.0.so` 的
        `DT_NEEDED` 是 `libiconv.so.2` + `libc.so.6`。
      - gettext 基本是"惰"的：它不装 `libintl.h`、也不装 `libintl.so`（sysroot 里
@@ -129,7 +143,7 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
    - 于是 `libglib-2.0.so` 的 DT_NEEDED 里带 `libiconv.so.2`，需要
      `-Wl,-rpath-link`（链接期）与 `-Wl,-rpath`（运行期自定位）两条参数，
      见 `gtkcross/toolchain.py` 的 prelude 注释。
-   - 顺带的收益：闭包产物自定位后，`out/linux-x64` 里的工具与库在**不设
+   - 顺带的收益：闭包产物自定位后，`out/linux-native` 里的工具与库在**不设
      `LD_LIBRARY_PATH`** 时也能运行（glib 自带测试里有用空环境 execve 的子进程，
      正是这条救回了 3 项测试）。
    - 如果将来决定改用 glibc 原生 iconv/gettext，做法是给 glib-base / libxml2 的
@@ -159,9 +173,9 @@ target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw
     先读该 `dependency()` 的 `required` 实参是不是 feature/条件表达式，再决定
     "补 dep"还是"显式 disabled"——前者是上游的功能需求，后者是本项目的边界裁剪。
 
-## linux-x64 当前打通到哪里
+## linux-native 当前打通到哪里
 
-**全链已通**（2026-09-29）：`build libadwaita -t linux-x64` 闭包 **62 recipe**
+**全链已通**（2026-09-29）：`build libadwaita -t linux-native` 闭包 **62 recipe**
 全部构建、安装、测试通过，`exit 0`，重跑幂等。自带测试 0 失败：
 expat 1、libpng 37、GI 65、glib 424 项（418 通过 + 6 跳过）、fribidi 8、
 pango 29 项（27 通过 + 2 跳过）、gdk-pixbuf 23、shared-mime-info 8、gtk 1
@@ -181,9 +195,44 @@ libadwaita 68 个测试程序 = **430 个子用例**（与 Windows 记录的 430
   链进产物，所以 `readelf -d` 里只出现 `libGL.so.1` 这一条 NEEDED。
 
 闭包差异（两个方向都钉在 `tests/test_platform_gating.py`）：Windows 42
-（含 `directx-headers`/`directxmath`/`egl-headers`），linux-x64 62
+（含 `directx-headers`/`directxmath`/`egl-headers`），linux-native 62
 （含 X11 栈 17 个 + `mesa`/`libdrm`/`libpciaccess`/`libxshmfence` +
 `libxml2`/`shared-mime-info`）。
+
+### 全量干净构建（2026-09-29，改名 linux-native 之后）
+
+`build libadwaita` 只覆盖 62 个包，其余 8 个（curl、xz、libyaml、libxmlb、
+libfyaml、appstream、adwaita-icon-theme、gst-plugins-good + libvpx）从未在 Linux
+上构建过。按 CI 的做法把 `list` 的全量交给 build（3 个只属于 Windows 的包由
+`platforms` 跳过）：
+
+- **70 recipe 全建完，`exit 0`**；重跑 220 个阶段全部 `[skip]`（幂等）。
+- 形态：`.a` 83、共享库文件 92、`bin/` 80、`.pc` 193、typelib 35、
+  `lib/dri` 3 个驱动（swrast/kms_swrast/dril），**没有 `lib64/`**。
+- 架构取值确实来自宿主：libvpx 生成的 `config.mk` 里
+  `TOOLCHAIN := x86_64-linux-gcc`，而 recipe 没传 `--target`
+  （aarch64 上同一段代码会给 `arm64-linux-gcc`）；`--as` 也没传，auto 选到 nasm。
+- xcb-proto 删掉宿主 pkgconfig 例外后仍正常：`xcbgen` 装到
+  `out/linux-native/lib/python3.14/site-packages/`，`xcb-proto.pc` 在
+  `share/pkgconfig/`（libxcb 按它取路径）。
+- vulkan-loader 的 X11 WSI 真的生效：`nm -D libvulkan.so.1` 导出
+  `vkCreateXlibSurfaceKHR` 与 `vkCreateXcbSurfaceKHR`。
+- 10 个启用自带测试的 recipe 全过（框架口径的去重短名计数：expat 1、libpng 37、
+  GI 65、glib 385、fribidi 8、pango 27、gdk-pixbuf 23、shared-mime-info 8、
+  gtk 1、libadwaita 68 个测试程序），Linux 侧仍未登记任何 `known_failures`。
+  与上面"424 项/418 通过"不冲突：那条是 meson summary 的 OK/Fail/Skipped 单位，
+  这条是框架比对的测试名集合大小。
+- 端到端复验（都针对这次的全新 sysroot）：只靠 `PKG_CONFIG_LIBDIR` 指向 sysroot
+  即可配置编译 demo；`env -i` + 自建 `gtk4-broadwayd` 下 `--smoke` 退出码 0；
+  链接 sysroot 的 C 程序实测 X11 连接、`XRRQueryVersion` 1.6、Xinerama 为真、
+  `glXQueryVersion` 1.4（自建 Mesa），`readelf -d` 只有一条 `libGL.so.1` NEEDED。
+
+一个**真实能力缺口**（不影响构建，影响用途）：curl 在 Linux 上没有 TLS 后端。
+Windows 侧走 `CURL_USE_SCHANNEL=ON`（系统 SSPI），Linux 家族块显式 `OFF` 之后
+cmake 找不到任何 crypto 库（OpenSSL/GnuTLS/mbedTLS 都不在闭包里），产物不支持
+https。appstream 依赖 curl 取远端数据，所以这条要补就得决定自建哪个 TLS 栈
+（OpenSSL 体量最大，mbedTLS/GnuTLS 也有各自的依赖链）——与"Mesa 要不要自建"
+是同一类边界判断，留给用户裁决。
 
 ## X11 客户端栈（2026-09-29 落地，全部从源码建）
 
@@ -234,15 +283,22 @@ libXcursor 1.2.3、libXdamage 1.1.7、libXinerama 1.1.6。
    这类提示，上游探测自动跳过，因此 X 栈的 recipe 一个 `--disable-*docs` 都不写。
    （对比：glib 那种"选项是 feature 且 required"的包就必须显式写。）
 
-### 唯一的宿主例外：xcb-proto 找 Python
+### 宿主 Python 不构成例外：xcb-proto 按 PATH 找解释器
 
-`xcb-proto` 的 configure 用 `PKG_CHECK_MODULES([PYTHON], [python-${PYTHON_VERSION}])`
-定位**宿主 Python**。框架把 `PKG_CONFIG_LIBDIR` 整体替换成 sysroot 来保证
-hermetic，宿主 Python 的 `.pc` 因此在默认搜索路径外。该 recipe 用
-`autotools.env: PKG_CONFIG_PATH: /usr/lib64/pkgconfig` 放开（pkg-config 把它
-**追加**到搜索路径，且只作用于这一条 configure 命令）。理由：Python 与
-meson/ninja/perl 同类，属宿主构建工具，从不在 target 侧闭包里——
-gobject-introspection 依赖的是同一个 `python3-devel`。
+`xcb-proto-1.17.0` 的 configure 用 `AM_PATH_PYTHON`，它**按 PATH** 依次试
+`python python2 python3 …`，实测输出
+`checking for a Python interpreter with version >= 2.5... python` →
+`checking for python... /usr/bin/python`，并据此推出 `pythondir`/`pyexecdir`。
+整个过程**一次都没调用 pkg-config**（把生成的 `configure` 里 `$PKG_CONFIG` 的
+调用数 grep 出来是 **0**），所以框架的 `PKG_CONFIG_LIBDIR` 隔离对本包没有影响，
+它也不需要任何宿主例外。
+
+这里以前写着"用 `PKG_CONFIG_PATH: /usr/lib64/pkgconfig` 放开宿主 pkgconfig
+目录"，两条都不成立：那条环境变量对本包是多余的，而 `/usr/lib64` 是 Fedora 系
+布局（Debian/Ubuntu 是 `/usr/lib/<triplet>-linux-gnu`），写进 recipe 就等于把
+target 钉死在一个发行版和一个架构上——正是本轮"架构中立"要消除的东西，见下面
+该节。
+
 `xcbgen` 代码生成器随本包装进 `$SYSROOT/lib/python3.14/site-packages/`，
 libxcb 构建期按 `xcb-proto.pc` 里的路径取用（实测目录存在）。
 
@@ -303,9 +359,60 @@ libxcb 构建期按 `xcb-proto.pc` 里的路径取用（实测目录存在）。
   受 `with_egl` 控制，实测安装日志有这几行）。libepoxy 的 `-Degl` 也从
   base 的单值改成两平台分块（Windows 仍 `no`——那边没有可用的 libEGL 实现，
   开了会在只用 WGL 的路径上跳到 NULL，见该 recipe 里的 gdb 记录）。
-- **`vulkan-loader` 的 WSI 仍旧关着**。base 里那批 `BUILD_WSI_*_OFF` 的代价
-  已在 `recipes/vulkan-loader.yaml` 写明；现在 X11/xcb 已就位，放开 XCB/X11
-  WSI 只剩"要不要"而没有"能不能"，留给下一轮实测。
+- ~~`vulkan-loader` 的 WSI 仍旧关着~~ **本轮已放开 XCB/Xlib/Xrandr**（Wayland 仍
+  OFF，闭包里没有 wayland-client）。放开的过程中发现 base 里写的
+  `BUILD_WSI_X11_SUPPORT` **上游根本没有这个选项名**（整棵源码树 grep 0 命中），
+  真正的名字是 `BUILD_WSI_XLIB_SUPPORT` / `BUILD_WSI_XLIB_XRANDR_SUPPORT`
+  （`CMakeLists.txt:115-119`，都在 Linux/BSD 的 `elseif` 分支里 `option()`）。
+  所以那个 -D 一直是空转，Xlib 路径保持默认 ON，而它下面的 XRANDR 是
+  `pkg_check_modules(XRANDR REQUIRED ... xrandr)` → 干净 sysroot 里 configure
+  直接失败。详见下面"隐性依赖"一节。
+
+## 架构中立：linux-native 这个名字里没有 arch
+
+target 从 `linux-x64` 改名 `linux-native`（用户裁决），含义是"同一份工具链与
+recipe 定义在多种架构的原生宿主上都成立"。CI 因此跑两个容器：`ubuntu-latest`
+（x86_64）与 `ubuntu-26.04-arm`（aarch64）。要让这句话成立，架构取值必须交给
+宿主，三处实测点：
+
+| 位置 | 以前 | 现在 | 依据 |
+| --- | --- | --- | --- |
+| libvpx `--target` | base 之外各写一值（linux 侧 `x86_64-linux-gcc`） | Linux 不传，交给上游探测 | `build/make/configure.sh:789` 的 `gcctarget="${CHOST:-$(gcc -dumpmachine)}"`，case 表 `*x86_64*→x86_64`、`aarch64*→arm64`、`*linux*→linux` |
+| libvpx `--as=nasm` | base（两平台同值） | 只在 windows 家族块 | nasm 只在 x86 分支被探测（同文件 1474-1484）；aarch64 的 `AS` 来自 `${CROSS}as`（749 行）即 gas，塞 nasm 会把 ARM 的 `.s` 交给错误汇编器 |
+| xcb-proto `PKG_CONFIG_PATH` | `/usr/lib64/pkgconfig`（连 x86_64 的 Debian 都不成立） | 删掉 | 本包 configure 用 `AM_PATH_PYTHON` 按 **PATH** 找解释器，`$PKG_CONFIG` 调用数 grep 出来是 0；宿主 Python 与 meson/ninja/perl 同类，本就不需要 pkg-config 例外 |
+
+已经天生中立、不需要动的地方：不给 autotools 喂 `--host/--build`
+（`toolchains/linux-native.yaml` 不写 `host_triple`，让 autoconf 自己探测）；
+libffi 用 `--disable-multi-os-directory` 把 `../lib64` 那整条分支关掉而不是换成
+另一个架构值；`-fPIC`/`-rpath`/`-lm` 的注入按 `target_os` 判定；Mesa 的
+`softpipe` 是纯 C 的 gallium swrast，不含架构相关汇编路径。
+
+护栏是 `tests/test_platform_gating.py` 的 `ArchNeutralLinuxTarget`：遍历所有
+recipe 在 linux 家族下的解析结果，任何 arch 字面量（x86_64/aarch64/amd64/arm64/
+armv7/i386/i686/ppc64/riscv/loongarch/sparc/mips）出现在 configure 参数、
+meson 选项、cmake define 或任何 env **值**里就失败；反向还测 Windows 侧仍可写
+`--target=x86_64-win64-gcc`（msys2 目标本来就只跑 x86_64）。
+
+## 隐性依赖：只有干净 sysroot 才暴露的一类
+
+三个包的"以前能过"是靠**拓扑平序里恰好排在前面**，而不是依赖声明。本机以前
+只跑过 `build libadwaita` 的增量链，sysroot 里已有上一次构建留下的 .pc，所以
+从未暴露；本轮第一次做"全部 recipe 全量干净构建"（等价于 CI）就连撞三次：
+
+| recipe | 缺的声明 | 上游位置 | 失败原文 |
+| --- | --- | --- | --- |
+| mesa | `libxcb` | `src/meson.build:2308-2310`：`if with_platform_x11` 之后紧接 `dependency('xcb')` 与 `dependency('xcb-randr')`，两句都没有 `required:false`；glx=dri 分支还要 xcb-dri3/present/shm/sync | configure 期 `Dependency "xrandr" not found`（`-Dxlib-lease` 那条另见 recipe 注释：它是 `VK_EXT_acquire_xlib_display`，本闭包不建 Vulkan 驱动 ⇒ 显式 disabled，而不是把 libxrandr 变成 Mesa 的依赖） |
+| vulkan-loader | `libxcb libx11 libxrandr` + 改用真实选项名 | `CMakeLists.txt:115-119` 与三处 `pkg_check_modules(... REQUIRED ...)` | `CMake Error at FindPkgConfig.cmake:1093: The following required packages were not found: - xrandr` |
+| libxi | `libxfixes` | `configure.ac` 的 `PKG_CHECK_MODULES(XFIXES, xfixes >= 5)` | `configure: error: Package requirements (xfixes >= 5) were not met` |
+
+教训与做法：**deps 要按上游的"必需探测"抄全**，不能按"看起来用到什么"猜。判据
+来自源码而不是上一次构建的结果——本轮是用脚本把每个已解包源码树的
+`configure.ac` 里 `PKG_CHECK_MODULES` 与 `meson.build` 里不带
+`required: false` 的 `dependency()`/`cc.find_library()` 抽出来，与 recipe 声明的
+deps（含家族块）做差集，再逐条判断"这条需求在当前取值下是否真的会走到"
+（例如 gst-plugins-bad 的 x11 需求在 `-Dauto_features=disabled` 下不成立，
+mesa 的 xrandr 需求在 `-Dxlib-lease=disabled` 后不成立）。真正的兜底是 CI 的
+干净构建：那里没有任何"上次留下的 .pc"可嗅。
 
 ## 框架侧的 Linux 专属隔离（不是 recipe 的事，但同属平台事实）
 
@@ -322,7 +429,7 @@ libxcb 构建期按 `xcb-proto.pc` 里的路径取用（实测目录存在）。
   （实测 `gstreamer.freedesktop.org`）；`curl` 检不出来因为它先试 IPv4。
   重试时只调 A/AAAA 顺序，不禁用 IPv6，IPv6-only 的机器不受影响。
 
-## linux-x64 尚未打通的部分（下一轮）
+## linux-native 尚未打通的部分（下一轮）
 
 - ~~X11 客户端栈（从源码补）~~ **已落地**（见上面的 X11 一节）。剩下的是
   **Wayland**，卡点现在比上一轮更具体：`gtk-4.24.0/meson.build:588` 的
@@ -351,9 +458,12 @@ libxcb 构建期按 `xcb-proto.pc` 里的路径取用（实测目录存在）。
 - ~~到那一步需要同时放开 `gtk` 的 `-Dx11-backend=true`、`cairo` 的
   `-Dxlib/-Dxcb`、`gst-plugins-base` 的 `gl_winsys=x11/gl_platform=glx`~~
   **三项都已放开并实测通过**（gst 那条还多补了 `-Dx11=enabled`，见
-  "已门控到 linux 的项"表）。只剩 `vulkan-loader` 的 XCB/X11 WSI：base 里那批
-  `BUILD_WSI_*=OFF` 的代价已写在 `recipes/vulkan-loader.yaml`，如今 X11/xcb
-  已就位，放开它只剩"要不要"而没有"能不能"。
+  "已门控到 linux 的项"表）。~~只剩 `vulkan-loader` 的 XCB/X11 WSI~~ **也已放开**：
+  顺手发现 base 里的 `BUILD_WSI_X11_SUPPORT` 是上游不存在的选项名（一直空转），
+  改用真名后 Linux 侧补齐 `libxcb libx11 libxrandr`，产物导出
+  `vkCreateXlibSurfaceKHR`/`vkCreateXcbSurfaceKHR`（见"隐性依赖"一节）。
+  仍缺的是 **Vulkan 驱动/ICD**：`-Dvulkan-drivers=` 为空，所以 GTK 的 Vulkan
+  渲染器运行期取不到物理设备——WSI 通了，但没有可呈现的设备。
 - ~~GTK4 在 Linux 上还会拉 `at-spi2-core`（无障碍）~~ **这条推测被证伪**：
   在 `gtk-4.24.0` 的根 `meson.build` 里 grep `at-spi|dbus|accessibility`
   **零命中**（实测），4.24 的 AT-SPI 实现已在 GTK 树内，不需要外部 at-spi2-core
@@ -372,14 +482,20 @@ libxcb 构建期按 `xcb-proto.pc` 里的路径取用（实测目录存在）。
   Linux 侧一项都不需要**：pango 的三项 Windows 字体登记在 Linux 全绿；gtk 1 项
   （上游大测试套件由 base 的 `-Dbuild-testsuite=false` 关着，两平台同形态，
   不是 Linux 被削弱）、libadwaita 68 个测试程序 / 430 个子用例全过。
-- **图形测试依赖真实显示，这是无头 CI 的唯一硬缺口**（本轮更正上一轮的
-  "只验证不依赖显示的部分"）：libadwaita 那 68 项是**在宿主的 X.Org 会话上
-  真跑并且全过**的——框架把 `os.environ` 透传给子进程，于是继承 `DISPLAY`；
-  证据是测试 stderr 里的 `MESA-EGL: warning: DRI3 error: Could not get DRI3
-  device`，那只有连上真实 X server 才会出现。换到没有 `DISPLAY` 的 runner
-  上它们不会通过。两条可选解法：装 `xorg-server-xvfb` 并用 `xvfb-run` 包住
-  测试命令（需要框架加一个类似 `test.wrapper` 的声明），或让测试走自建
-  broadway（要同时起 `gtk4-broadwayd`，且 server 与 app 共用同一个
-  `XDG_RUNTIME_DIR`）。本轮**没有**引入该机制——现有证据全部来自真实会话，
-  等做 CI 那一轮再按实跑结果定。
+- ~~图形测试依赖真实显示，这是无头 CI 的唯一硬缺口~~ **已解决**：框架加了
+  `GTKCROSS_TEST_WRAPPER`（`gtkcross/engines.py` 的 `test_wrapper()`），把它作为
+  整条测试命令的前缀，CI 设成 `xvfb-run -a`；选前缀而不是 meson 的 `--wrapper`
+  是因为后者按测试程序逐个起服务（libadwaita 会起 68 个 Xvfb），且 ctest 没有
+  `--wrapper`。上一轮记的"本轮没有引入该机制"到这一轮兑现了。
+  留一个诚实的边界：本机没装 `xorg-x11-server-Xvfb`，所以**真实 Xvfb 下的 68 项
+  还没跑过**——管道本身用无害前缀 `env` 验过（expat ctest 路径 OK=1、fribidi
+  meson 路径 OK=8），真正的显示效果要等 CI 首跑，或本机
+  `sudo dnf install xorg-x11-server-Xvfb` 后复跑。
+- **curl 在 Linux 上没有 TLS 后端**（实测 cmake 输出的
+  `Enabled SSL backends:` 为空）：Windows 走 `CURL_USE_SCHANNEL=ON`（系统 SSPI），
+  Linux 家族块把它 `OFF`，而 OpenSSL/GnuTLS/mbedTLS 都不在闭包里 ⇒ 产物不支持
+  https。构建不受影响，所以这是**用途缺口**而不是失败。要补就得选自建哪个 TLS
+  栈（OpenSSL 体量最大、依赖最少；mbedTLS 小但要额外接 entropy 来源；GnuTLS 会
+  牵进 libgcrypt/nettle/p11-kit 一串）——与"Mesa 要不要自建"同类，留给用户裁决。
+  注意 appstream 依赖 curl 取远端数据，这条缺口会传导到它。
 
