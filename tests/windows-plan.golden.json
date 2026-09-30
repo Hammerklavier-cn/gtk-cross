@@ -1003,7 +1003,7 @@
       },
       "libtiff": {
         "build": "cmake",
-        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libtiff/src -B @ROOT@/build/msys2-mingw64/libtiff/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-docs=OFF -Dtiff-contrib=OFF -Dtiff-jbig=OFF -Dtiff-lerc=OFF -Dtiff-lzma=OFF -Dtiff-zstd=OFF -Dtiff-webp=OFF",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libtiff/src -B @ROOT@/build/msys2-mingw64/libtiff/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF -DCMAKE_REQUIRED_LIBRARIES=-lm -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-docs=OFF -Dtiff-contrib=OFF -Dtiff-jbig=OFF -Dtiff-lerc=OFF -Dtiff-lzma=OFF -Dtiff-zstd=OFF -Dtiff-webp=OFF",
         "data": {
           "install_files": {},
           "text_files": {}
@@ -2805,7 +2805,7 @@
       },
       "libtiff": {
         "build": "cmake",
-        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libtiff/src -B @ROOT@/build/msys2-ucrt64/libtiff/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-docs=OFF -Dtiff-contrib=OFF -Dtiff-jbig=OFF -Dtiff-lerc=OFF -Dtiff-lzma=OFF -Dtiff-zstd=OFF -Dtiff-webp=OFF",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libtiff/src -B @ROOT@/build/msys2-ucrt64/libtiff/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF -DCMAKE_REQUIRED_LIBRARIES=-lm -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-docs=OFF -Dtiff-contrib=OFF -Dtiff-jbig=OFF -Dtiff-lerc=OFF -Dtiff-lzma=OFF -Dtiff-zstd=OFF -Dtiff-webp=OFF",
         "data": {
           "install_files": {},
           "text_files": {}
