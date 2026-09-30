@@ -290,6 +290,7 @@ jobs:
           name: gtkcross-diagnostics-${{ matrix.target }}
           path: |
             gtkcross-events.log
+            gtkcross-build.log
             ci-diagnostics
           if-no-files-found: ignore
           retention-days: 7
@@ -473,6 +474,7 @@ jobs:
           name: gtkcross-diagnostics-linux-native-${{ matrix.arch }}
           path: |
             gtkcross-events.log
+            gtkcross-build.log
             ci-diagnostics
           if-no-files-found: ignore
           retention-days: 7
