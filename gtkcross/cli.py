@@ -130,7 +130,8 @@ def cmd_build(args) -> int:
     from .events import OutputTee
     from pathlib import Path
 
-    b = Builder(ProjectConfig.load(), args.target, jobs=args.jobs)
+    b = Builder(ProjectConfig.load(), args.target, jobs=args.jobs,
+                ignore_test_failures=args.ignore_test_failures)
     # fd 级 tee：构建全程（含 bash/meson/gcc 子进程输出）复制一份到当前目录
     with OutputTee(Path("gtkcross-build.log")):
         try:
@@ -184,6 +185,9 @@ def main(argv=None) -> int:
     sp.add_argument("names", nargs="+")
     sp.add_argument("-j", "--jobs", type=int, default=0,
                     help="并行度（默认 = CPU 数）")
+    sp.add_argument("--ignore-test-failures", action="store_true",
+                    help="测试失败只告警不中断构建（失败详情照常打印并落盘，"
+                         "用于诊断；不改变 known_failures 判定）")
     sp.set_defaults(fn=cmd_build)
 
     args = p.parse_args(argv)

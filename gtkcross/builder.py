@@ -87,9 +87,14 @@ def publish_pc_private_fields(path: Path) -> bool:
 class Builder:
     """Fetches and builds recipes in dependency order into a sysroot."""
 
-    def __init__(self, project: ProjectConfig, target: str, jobs: int = 0):
+    def __init__(self, project: ProjectConfig, target: str, jobs: int = 0,
+                 ignore_test_failures: bool = False):
         self.project = project
         self.target = target
+        # True 时测试失败（unexpected / 退出码异常）只告警不中断构建。与
+        # known_failures 不同：这不是登记——所有失败都会原样打印并落盘
+        # test-failure.log、记入事件日志，只是不 raise。用于一次性诊断。
+        self.ignore_test_failures = ignore_test_failures
         self.recipes = load_recipes(project.root / "recipes")
         self.sysroot = project.sysroot(target)
         self.jobs = jobs or (min(32, int(__import__("os").cpu_count() or 4)))
@@ -379,6 +384,9 @@ class Builder:
                     "tests-exit-anomaly",
                     f"{name}: 退出码 {r.returncode} 但未解析到失败行",
                 )
+                if self.ignore_test_failures:
+                    print(f"  [test] {name}: 忽略（--ignore-test-failures）")
+                    return
                 raise BuildError(
                     f"{name}: test runner exited {r.returncode} with "
                     f"no parsed failures"
@@ -413,6 +421,12 @@ class Builder:
                 "tests-unexpected",
                 f"{name}: {', '.join(unexpected)}; detail: {detail}",
             )
+            if self.ignore_test_failures:
+                print(
+                    f"  [test] {name}: 忽略 {len(unexpected)} 项 unexpected "
+                    f"失败（--ignore-test-failures）"
+                )
+                return
             raise BuildError(
                 f"{name}: unexpected test failures: {', '.join(unexpected)}"
             )
