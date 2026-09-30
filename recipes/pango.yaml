@@ -74,3 +74,17 @@ targets:
         - pango:test-font
         - pango:test-fonts
         - pango:test-font-data
+  # Linux 宿主字体环境依赖，2026-09-30 首跑 CI 实测（ubuntu-latest x86_64，
+  # ubuntu-26.04-arm 同签名）：
+  #  - test-font：roundtrip small-caps/all-small-caps/unicase（test-font.c
+  #    654/703/750）与 Windows 侧同因——需要 Cantarell 变体字体（上游 Linux CI
+  #    预装）。GitHub 的 ubuntu runner 镜像只装 fonts-noto-color-emoji。已在
+  #    ci.yml 通过 apt 安装 fonts-cantarell 修复（装后 CI 实测该项转好）。
+  #  - test-font-data：boxes.ttf 只覆盖 0x20 与 A–P/Z，sample 串（"The quick
+  #    brown fox…"）的 36 个小写/空格字符回退宿主默认 sans，approximate 宽度
+  #    断言值（49273/58368）即按 Noto Sans/DejaVu 一类默认 sans 的字形宽度
+  #    算出的均值。只装 fonts-cantarell 后 Cantarell 成为默认 sans，其空格
+  #    宽度(22528)小于 Noto/DejaVu(26624)，均值漂到 46201/62464 → 失败
+  #    （本机 Cantarell-only 字体集精确复现）。已在 ci.yml 加装 fonts-noto-core
+  #    恢复上游基线默认 sans，本地复现回归 49273/58368 ✓ —— 不登记。
+  # 其余 28 项（含 test-fonts 的 fontsets 排序）在两个架构上均通过。

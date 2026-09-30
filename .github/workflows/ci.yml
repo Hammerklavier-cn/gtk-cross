@@ -345,11 +345,17 @@ jobs:
       #   python3-yaml     -> 本框架自身读 YAML
       #   xz-utils         -> 解 .tar.xz 源包
       #   xvfb             -> 提供 xvfb-run（上面的 GTKCROSS_TEST_WRAPPER）
-      #   fonts-cantarell  -> pango 的 test-font roundtrip small-caps/unicase 与
-      #     test-font-data 的近似宽度断言依赖宿主 Cantarell（上游 Linux CI 预装；
-      #     runner 镜像默认只有 fonts-noto-color-emoji）。缺失时这两项失败，
-      #     已在 recipes/pango.yaml 的 linux 家族块登记，装上是为了让上游基线
-      #     真正跑起来而不是靠登记放行。
+      #   fonts-cantarell  -> pango 的 test-font roundtrip small-caps/unicase
+      #     需要 Cantarell 变体字体（上游 Linux CI 预装；runner 镜像默认只有
+      #     fonts-noto-color-emoji）。
+      #   fonts-noto-core  -> pango 的 test-font-data 断言值（approximate 宽度
+      #     49273/58368）是上游用 fontconfig **默认 sans**（60-latin.conf 的
+      #     prefer 首选 Noto Sans / DejaVu Sans）渲染 sample 串回退字符算出的
+      #     均值。boxes.ttf 只覆盖 0x20 与 A–P/Z，sample 串的 36 个小写/空格
+      #     字符全部回退宿主默认 sans；只装 Cantarell 时它成为默认 sans，而其
+      #     空格宽度(22528)显著小于 Noto/DejaVu(26624)，均值漂到 46201 → 断言
+      #     失败（本地用 Cantarell-only 字体集精确复现）。装 fonts-noto-core
+      #     恢复上游基线的默认 sans，本地复现回归 49273/58368 ✓
       - name: 安装宿主构建工具
         run: |
           set -euo pipefail
@@ -367,7 +373,8 @@ jobs:
             python3 python3-dev python3-yaml \
             xz-utils \
             xvfb \
-            fonts-cantarell
+            fonts-cantarell \
+            fonts-noto-core
           # apt 的 meson 在 ubuntu-latest 上是 1.3.2，而 glib 2.90.0 要求
           # meson_version >= 1.4.0（glib-base 的 meson setup 直接 ERROR）。pipx
           # 装的是 PyPI 最新版；~/.local/bin 在 runner 的默认 PATH 里。
