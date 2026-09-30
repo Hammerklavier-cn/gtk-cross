@@ -28,8 +28,15 @@ meson:
     - -Dlibelf=disabled
     - -Dsystemtap=disabled
     - -Dsysprof=disabled
-    # 修复 "TLS callback not invoked"：GCC 分支的 G_DEFINE_TLS_CALLBACK 缺少
-    # MSVC 分支的 /INCLUDE:_tls_used 等价物；GNU bfd ld 仅在 _tls_used 被引用时
-    # 才生成 PE TLS directory 并收集 .CRT$XL* 回调。引导阶段的 DLL 即需生效
-    # （gobject-introspection 的测试要加载它）。
-    - -Dc_link_args=-Wl,--undefined=_tls_used
+# PE 专属修复：只在 Windows 目标注入（Linux 上 _tls_used 不存在，链接直接报
+# undefined reference）。见 recipes/platform-notes.md 的"Windows 专属项"表。
+targets:
+  - for: [windows]
+    meson:
+      options:
+        # 修复 "TLS callback not invoked"：GCC 分支的 G_DEFINE_TLS_CALLBACK 缺少
+        # MSVC 分支的 /INCLUDE:_tls_used 等价物；GNU bfd ld 仅在 _tls_used 被引用时
+        # 才生成 PE TLS directory 并收集 .CRT$XL* 回调。引导阶段的 DLL 即需生效
+        # （gobject-introspection 的测试要加载它）。
+        - -Dc_link_args=-Wl,--undefined=_tls_used
+

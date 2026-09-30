@@ -15,8 +15,9 @@ autotools:
   # die_unknown），所以目标平台与库形态都在这里写全。
   raw_configure: true
   configure:
-    - --target=x86_64-win64-gcc
-    # 库形态：Windows 上只出静态库（框架的自动注入在 raw 模式下不生效）
+    # 目标三元组由平台决定，见下面 targets:（base 里不写，避免把 win64 带给 Linux）
+    # 库形态：框架的自动注入在 raw 模式下不生效，故显式写全；两平台同值以保持
+    # closure 形态一致（Linux 是 ELF，共享库其实可选）。
     - --disable-shared
     - --enable-static
     # 与 MSYS2 官方包对齐的编解码开关：VP8/VP9（含 high-bitdepth 与时间降噪，
@@ -28,12 +29,29 @@ autotools:
     - --enable-experimental
     - --enable-runtime-cpu-detect
     - --enable-postproc
-    # 汇编器：本机已装 nasm（两个工具链各一份），显式指定以免 configure
-    # 自动探测到别的（yasm 缺失时 auto 会 die）
-    - --as=nasm
     # 不要的东西
     - --disable-unit-tests
     - --disable-examples
     - --disable-docs
     - --disable-install-docs
     - --disable-install-srcs
+# libvpx 的 --target=<arch>-<os>-<toolchain> 是它自己的命名约定（不是 autoconf
+# 三元组）。Windows 侧必须显式给值；Linux 侧**故意不给**：build/make/configure.sh
+# 的 process_common_toolchain 在缺少 --target 时用
+# `gcctarget="${CHOST:-$(gcc -dumpmachine)}"` 推 tgt_isa/tgt_os，case 表里
+# `*x86_64*|*amd64* → x86_64`、`aarch64* → arm64`、`*linux* → linux`，于是
+# x86_64 宿主得到 x86_64-linux-gcc、aarch64 宿主得到 arm64-linux-gcc。
+# 由宿主编译器决定 arch，正是本 target（linux-native）跨架构可复用的做法。
+targets:
+  - for: [windows]
+    autotools:
+      configure:
+        - --target=x86_64-win64-gcc
+        # 汇编器显式钉死，避免 auto 探测到别的（yasm 缺失时 auto 分支会 die：
+        # build/make/configure.sh:1474-1484 依次试 nasm、yasm，都没有就报
+        # "Neither yasm nor nasm have been found"）。
+        # Linux 侧**不写这条**：那是 x86 专属分支，aarch64 的 AS 来自
+        # `${CROSS}as`（同文件 749 行）即 gas，硬塞 nasm 会把 ARM 的 .s 语法交给
+        # 错误的汇编器；x86_64 上 auto 同样会选到 nasm，与 Windows 取值一致，
+        # 而缺 nasm/yasm 时是响亮失败而非静默降级。
+        - --as=nasm

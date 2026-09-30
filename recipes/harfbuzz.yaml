@@ -24,8 +24,6 @@ meson:
     - -Dgobject=enabled
     - -Dicu=disabled
     - -Dfreetype=enabled
-    # 与 harfbuzz-base 同步：pango 的 USE_HB_DWRITE 依赖 hb_directwrite_face_create
-    - -Ddirectwrite=enabled
     - -Dintrospection=enabled
     - -Ddocs=disabled
     - -Dtests=disabled
@@ -33,3 +31,11 @@ meson:
     - -Draster=disabled
     - -Dvector=disabled
     - -Dgpu=disabled
+# 与 harfbuzz-base 同步：DirectWrite 只在 Windows 目标生效（上游以
+# host_machine.system() == 'windows' 为门，理由见 recipes/harfbuzz-base.yaml）。
+targets:
+  - for: [windows]
+    meson:
+      options:
+        # pango 的 USE_HB_DWRITE 依赖 hb_directwrite_face_create
+        - -Ddirectwrite=enabled

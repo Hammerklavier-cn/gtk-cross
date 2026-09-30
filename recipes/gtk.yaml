@@ -4,7 +4,7 @@ source:
   url: https://download.gnome.org/sources/gtk/4.24/gtk-4.24.0.tar.xz
   sha256: 28ba4ac1c04f86eac09b79a163cb163a4c2b54442d9f7eccc04679062a581044
 build: meson
-# 动态：introspection 链（Gdk/Gsk/Gtk/GdkWin32 gir；上游 libgtk-4 本就是
+# 动态：introspection 链（Gdk/Gsk/Gtk/后端 gir；上游 libgtk-4 本就是
 # shared_library，静态化无意义）
 default_library: shared
 deps:
@@ -25,18 +25,18 @@ deps:
   # vulkan=enabled 时 meson 硬性要求 glslc（shaderc 提供，装到 $SYSROOT/bin
   # 即位于构建 PATH 前置，meson find_program 可找到）；缺它 setup 直接报错
   - shaderc
-  # gdk/win32 的 d3d12 纹理路径需要 dependency('DirectX-Headers')；装进
-  # sysroot 后 meson 直接命中 .pc，不再回退到 subprojects 的 wrap（其
-  # DirectX-Headers.wrap 是 [wrap-git]，需要 git clone github，本机不可达）
-  - directx-headers
-  # media-gstreamer=enabled 时 meson 硬性依赖四个 .pc：
-  #   gstreamer-play-1.0 / gstreamer-d3d12-1.0 -> gst-plugins-bad
-  #     （gstplay 与 gstplayer 是 bad 的 gst-libs 常驻库；d3d12 需显式开）
+  # media-gstreamer=enabled 时 meson 硬性依赖这些 .pc：
+  #   gstreamer-play-1.0 -> gst-plugins-bad（gstplay 与 gstplayer 是 bad 的
+  #     gst-libs 常驻库，无选项门控）
   #   gstreamer-gl-1.0 / gstreamer-allocators-1.0 -> gst-plugins-base
-  #     （gl 需显式开，且 Windows 上按 win32/opengl/wgl 后端配置）
+  #     （gl 需显式开，winsys/api/platform 按平台配，见该 recipe）
+  #   gstreamer-d3d12-1.0 -> gst-plugins-bad 的 -Dd3d12：**Windows 专属**需求。
+  #     实测 GTK 4.24 meson.build 只在 `if os_win32` 分支里查找它，非 Windows
+  #     走 `gstd3d12_dep = dependency('', required: false)`；play/gl/allocators
+  #     三项则是无条件 required。该依赖由 gst-plugins-bad 的 windows 家族块提供。
   # 核心 gstreamer 是传递依赖，这里也显式列出，便于"从零规划"时把整条媒体
   # 链纳入 build plan。
-  # 注：运行期还需要 gst-plugins-good（matroska/vpx/autodetect/directsound…），
+  # 注：运行期还需要 gst-plugins-good（matroska/vpx/autodetect…），
   # 它不参与 libgtk 的编译，故不列为构建依赖（见 NOTES.md 媒体链一节）。
   - gstreamer
   - gst-plugins-base
@@ -61,9 +61,9 @@ meson:
     # g_error（"GTK was run without any GtkMediaFile extension..."），即用即崩。
     # GTK 4.24 要求 gstreamer >= 1.28.0（meson.build 的 gstreamer_req）。
     - -Dmedia-gstreamer=enabled
-    - -Dx11-backend=false
-    - -Dwayland-backend=false
-    - -Dbroadway-backend=false
+    # 以下五项都是 Linux 上真实存在、但我们刻意不引入的功能子系统（要拉进
+    # 系统依赖，破坏"target 侧全自建"），在 Windows 上是空操作，在 Linux 上
+    # 是本框架的主动裁剪 —— 所以留在 base，两个平台同一形态。
     - -Dsysprof=disabled
     - -Dcloudproviders=disabled
     - -Dtracker=disabled
@@ -71,26 +71,88 @@ meson:
     - -Dprint-cups=disabled
 test:
   enabled: true
-# 仅 msvcrt 目标（msys2-mingw64）需要这个补丁，故按 target 覆盖。完整因果
-# 链（每一步都有源码或实测支撑）：
-#   1) msvcrt 不认 POSIX 区域名：setlocale(LC_ALL, "en_US.UTF-8") 返回 NULL
-#      （ucrt64/UCRT 认得，故 ucrt64 全过；msvcrt 只认
-#      "English_United States.1252" 这类名字，且完全没有 UTF-8 区域）。
-#   2) GTK 的 gtk_test_init 先调 (g_test_init)()，再 setlocale，失败即
-#      g_warning —— 见 gtk/gtktestutils.c。
-#   3) GLib 的 g_test_init **无条件**把 warning/critical 设为致命
-#      （glib/gtestutils.c: "make warnings and criticals fatal for all test
-#      programs"），因此上一步的 warning 必然致命，与 G_DEBUG 无关。
-#   4) _g_log_abort（glib/gmessages.c）在无调试器时走 g_abort()，msvcrt 的
-#      abort 退出码即 3；挂调试器时 IsDebuggerPresent() 为真，改走
-#      G_BREAKPOINT()（gdb 下实测 SIGTRAP，栈为
-#      g_log_writer_default <- g_log_structured_standard <- gtk_test_init）。
-#   5) 每个测试都过 gtk_test_init，于是 libadwaita 全套 68 项在 mingw64 上
-#      于初始化阶段就 abort（TAP 头之后没有任何测试结果），ucrt64 不受影响。
-# 上游 GTK main 分支与 4.24.0 一字未改，MSYS2 则直接 -Dtests=false /
-# -Dbuild-tests=false 从不跑这些测试，故没有现成修复可抄。
-# 补丁让失败时回退到 Windows 区域名，从而不再产生致命 warning。
+# 后端选择必须按平台分块（实测 GTK 4.24）：
+#   * gtk/meson.build 先 `x11_enabled = get_option('x11-backend')`，再
+#     `if os_win32: x11_enabled = false; wayland_enabled = false` /
+#     `else: win32_enabled = false` —— 所以 win32 后端在 Linux 自动关，
+#     x11/wayland 在 Windows 自动关，两边都不必显式写"对面平台"的 false。
+#   * gdk/meson.build 有 `if gdk_backends.length() == 0 error('No backends
+#     enabled')` —— **一个都不开就直接 configure 失败**。旧配方在 base 里把
+#     x11/wayland/broadway 全写 false，在 Linux 上正是踩这条。
+#   * 上游默认值：x11-backend true、wayland-backend true、broadway-backend
+#     false、win32-backend true。
 targets:
-  msys2-mingw64:
+  - for: [windows]
+    deps:
+      # gdk/win32 的 d3d12 纹理路径需要 dependency('DirectX-Headers')；装进
+      # sysroot 后 meson 直接命中 .pc，不再回退到 subprojects 的 wrap（其
+      # DirectX-Headers.wrap 是 [wrap-git]，需要 git clone github，本机不可达）
+      - directx-headers
+    meson:
+      options:
+        # Windows 上只要 win32 后端：x11/wayland 上游本会自动关，显式写出来
+        # 是"本目标刻意不要"的声明；broadway 上游默认 false，这里保持显式。
+        - -Dx11-backend=false
+        - -Dwayland-backend=false
+        - -Dbroadway-backend=false
+  # 仅 msvcrt 目标（msys2-mingw64）需要这个补丁。完整因果链（每一步都有源码
+  # 或实测支撑）：
+  #   1) msvcrt 不认 POSIX 区域名：setlocale(LC_ALL, "en_US.UTF-8") 返回 NULL
+  #      （ucrt64/UCRT 认得，故 ucrt64 全过；msvcrt 只认
+  #      "English_United States.1252" 这类名字，且完全没有 UTF-8 区域）。
+  #   2) GTK 的 gtk_test_init 先调 (g_test_init)()，再 setlocale，失败即
+  #      g_warning —— 见 gtk/gtktestutils.c。
+  #   3) GLib 的 g_test_init **无条件**把 warning/critical 设为致命
+  #      （glib/gtestutils.c: "make warnings and criticals fatal for all test
+  #      programs"），因此上一步的 warning 必然致命，与 G_DEBUG 无关。
+  #   4) _g_log_abort（glib/gmessages.c）在无调试器时走 g_abort()，msvcrt 的
+  #      abort 退出码即 3；挂调试器时 IsDebuggerPresent() 为真，改走
+  #      G_BREAKPOINT()（gdb 下实测 SIGTRAP，栈为
+  #      g_log_writer_default <- g_log_structured_standard <- gtk_test_init）。
+  #   5) 每个测试都过 gtk_test_init，于是 libadwaita 全套 68 项在 mingw64 上
+  #      于初始化阶段就 abort（TAP 头之后没有任何测试结果），ucrt64 不受影响。
+  # 上游 GTK main 分支与 4.24.0 一字未改，MSYS2 则直接 -Dtests=false /
+  # -Dbuild-tests=false 从不跑这些测试，故没有现成修复可抄。
+  # 补丁让失败时回退到 Windows 区域名，从而不再产生致命 warning。
+  # 精确 target 块（排在家族块之后，patches 按替换语义合并）。
+  - for: [msys2-mingw64]
     patches:
       - gtk-0001-fallback-to-windows-locale.patch
+  - for: [linux]
+    deps:
+      # x11 后端的硬依赖清单取自实测源码（gtk-4.24.0/meson.build）：
+      #   :599-608  xrandr(>=1.2.99) x11 xrender xi xext xcursor xdamage xfixes fontconfig
+      #   :610      x11_pkgs = [fontconfig x11 xext xi xrandr xcursor xdamage
+      #                          xfixes xinerama]
+      #   :657      xinerama_dep = dependency('xinerama')，随后还用
+      #             cc.has_header_symbol('X11/extensions/Xinerama.h',
+      #             'XineramaQueryExtension') 实测符号，不通过就
+      #             error('X11 backend enabled, but Xinerama extension does not work.')
+      # fontconfig 已在 base 的 deps 里，其余九个在这里补齐（deps 只管拓扑顺序，
+      # meson 仍靠 PKG_CONFIG_LIBDIR 命中 sysroot 里的 .pc）。
+      - libx11
+      - libxext
+      - libxi
+      - libxrender
+      - libxrandr
+      - libxcursor
+      - libxdamage
+      - libxfixes
+      - libxinerama
+    meson:
+      options:
+        # 后端组合（上游默认 x11 true / wayland true / broadway false；win32 在
+        # 非 Windows 宿主被 gtk/meson.build 的 os_win32 分支自动关，故不必反向
+        # 写 win32=false；而一个都不开会撞 gdk/meson.build 的
+        # `if gdk_backends.length() == 0 error('No backends enabled')`）：
+        #   * x11=true：X 客户端栈已自建（见 recipes/platform-notes.md）。
+        #   * wayland=false：:588 的 dependency('wayland-egl') 既没有
+        #     required:false，自带 subprojects 里也没有它的 wrap（只有
+        #     wayland.wrap / wayland-protocols.wrap）；wayland-egl.pc 由 Mesa
+        #     提供，而 Mesa 属"EGL/GL 实现=驱动侧"，与 Windows 的 opengl32.dll
+        #     同类，不在自建范围。要开 Wayland 得先对 Mesa 作一个决定。
+        #   * broadway=true：除已有依赖外只多要 librt 的 shm_open（glibc≥2.34
+        #     已并入 libc），给了无显示环境跑 GTK 程序的通路（gtk4-broadwayd）。
+        - -Dx11-backend=true
+        - -Dwayland-backend=false
+        - -Dbroadway-backend=true

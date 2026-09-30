@@ -1,0 +1,20 @@
+name: xorgproto
+version: "2025.1"
+source:
+  url: https://www.x.org/releases/individual/proto/xorgproto-2025.1.tar.xz
+build: autotools
+platforms: [linux]
+# X11 协议头与 .pc 的合集包（xproto/inputproto/renderproto/randrproto/… 自 2018
+# 年起合并成单一 tarball）。纯头文件 + pkgconfig，无库产物。
+#
+# 引擎取 autotools：本包 tarball 同时带 configure 与 meson.build（实测），但
+# X 栈里 libxcb/libX11/libXext/libXrender/libXi/libXcursor **只有** configure，
+# util-macros 与 ACLOCAL_PATH 那条路迟早要走，统一一条引擎比每包二选一更好核对。
+# meson 路线另有一个 `legacy` 开关（meson_options.txt 里唯一项），这里用不到。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+test:
+  enabled: false

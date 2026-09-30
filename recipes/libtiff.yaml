@@ -10,6 +10,16 @@ cmake:
   defines:
     # 静态化：只产出 libtiff.a / libtiffxx.a（不生成 libtiff-6.dll 等）
     BUILD_SHARED_LIBS: "OFF"
+    # CMath 检测：FindCMath 先 check_symbol_exists(pow)（CMAKE_REQUIRED_LIBRARIES
+    # 为空 → 不带 -lm），失败后兜底再试 libm，但 libm 由 find_library(NAMES m)
+    # 在 FIND_ROOT_PATH 内找——框架的 cmake setup_cmd 用
+    # CMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY 锁死到 sysroot，而 libm 是系统库
+    # 不在 sysroot，兜底必然落空。Ubuntu runner（glibc 2.39，pow 在 libm）上
+    # 两次检测全部失败 → "Could NOT find CMath (missing: CMath_pow)"。
+    # （Fedora glibc 2.35+ 把 pow 放进 libc，故本机无 -lm 也能过，曾掩盖此问题。）
+    # 预设 CMAKE_REQUIRED_LIBRARIES=-lm 让第一轮检测带上 libm：它只作用于
+    # check_* 的 try_compile，不进入正常链接命令，产物不受影响。2026-09-30。
+    CMAKE_REQUIRED_LIBRARIES: "-lm"
     tiff-tools: "OFF"
     tiff-tests: "OFF"
     tiff-docs: "OFF"

@@ -1,0 +1,18 @@
+name: libxcursor
+version: 1.2.3
+source:
+  url: https://www.x.org/releases/individual/lib/libXcursor-1.2.3.tar.xz
+build: autotools
+platforms: [linux]
+# X 光标主题渲染（把主题光标画成 X cursor）。GTK 的 x11 后端必需。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+  - xorgproto
+  - libx11
+  - libxrender
+  - libxfixes
+test:
+  enabled: false
