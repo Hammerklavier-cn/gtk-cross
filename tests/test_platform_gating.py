@@ -377,6 +377,23 @@ class LinuxOnlyItemsDoNotLeakToWindows(unittest.TestCase):
                     "LC_ALL", self.resolved(target, "glib").test.get("env") or {}
                 )
 
+    def test_glib_psi_flake_is_linux_only(self):
+        """glib 的 psi 竞态登记只进 linux 家族块。
+
+        该测试（memory-monitor-psi-env-set）整个在 `gio/tests/meson.build:165`
+        的 `if host_system == 'linux'` 里，Windows 上 meson 根本不注册它；把
+        这条 known_failures 抄进 base 或 windows 块都只会掩盖真实回归
+        （Windows 侧若出现同名失败，那是别的东西坏了）。
+        """
+        known = self.resolved(LINUX_TARGET, "glib").test.get("known_failures") or []
+        self.assertIn("glib:memory-monitor-psi-env-set", known)
+        for target in WINDOWS_TARGETS:
+            with self.subTest(target=target):
+                self.assertNotIn(
+                    "glib:memory-monitor-psi-env-set",
+                    self.resolved(target, "glib").test.get("known_failures") or [],
+                )
+
     def test_libffi_no_multios_dir_is_linux_only(self):
         for target in WINDOWS_TARGETS:
             with self.subTest(target=target):

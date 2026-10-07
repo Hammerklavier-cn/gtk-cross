@@ -342,7 +342,24 @@ jobs:
       #   gperf            -> glib
       #   gettext/itstool  -> msgfmt 与 ITS 规则合并（glib、shared-mime-info、appstream）
       #   python3-dev      -> gobject-introspection 要 Python.h（宿主构建工具类）
-      #   python3-yaml     -> 本框架自身读 YAML
+      #   python3-yaml     -> 本框架自身读 YAML，且 mesa 构建期也探测它
+      #     （mesa-26.2.3/meson.build:1126 的 `import yaml` 任一解释器失败就
+      #      continue，故它同时是 mesa 的宿主构建期依赖）
+      #   python3-mako     -> mesa 的 Vulkan 代码生成器（vk_*_gen.py 全部
+      #     `from mako.template import Template`）。上游的 debian 容器清单
+      #     （.gitlab-ci/container/debian/x86_64_build-base.sh:72）把它列为
+      #     构建期依赖；runner 镜像里**没有**它，缺了就是
+      #     `src/meson.build:1140: ERROR: Python (3.x) mako module >= 0.8.0
+      #     required to build mesa.`。注意 mesa 对每个候选解释器逐个探测
+      #     （python3.16 … python3 … python），所以 apt 装到哪个版本都行。
+      #   python3-packaging -> 同一段探测里的第二个条件：探测脚本先
+      #     `from packaging.version import Version`，失败才回退 distutils，
+      #     而 Python 3.12+ 已移除 distutils ⇒ import 不到就 sys.exit(2) →
+      #     `ERROR: One of Python (3.x) packaging or distutils module is
+      #     required.`。本轮 arm64 的报错是 mako（exit 1）而非这条（exit 2），
+      #     说明那个镜像恰好带了 packaging；但"恰好带"正是本项目 CI 名单要
+      #     避免的隐式宿主依赖（上游 x86_64_build-base.sh 也是显式列出），
+      #     故与 mako 一并显式声明。
       #   xz-utils         -> 解 .tar.xz 源包
       #   xvfb             -> 提供 xvfb-run（上面的 GTKCROSS_TEST_WRAPPER）
       #   fonts-cantarell  -> pango 的 test-font roundtrip small-caps/unicase
@@ -371,6 +388,7 @@ jobs:
             gperf \
             gettext itstool \
             python3 python3-dev python3-yaml \
+            python3-mako python3-packaging \
             xz-utils \
             xvfb \
             fonts-cantarell \

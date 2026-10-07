@@ -52,6 +52,7 @@ sysroot 里的 `include/EGL` 与 `egl.pc`）。集合由
 | libxml2 | `-DIconv_IS_BUILT_IN=OFF` | 见第 9 条的 CMake 探测不对称。mingw 上那次探测自然失败、结论本来就对，加这个 define 反而多余 |
 | libffi | `--disable-multi-os-directory` | libtool 的 `multi_os_directory` 取自 `gcc -print-multi-os-directory`，Linux 返回 `../lib64` ⇒ 产物装进 `lib64/`，破坏"sysroot 只有一个 lib 目录"。PE 上没有这套布局 |
 | glib | `test.env LC_ALL: C.UTF-8` | sysroot 会把自己 `po/` 的产物装进 `share/locale/zh_CN/.../glib20.mo`，宿主 `LANG=zh_CN.UTF-8` 时诊断被翻译，而 `spawn-test.c` 断言 `strstr(erroutput, g_strerror(ENOENT))` ⇒ 必不匹配。Windows 的 CRT 不走这条 gettext locale 路径 |
+| glib | `test.known_failures: glib:memory-monitor-psi-env-set` | 该测试整个在 `gio/tests/meson.build:165` 的 `if host_system == 'linux'` 里，Windows 根本不注册它，故只在 linux 块登记。失败是**上游测试自身的时序竞态**（不是本闭包产物缺陷）：`write-env-null` 子测试令 `MEMORY_PRESSURE_WATCH=/dev/null`（恒可读 → source 立刻 dispatch）、又传 `proc-path`（`proc_override=TRUE` → `gmemorymonitorpsi.c:280` 用 `G_IO_IN` 而非 `G_IO_PRI`），而测试主线程不持有默认主上下文 ⇒ worker 线程在 `gmemorymonitorbase.c:168` 的 `g_main_context_invoke_full(NULL,…)` 里 acquire 成功、**同步** emit 信号，把 warning_level 从 -1 置成 50，第 300 行随即断言失败（信号 6）。本轮探针实测：不持有默认上下文 200/200 命中、先 acquire 0/200 ⇒ 纯调度决定；上游同类失败见 Debian #1143197（Salsa CI 同一行断言，维护者判为 flaky）。详细证据写在 `recipes/glib.yaml` 的 linux 块注释里 |
 | mesa | `-Dxlib-lease=disabled` | 该 feature 的自述是 `VK_EXT_acquire_xlib_display`（`meson.options:574-578`），消费者是 Vulkan 驱动，而本闭包 `-Dvulkan-drivers=` 为空 ⇒ 没有消费者；开着会让 `src/meson.build:2375` 的 `dependency('xrandr')`（无 `required:false`）成为硬需求。Windows 上 `-Dplatforms` 里根本没有 x11，这段代码不进入 |
 | vulkan-loader | `BUILD_WSI_XCB_SUPPORT=ON`、`BUILD_WSI_XLIB_SUPPORT=ON`、`BUILD_WSI_XLIB_XRANDR_SUPPORT=ON` + deps `libxcb libx11 libxrandr` | 这三个 `option()` 只存在于 `CMakeLists.txt:115` 的 Linux/BSD `elseif` 分支，WIN32 分支完全不读 ⇒ 在 Windows 上传它们只会得到"变量未被使用"的警告。Linux 上它们是真实功能：GTK 的 Vulkan 渲染器要 `VK_KHR_xlib_surface`/`VK_KHR_xcb_surface`。实测产物 `libvulkan.so.1` 导出 `vkCreateXlibSurfaceKHR`/`vkCreateXcbSurfaceKHR` |
 | curl | `CURL_USE_OPENSSL=ON` + dep `openssl` | base 里的 `CURL_USE_OPENSSL=OFF` 是"默认无 TLS 后端"的姿态（Windows 靠它走 schannel，未来新平台也不会意外链上 crypto），Linux 块把这个叶子值改成 ON。为何选 OpenSSL 而不是 mbedTLS/GnuTLS，见「OpenSSL：curl 的 TLS 后端」一节 |
@@ -537,6 +538,28 @@ deps（含家族块）做差集，再逐条判断"这条需求在当前取值下
 （例如 gst-plugins-bad 的 x11 需求在 `-Dauto_features=disabled` 下不成立，
 mesa 的 xrandr 需求在 `-Dxlib-lease=disabled` 后不成立）。真正的兜底是 CI 的
 干净构建：那里没有任何"上次留下的 .pc"可嗅。
+
+### 同类的第二支：宿主 Python 模块也不算"工具链自带"
+
+上面三条是 **sysroot 内**的隐性依赖（.pc/头文件），但"只有干净环境才暴露"
+这句话对 **宿主工具**同样成立，而且更阴——它在开发机上被系统包静默满足：
+
+| 消费者 | 缺的宿主模块 | 上游探测位置 | 失败原文 |
+| --- | --- | --- | --- |
+| mesa | `python3-mako`（+ `python3-packaging`、`python3-yaml`） | `meson.build:1102-1141`：对 `python3.16 … python3 python` 逐个 `run_command` 探测 `import mako` / `import yaml` / `packaging.version` | arm64 容器上 `src/meson.build:1140: ERROR: Python (3.x) mako module >= 0.8.0 required to build mesa.` |
+
+判据同样取自源码而非印象：那三条 import 在 `meson.build` 里都是 `check: false`
+的 `run_command`，任一失败就 `continue` 到下一个候选解释器，全部候选失败才
+`error()`；所以只要**有一个**解释器同时具备三者就能过。上游的 debian 容器清单
+（`.gitlab-ci/container/debian/x86_64_build-base.sh:72` 的 `python3-mako`、
+`test-base.sh:151` 的 `python3-packaging`、`:157` 的 `python3-yaml`）正是把它
+当构建期依赖显式列出的——与本项目的 `PKG_CONFIG_LIBDIR` 立场一致：宿主侧
+"碰巧有"不算有。CI 的 apt 名单已按此补齐（见 `.github/workflows/ci.yml` 的
+"安装宿主构建工具"注释）。
+
+注意 mesa **不是**唯一会走到宿主 Python 的包，但它是对模块要求最硬的一个
+（缺即 `error()` 中止 configure，而不是静默降级）。gobject-introspection 也有
+`import mako`（`meson.build:268`），但它只门控 doctool 那一支，本闭包未开。
 
 ## 框架侧的 Linux 专属隔离（不是 recipe 的事，但同属平台事实）
 
