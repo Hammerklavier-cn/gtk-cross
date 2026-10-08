@@ -19,9 +19,6 @@ meson:
     # playbin 的默认音视频输出靠 autodetect（autovideosink/autoaudiosink）；
     # 不开的话 playbin 没有自动 sink，GtkMediaFile 会"能解码但出不了画面/声音"
     - -Dautodetect=enabled
-    # Windows 的音频输出（DirectSound sink）；bad 那边还有 wasapi 可选，
-    # 这里先把 good 侧这条打开
-    - -Ddirectsound=enabled
     # 解析/封装类：音频解析器、WAV、MP4/MOV（qtdemux）
     - -Daudioparsers=enabled
     - -Dwavparse=enabled
@@ -36,3 +33,16 @@ meson:
     # （core/base/bad 有，good 的 meson.options 里就没有这一项，传了会
     # "ERROR: Unknown option: introspection" 直接 setup 失败）
     - -Dauto_features=disabled
+# 平台专属的音频/视频输出插件收进家族块（auto_features=disabled 之下必须显式开）。
+targets:
+  - for: [windows]
+    meson:
+      options:
+        # Windows 的音频输出（DirectSound sink）；bad 那边还有 wasapi 可选，
+        # 这里先把 good 侧这条打开
+        - -Ddirectsound=enabled
+  # Linux 侧对应的输出插件是 alsa/pipewire（good 里是 -Dalsa / -Dpipewire），
+  # 它们要宿主开发包（alsa-lib / pipewire headers），而本框架的
+  # PKG_CONFIG_LIBDIR 只指向 sysroot，探测不到 → 现阶段不开：autodetect 因此
+  # 没有自动音频 sink，GtkMediaFile 在 Linux 上"能解码出画面但没声音"。
+  # 后续轮次再定：要么把 alsa-lib/pipewire 列为宿主例外，要么自建 alsa-lib。

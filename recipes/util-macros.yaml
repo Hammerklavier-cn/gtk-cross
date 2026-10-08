@@ -1,0 +1,18 @@
+name: util-macros
+version: 1.20.2
+source:
+  url: https://www.x.org/releases/individual/util/util-macros-1.20.2.tar.xz
+build: autotools
+platforms: [linux]
+# X.org  autotools 宏包（只装 $prefix/share/aclocal/xorg-macros.m4，不产出库）。
+# 它是后面所有 libX* 的**构建期**前置：那些包自带的 configure 脚本在运行时会去
+# 找 xorg-macros.m4 校验版本，找不到就报
+#   The required macro 'XORG_DEFAULT' defines within 'xorg-macros.m4' could not be found
+# 所以各 libX* 的 autotools.env 里都要给 ACLOCAL_PATH 指到本包的安装目录。
+#
+# 版本基准说明：本项目其余包对齐 MSYS2，但 MSYS2 的 X11 是 MinGW 移植版
+# （mingw-w64-*libX11 走 win32 API），拿它当 Linux 侧版本基准是错的，
+# 因此 X 客户端栈直接对齐 x.org 上游发布（见 recipes/platform-notes.md）。
+deps: []
+test:
+  enabled: false

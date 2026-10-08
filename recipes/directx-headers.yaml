@@ -9,6 +9,8 @@ source:
     - url: https://github.com/microsoft/DirectX-Headers/archive/refs/tags/v1.611.0.tar.gz
       sha256: edb8b52b1379f841df5d0d5e11dde08e0c3912508179fb3711f163382e88865c
 build: cmake
+# 只属于 Windows：gdk/win32 的 d3d12 路径与 gst 的 d3d11/d3d12 需要。
+platforms: [windows]
 # 静态：纯头文件 + 两个小静态库（上游直接写 STATIC，不随 BUILD_SHARED_LIBS）
 cmake:
   defines:

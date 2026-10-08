@@ -8,12 +8,52 @@ deps:
 cmake:
   defines:
     BUILD_TESTS: "OFF"
-    BUILD_WSI_X11_SUPPORT: "OFF"
+    # X11 侧 WSI 的真实开关名是 BUILD_WSI_XCB_SUPPORT / BUILD_WSI_XLIB_SUPPORT /
+    # BUILD_WSI_XLIB_XRANDR_SUPPORT，三个都声明在 CMakeLists.txt 的
+    # `elseif(CMAKE_SYSTEM_NAME MATCHES "Linux|BSD|DragonFly|GNU|CYGWIN")` 分支里
+    # （115-119 行）。以前 base 里写的是 `BUILD_WSI_X11_SUPPORT`——上游**没有这个
+    # 名字**（整棵源码树 grep 0 命中），于是它一直是空转的 -D，真正的 Xlib 开关
+    # 保持默认 ON，而 117 行的 XRANDR 探测是 REQUIRED（`pkg_check_modules(XRANDR
+    # REQUIRED ... xrandr)`）→ 干净 sysroot 里 configure 直接失败。本轮首次全量
+    # 干净构建就是在这里断的（同一类问题还在 Mesa 上抓到一处，见该 recipe）。
+    # Wayland/DirectFB 两平台都关：本闭包内没有 wayland-client/directfb 可链
+    # （wayland 栈属后续轮次，见 README 待办）。
     BUILD_WSI_WAYLAND_SUPPORT: "OFF"
     BUILD_WSI_DIRECTFB_SUPPORT: "OFF"
+    # XCB 只在 Windows 侧确实是 OFF（这些开关在非 Linux 分支根本不被读取，
+    # Linux 家族块把它覆盖成 ON，见下面 targets:）
     BUILD_WSI_XCB_SUPPORT: "OFF"
-patches:
-  # 上游只为 Apple 提供静态 loader（APPLE_STATIC_LOADER），Windows 分支硬编码
-  # SHARED；改为遵循 BUILD_SHARED_LIBS 产出 libvulkan-1.a，并把静态构建下的
-  # DllMain 关掉（否则会变成宿主的 DLL 入口点）。
-  - vulkan-loader-0001-static-library-support.patch
+# 补丁只改上游的 WIN32 分支（loader/CMakeLists.txt 的 `if(WIN32)` 段、
+# loader_windows.c 的 DllMain、以及 `if(WIN32)` 里的 VULKAN_LIB_SUFFIX），
+# Linux 分支一字未动，所以只在 windows 家族块打。
+# Linux 上由此产生的差异是**有意**的，且已核实上游形态：loader/CMakeLists.txt
+# 的非 Windows 分支是 `else() → add_library(vulkan SHARED ...)`，完全不读
+# BUILD_SHARED_LIBS（只有 APPLE_STATIC_LOADER 才给静态），所以本项目在 Linux 上
+# 产出 libvulkan.so —— 这正是本平台想要的形态（loader 运行期 dlopen ICD，静态
+# 进每个消费者会各持一份状态，与本项目对 gstreamer/libffi 的判断同理）。
+targets:
+  - for: [windows]
+    patches:
+      # 上游只为 Apple 提供静态 loader（APPLE_STATIC_LOADER），Windows 分支硬编码
+      # SHARED；改为遵循 BUILD_SHARED_LIBS 产出 libvulkan-1.a，并把静态构建下的
+      # DllMain 关掉（否则会变成宿主的 DLL 入口点）。
+      - vulkan-loader-0001-static-library-support.patch
+    # 这里**不**补 XLIB/XLIB_XRANDR=OFF：三个 X11 开关只在
+    # CMakeLists.txt:115 的 Linux/BSD `elseif` 分支里 option()，WIN32 分支不读它们，
+    # 传 -D 只会让 CMake 报 "Manually-specified variables were not used by the
+    # project"。Windows 上没有这些后端是分支结构决定的，不是开关凑出来的。
+  - for: [linux]
+    # X11 WSI 打开后，三个 REQUIRED 探测分别要 xcb、x11、xrandr 的 .pc
+    # （CMakeLists.txt:124/129/133），全部由本闭包自建。
+    deps:
+      - libxcb
+      - libx11
+      - libxrandr
+    cmake:
+      defines:
+        # GTK 的 Vulkan 渲染器在 X11 上需要 VK_KHR_xlib_surface /
+        # VK_KHR_xcb_surface，loader 只有开了这些开关才导出它们；
+        # VK_EXT_acquire_xlib_display 那条（XLIB_XRANDR）顺带一起打开。
+        BUILD_WSI_XCB_SUPPORT: "ON"
+        BUILD_WSI_XLIB_SUPPORT: "ON"
+        BUILD_WSI_XLIB_XRANDR_SUPPORT: "ON"

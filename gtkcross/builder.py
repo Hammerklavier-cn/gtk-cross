@@ -87,15 +87,22 @@ def publish_pc_private_fields(path: Path) -> bool:
 class Builder:
     """Fetches and builds recipes in dependency order into a sysroot."""
 
-    def __init__(self, project: ProjectConfig, target: str, jobs: int = 0):
+    def __init__(self, project: ProjectConfig, target: str, jobs: int = 0,
+                 ignore_test_failures: bool = False):
         self.project = project
         self.target = target
+        # True 时测试失败（unexpected / 退出码异常）只告警不中断构建。与
+        # known_failures 不同：这不是登记——所有失败都会原样打印并落盘
+        # test-failure.log、记入事件日志，只是不 raise。用于一次性诊断。
+        self.ignore_test_failures = ignore_test_failures
         self.recipes = load_recipes(project.root / "recipes")
         self.sysroot = project.sysroot(target)
         self.jobs = jobs or (min(32, int(__import__("os").cpu_count() or 4)))
         tconf = project.target(target)
         tc_path = project.root / "toolchains" / f"{tconf['toolchain']}.yaml"
         self.tc = Toolchain.load(tc_path, self.sysroot)
+        # recipe 的 targets: 家族选择器按它匹配（windows | linux）
+        self.target_os = self.tc.target_os
         # 追加式事件日志：记录构建起止与测试异常事件（known 失败出现/缺席等）
         self.events = EventLog(project.root / "gtkcross-events.log", target)
 
@@ -118,13 +125,42 @@ class Builder:
     # -- recipe ordering ----------------------------------------------------
 
     def order(self, names: List[str]) -> List[str]:
-        graph = {n: list(r.deps) for n, r in self.recipes.items()}
+        # 依赖图必须按**目标**解析：recipe 的 targets: 家族块可以给特定平台增删
+        # deps（例如 directx-headers/directxmath 只属于 Windows）。用未解析的 base
+        # deps 建图的话，被裁掉的依赖仍会进入 build plan，而按名字预置依赖时又
+        # 会在 Linux 计划里带上 Windows 专属包。
+        graph = {
+            n: list(r.for_target(self.target, self.target_os).deps)
+            for n, r in self.recipes.items()
+        }
+        # 平台归属的一致性检查：把"某平台的包依赖了不属于该平台的包"当作配置错误
+        # 直接报出，而不是让它在 build plan 里冒出来（那会产出一个本平台不该有
+        # 的 sysroot 条目，例如 Linux 侧混进 egl-headers 与 Mesa 争抢 EGL 头）。
+        # 只检查**本身属于本平台**的包：libdrm 的 deps 里写 libpciaccess 是对的，
+        # 它在 Windows 目标上根本不会被构建，它的依赖边与 Windows 无关。
+        for name, deps in graph.items():
+            if not self.recipes[name].applies_to(self.target, self.target_os):
+                continue
+            for dep in deps:
+                if not self.recipes[dep].applies_to(self.target, self.target_os):
+                    raise ValueError(
+                        f"{name}: depends on {dep!r}, which declares "
+                        f"platforms={self.recipes[dep].platforms} and does not "
+                        f"apply to target {self.target}"
+                    )
         return resolve(graph, names)
+
+    def not_applicable(self, names: List[str]) -> List[str]:
+        """requests 里声明了"不属于本平台"的那部分（`platforms:`）。"""
+        return [
+            n for n in names
+            if not self.recipes[n].applies_to(self.target, self.target_os)
+        ]
 
     # -- per-recipe build ---------------------------------------------------
 
     def build_recipe(self, name: str) -> None:
-        recipe = self.recipes[name].for_target(self.target)
+        recipe = self.recipes[name].for_target(self.target, self.target_os)
         ws = self.project.build_dir / self.target / name
         src = ws / "src"
         ok_marker = ws / "src" / ".gtkcross-extract-ok"
@@ -226,11 +262,15 @@ class Builder:
     def _pc_is_static(self, pc: Path) -> bool:
         """判断 .pc 描述的库在本 sysroot 里是否为静态。
 
-        依据 `Libs:` 里的 -lNAME 反查：libNAME.a 存在且 libNAME.dll.a 不存在
-        即为静态。共享库的导入库是 libNAME.dll.a，因此能区分开。
+        依据 `Libs:` 里的 -lNAME 反查：libNAME.a 存在、且本平台"共享变体"不存
+        在，即为静态。共享变体的名字随平台而不同（Windows 是导入库
+        libNAME.dll.a，ELF 是 libNAME.so），故由 toolchain 的 shared_suffixes
+        给出，不能在这里硬编码 Windows 形态——否则 Linux 上共享包的 .pc 会被
+        误判成静态并把 Libs.private 提升进 Libs。
         不依赖 mtime——CMake/meson 重装时常报 "Up-to-date" 而不改写 .pc。
         """
         libdir = self.sysroot / "lib"
+        suffixes = self.tc.shared_suffixes
         try:
             text = pc.read_text(encoding="utf-8")
         except OSError:
@@ -242,10 +282,13 @@ class Builder:
                 if not tok.startswith("-l") or len(tok) <= 2:
                     continue
                 name = tok[2:]
-                if (libdir / f"lib{name}.a").exists() and not (
-                    libdir / f"lib{name}.dll.a"
-                ).exists():
-                    return True
+                if not (libdir / f"lib{name}.a").exists():
+                    continue
+                if any(
+                    (libdir / f"lib{name}{sfx}").exists() for sfx in suffixes
+                ):
+                    continue
+                return True
         return False
 
     def _publish_static_pc(self) -> List[str]:
@@ -341,6 +384,9 @@ class Builder:
                     "tests-exit-anomaly",
                     f"{name}: 退出码 {r.returncode} 但未解析到失败行",
                 )
+                if self.ignore_test_failures:
+                    print(f"  [test] {name}: 忽略（--ignore-test-failures）")
+                    return
                 raise BuildError(
                     f"{name}: test runner exited {r.returncode} with "
                     f"no parsed failures"
@@ -375,6 +421,12 @@ class Builder:
                 "tests-unexpected",
                 f"{name}: {', '.join(unexpected)}; detail: {detail}",
             )
+            if self.ignore_test_failures:
+                print(
+                    f"  [test] {name}: 忽略 {len(unexpected)} 项 unexpected "
+                    f"失败（--ignore-test-failures）"
+                )
+                return
             raise BuildError(
                 f"{name}: unexpected test failures: {', '.join(unexpected)}"
             )
@@ -399,7 +451,13 @@ class Builder:
     # -- entry point ---------------------------------------------------------
 
     def build(self, names: List[str]) -> None:
-        order = self.order(names)
+        skipped = self.not_applicable(names)
+        if skipped:
+            print(
+                f"[skip] 不属于 {self.target}（recipe 的 platforms 声明）: "
+                f"{', '.join(skipped)}"
+            )
+        order = self.order([n for n in names if n not in set(skipped)])
         print(f"=== build plan ({self.target}): {' -> '.join(order)}")
         self.sysroot.mkdir(parents=True, exist_ok=True)
         self.events.log("run-start", f"plan: {' -> '.join(order)}")

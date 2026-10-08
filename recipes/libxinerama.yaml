@@ -1,0 +1,13 @@
+name: libxinerama
+version: 1.1.6
+source:
+  url: https://www.x.org/releases/individual/lib/libXinerama-1.1.6.tar.xz
+build: meson
+platforms: [linux]
+# XINERAMA 扩展（跨屏几何）。实测 gdk/meson.build 的 x11 分支把它列为必需依赖。
+deps:
+  - xorgproto
+  - libx11
+  - libxext
+test:
+  enabled: false

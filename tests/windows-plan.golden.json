@@ -1,0 +1,3608 @@
+{
+  "msys2-mingw64": {
+    "bash_argv": [
+      "C:/msys64/usr/bin/bash.exe",
+      "-lc"
+    ],
+    "plans": {
+      "appstream": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "curl",
+        "libxml2",
+        "xz",
+        "libxmlb",
+        "libfyaml",
+        "appstream"
+      ],
+      "gtk": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "harfbuzz-base",
+        "harfbuzz",
+        "fribidi",
+        "pango",
+        "libjpeg-turbo",
+        "libtiff",
+        "gdk-pixbuf",
+        "graphene",
+        "json-glib",
+        "egl-headers",
+        "libepoxy",
+        "vulkan-headers",
+        "vulkan-loader",
+        "spirv-headers",
+        "spirv-tools",
+        "glslang",
+        "shaderc",
+        "gstreamer",
+        "libogg",
+        "libopus",
+        "libvorbis",
+        "gl-headers",
+        "gst-plugins-base",
+        "directx-headers",
+        "directxmath",
+        "gst-plugins-bad",
+        "gtk"
+      ],
+      "libadwaita": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "harfbuzz-base",
+        "harfbuzz",
+        "fribidi",
+        "pango",
+        "libjpeg-turbo",
+        "libtiff",
+        "gdk-pixbuf",
+        "graphene",
+        "json-glib",
+        "egl-headers",
+        "libepoxy",
+        "vulkan-headers",
+        "vulkan-loader",
+        "spirv-headers",
+        "spirv-tools",
+        "glslang",
+        "shaderc",
+        "gstreamer",
+        "libogg",
+        "libopus",
+        "libvorbis",
+        "gl-headers",
+        "gst-plugins-base",
+        "directx-headers",
+        "directxmath",
+        "gst-plugins-bad",
+        "gtk",
+        "libadwaita"
+      ],
+      "shared-mime-info": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "libxml2",
+        "shared-mime-info"
+      ]
+    },
+    "prelude": [
+      "export PATH=$SYSROOT/bin:/c/msys64/mingw64/bin:/c/msys64/usr/bin",
+      "export CC='gcc'",
+      "export CXX='g++'",
+      "export PKG_CONFIG='pkg-config'",
+      "export MESON='meson'",
+      "export NINJA='ninja'",
+      "export CMAKE='cmake'",
+      "export MAKE='make'",
+      "export PERL='perl'",
+      "export PKG_CONFIG_LIBDIR=\"$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig\"",
+      "export PKG_CONFIG_PATH=\"\"",
+      "export PYTHONUTF8=\"1\"",
+      "export CPPFLAGS=\"-I$SYSROOT/include\"",
+      "export LDFLAGS=\"-L$SYSROOT/lib\"",
+      "export LIBRARY_PATH=\"$SYSROOT/lib\"",
+      "export XDG_DATA_DIRS=\"$SYSROOT/share\""
+    ],
+    "recipes": {
+      "adwaita-icon-theme": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/adwaita-icon-theme/build @ROOT@/build/msys2-mingw64/adwaita-icon-theme/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gtk"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [
+          "\"$SYSROOT/bin/gtk4-update-icon-cache\" -q -t -f \"$SYSROOT/share/icons/Adwaita\""
+        ],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "appstream": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/appstream/build @ROOT@/build/msys2-mingw64/appstream/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dsystemd=false -Dapidocs=false -Dinstall-docs=false -Ddocs=false -Dman=false -Dqt=false -Dvapi=false -Dgir=false -Dstemming=false -Dsvg-support=false -Dzstd-support=false -Dapt-support=false -Dcompose=false -Ddisplay-detection=none -Dblake3-support=false -Dbash-completion=false -Dstatic-analysis=false -Dmaintainer=false -Dtools=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "curl",
+          "libxml2",
+          "libxmlb",
+          "libfyaml",
+          "gettext"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "cairo": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/cairo/build @ROOT@/build/msys2-mingw64/cairo/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=disabled -Dfontconfig=enabled -Dfreetype=enabled -Dxlib=disabled -Dxcb=disabled -Dc_link_args=-Wl,--undefined=_tls_used ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "pixman",
+          "freetype",
+          "fontconfig",
+          "libpng",
+          "glib-base"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "curl": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/curl/src -B @ROOT@/build/msys2-mingw64/curl/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DCURL_USE_OPENSSL=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBPSL=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DCURL_DISABLE_LDAP=ON -DENABLE_ARES=OFF -DENABLE_IDN2=OFF -DCURL_USE_SCHANNEL=ON",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "directx-headers": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/directx-headers/src -B @ROOT@/build/msys2-mingw64/directx-headers/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DDXHEADERS_INSTALL=ON -DDXHEADERS_BUILD_TEST=OFF -DDXHEADERS_BUILD_GOOGLE_TEST=OFF -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "windows"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "directxmath": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/directxmath/src -B @ROOT@/build/msys2-mingw64/directxmath/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "windows"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "egl-headers": {
+        "build": "data",
+        "configure_cmd": null,
+        "data": {
+          "install_files": {
+            "api/EGL": "include/EGL",
+            "api/KHR/khrplatform.h": "include/KHR"
+          },
+          "text_files": {
+            "lib/pkgconfig/egl.pc": "prefix=@PREFIX@\nexec_prefix=${prefix}\nincludedir=${prefix}/include\n\nName: egl\nDescription: EGL header files (Khronos EGL-Registry)\nVersion: 1.5\nCflags: -I${includedir}\nLibs:"
+          }
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "windows"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "expat": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/expat/src -B @ROOT@/build/msys2-mingw64/expat/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DEXPAT_SHARED_LIBS=OFF -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_BUILD_DOCS=OFF -DEXPAT_BUILD_TOOLS=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-mingw64/expat/build --output-on-failure -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "fontconfig": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/fontconfig/build @ROOT@/build/msys2-mingw64/fontconfig/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Ddoc=disabled -Dtests=disabled -Dtools=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "expat",
+          "freetype"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [
+          "fontconfig-0001-install-conf-d-as-regular-files.patch",
+          "fontconfig-0002-absolute-confdir-in-fonts-conf.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "freetype": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/freetype/src -B @ROOT@/build/msys2-mingw64/freetype/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DFT_DISABLE_BROTLI=TRUE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_HARFBUZZ=TRUE -DFT_DISABLE_PNG=TRUE -DFT_ENABLE_ZLIB=TRUE -DBUILD_SHARED_LIBS=ON",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "fribidi": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/fribidi/build @ROOT@/build/msys2-mingw64/fribidi/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Ddocs=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/fribidi/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "gdk-pixbuf": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gdk-pixbuf/build @ROOT@/build/msys2-mingw64/gdk-pixbuf/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dgtk_doc=false -Dintrospection=enabled -Dman=false -Dtests=true -Dbuiltin_loaders=all ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "libpng",
+          "libjpeg-turbo",
+          "libtiff"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/gdk-pixbuf/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "gettext": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/gettext/src/gettext-runtime &&  ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --enable-shared --disable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libiconv"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gl-headers": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gl-headers/build @ROOT@/build/msys2-mingw64/gl-headers/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dglext=enabled -Dwglext=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "glib": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/glib/build @ROOT@/build/msys2-mingw64/glib/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=true -Dgtk_doc=false -Dintrospection=enabled -Dselinux=disabled -Dlibmount=disabled -Ddtrace=disabled -Dnls=enabled -Dglib_debug=disabled -Dlibelf=disabled -Dsystemtap=disabled -Dsysprof=disabled -Dc_link_args=-Wl,--undefined=_tls_used ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib-base",
+          "gobject-introspection"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/glib/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "glib-base": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/glib-base/build @ROOT@/build/msys2-mingw64/glib-base/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=false -Dgtk_doc=false -Dintrospection=disabled -Dselinux=disabled -Dlibmount=disabled -Ddtrace=disabled -Dnls=enabled -Dglib_debug=disabled -Dlibelf=disabled -Dsystemtap=disabled -Dsysprof=disabled -Dc_link_args=-Wl,--undefined=_tls_used ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib",
+          "libffi",
+          "pcre2",
+          "libiconv",
+          "gettext"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "glslang": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/glslang/src -B @ROOT@/build/msys2-mingw64/glslang/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_TESTING=OFF -DENABLE_CTEST=OFF -DENABLE_OPT=ON -DALLOW_EXTERNAL_SPIRV_TOOLS=ON -DENABLE_GLSLANG_BINARIES=OFF -DENABLE_GLSLANG_JS=OFF -DENABLE_GLSLANG_WEB=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "spirv-tools",
+          "spirv-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gobject-introspection": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gobject-introspection/build @ROOT@/build/msys2-mingw64/gobject-introspection/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=true -Dgtk_doc=false -Ddoctool=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib-base",
+          "libffi",
+          "cairo"
+        ],
+        "known_failures": [
+          "gobject-introspection:test_scanner.py"
+        ],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "env GI_SCANNER_DISABLE_CACHE=1 meson test -C @ROOT@/build/msys2-mingw64/gobject-introspection/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {
+          "GI_SCANNER_DISABLE_CACHE": "1"
+        }
+      },
+      "graphene": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/graphene/build @ROOT@/build/msys2-mingw64/graphene/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=false -Dintrospection=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gst-plugins-bad": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gst-plugins-bad/build @ROOT@/build/msys2-mingw64/gst-plugins-bad/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=disabled -Dexamples=disabled -Ddoc=disabled -Dintrospection=disabled -Dauto_features=disabled -Dgpl=disabled -Dd3d12=enabled -Dd3d11=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gstreamer",
+          "gst-plugins-base",
+          "glib",
+          "directx-headers",
+          "directxmath"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [
+          "gst-plugins-bad-0001-check-xaml-interop-header.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gst-plugins-base": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gst-plugins-base/build @ROOT@/build/msys2-mingw64/gst-plugins-base/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dgl=enabled -Daudioconvert=enabled -Daudioresample=enabled -Dplayback=enabled -Dtypefind=enabled -Dvideoconvertscale=enabled -Dvolume=enabled -Dogg=enabled -Dopus=enabled -Dvorbis=enabled -Dpango=enabled -Dvideotestsrc=enabled -Daudiotestsrc=enabled -Dtests=disabled -Dexamples=disabled -Ddoc=disabled -Dintrospection=disabled -Dauto_features=disabled -Dgl_winsys=win32 -Dgl_api=opengl -Dgl_platform=wgl ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gstreamer",
+          "glib",
+          "pango",
+          "cairo",
+          "libogg",
+          "libopus",
+          "libvorbis",
+          "gl-headers"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {
+          "subprojects/gl-headers": "gl-headers"
+        },
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gst-plugins-good": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gst-plugins-good/build @ROOT@/build/msys2-mingw64/gst-plugins-good/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dmatroska=enabled -Dvpx=enabled -Dautodetect=enabled -Daudioparsers=enabled -Dwavparse=enabled -Disomp4=enabled -Ddeinterlace=enabled -Dtests=disabled -Dexamples=disabled -Ddoc=disabled -Dauto_features=disabled -Ddirectsound=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gstreamer",
+          "gst-plugins-base",
+          "glib",
+          "libvpx"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gstreamer": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gstreamer/build @ROOT@/build/msys2-mingw64/gstreamer/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=disabled -Dexamples=disabled -Dbenchmarks=disabled -Ddoc=disabled -Dintrospection=disabled -Dlibunwind=disabled -Dlibdw=disabled -Ddbghelp=disabled -Dtools=enabled -Dauto_features=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gtk": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/gtk/build @ROOT@/build/msys2-mingw64/gtk/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dbuild-tests=true -Dbuild-testsuite=false -Dbuild-demos=true -Dbuild-examples=false -Ddocumentation=false -Dman-pages=false -Dintrospection=enabled -Dvulkan=enabled -Dmedia-gstreamer=enabled -Dsysprof=disabled -Dcloudproviders=disabled -Dtracker=disabled -Dcolord=disabled -Dprint-cups=disabled -Dx11-backend=false -Dwayland-backend=false -Dbroadway-backend=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "cairo",
+          "pango",
+          "gdk-pixbuf",
+          "graphene",
+          "json-glib",
+          "libepoxy",
+          "fontconfig",
+          "freetype",
+          "harfbuzz",
+          "gobject-introspection",
+          "vulkan-loader",
+          "shaderc",
+          "gstreamer",
+          "gst-plugins-base",
+          "gst-plugins-bad",
+          "directx-headers"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [
+          "gtk-0001-fallback-to-windows-locale.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/gtk/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "harfbuzz": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/harfbuzz/build @ROOT@/build/msys2-mingw64/harfbuzz/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dcairo=disabled -Dglib=enabled -Dgobject=enabled -Dicu=disabled -Dfreetype=enabled -Dintrospection=enabled -Ddocs=disabled -Dtests=disabled -Draster=disabled -Dvector=disabled -Dgpu=disabled -Ddirectwrite=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "harfbuzz-base",
+          "freetype",
+          "glib",
+          "gobject-introspection"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "harfbuzz-base": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/harfbuzz-base/build @ROOT@/build/msys2-mingw64/harfbuzz-base/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dcairo=disabled -Dglib=enabled -Dgobject=disabled -Dicu=disabled -Dfreetype=enabled -Dintrospection=disabled -Ddocs=disabled -Dtests=disabled -Draster=disabled -Dvector=disabled -Dgpu=disabled -Ddirectwrite=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "freetype"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "json-glib": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/json-glib/build @ROOT@/build/msys2-mingw64/json-glib/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dtests=false -Dintrospection=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libadwaita": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/libadwaita/build @ROOT@/build/msys2-mingw64/libadwaita/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=true -Dintrospection=enabled -Ddocumentation=false -Dvapi=false -Dexamples=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gtk",
+          "glib",
+          "graphene",
+          "pango",
+          "fribidi",
+          "gobject-introspection"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/libadwaita/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "libdrm": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/libdrm/build @ROOT@/build/msys2-mingw64/libdrm/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libpciaccess"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libepoxy": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/libepoxy/build @ROOT@/build/msys2-mingw64/libepoxy/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dtests=false -Ddocs=false -Degl=no ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "egl-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libffi": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libffi/src &&  ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-docs --enable-shared --disable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libfyaml": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libfyaml/src -B @ROOT@/build/msys2-mingw64/libfyaml/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libiconv": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libiconv/src &&  ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --enable-shared --disable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libjpeg-turbo": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libjpeg-turbo/src -B @ROOT@/build/msys2-mingw64/libjpeg-turbo/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_TURBOJPEG=OFF -DWITH_SIMD=ON -DWITH_TOOLS=OFF -DWITH_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libogg": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libogg/src -B @ROOT@/build/msys2-mingw64/libogg/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_TESTING=OFF -DINSTALL_DOCS=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libopus": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/libopus/build @ROOT@/build/msys2-mingw64/libopus/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dasm=disabled -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libpciaccess": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/libpciaccess/build @ROOT@/build/msys2-mingw64/libpciaccess/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "xorgproto"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libpng": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libpng/src -B @ROOT@/build/msys2-mingw64/libpng/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DPNG_SHARED=OFF -DPNG_STATIC=ON -DPNG_EXECUTABLES=OFF -DPNG_TESTS=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "libpng-0001-tests-against-static-library.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-mingw64/libpng/build --output-on-failure -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "libpthread-stubs": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libpthread-stubs/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libtiff": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libtiff/src -B @ROOT@/build/msys2-mingw64/libtiff/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF -DCMAKE_REQUIRED_LIBRARIES=-lm -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-docs=OFF -Dtiff-contrib=OFF -Dtiff-jbig=OFF -Dtiff-lerc=OFF -Dtiff-lzma=OFF -Dtiff-zstd=OFF -Dtiff-webp=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib",
+          "libjpeg-turbo"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libvorbis": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libvorbis/src &&  ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-oggtest --disable-examples --disable-docs --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libogg"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libvpx": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libvpx/src &&  ./configure --prefix=@ROOT@/out/msys2-mingw64 --disable-shared --enable-static --enable-vp8 --enable-vp9 --enable-vp9-highbitdepth --enable-vp9-temporal-denoising --enable-experimental --enable-runtime-cpu-detect --enable-postproc --disable-unit-tests --disable-examples --disable-docs --disable-install-docs --disable-install-srcs --target=x86_64-win64-gcc --as=nasm",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libx11": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libx11/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "xtrans",
+          "libxcb"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxau": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxau/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxcb": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxcb/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libpthread-stubs",
+          "xcb-proto",
+          "libxau"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxcursor": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxcursor/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxrender",
+          "libxfixes"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxdamage": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxdamage/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxfixes"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxext": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxext/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxfixes": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxfixes/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxi": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxi/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxext",
+          "libxfixes"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxinerama": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/libxinerama/build @ROOT@/build/msys2-mingw64/libxinerama/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "xorgproto",
+          "libx11",
+          "libxext"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxml2": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/libxml2/src -B @ROOT@/build/msys2-mingw64/libxml2/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF -DLIBXML2_WITH_PYTHON=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_ZSTD=OFF -DLIBXML2_WITH_HTTP=OFF -DLIBXML2_WITH_FTP=OFF -DLIBXML2_WITH_ICONV=ON -DLIBXML2_WITH_ZLIB=ON -DLIBXML2_WITH_TESTS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib",
+          "libiconv"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxmlb": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/libxmlb/build @ROOT@/build/msys2-mingw64/libxmlb/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dlzma=enabled -Dgtkdoc=false -Dintrospection=false -Dtests=false -Dcli=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "xz"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxrandr": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxrandr/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxext",
+          "libxrender"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxrender": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxrender/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxshmfence": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxshmfence/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxxf86vm": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/libxxf86vm/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxext"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "mesa": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/mesa/build @ROOT@/build/msys2-mingw64/mesa/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dglx=dri -Degl=enabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dgallium-drivers=softpipe -Dvulkan-drivers= -Dvideo-codecs= -Dplatforms=x11 -Dxlib-lease=disabled -Dbuild-tests=false -Dvalgrind=disabled -Dlmsensors=disabled -Dzstd=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libdrm",
+          "libpciaccess",
+          "libxshmfence",
+          "xorgproto",
+          "libx11",
+          "libxext",
+          "libxcb",
+          "libxxf86vm",
+          "expat",
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "openssl": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/openssl/src &&  ./config --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib --openssldir=/etc/ssl no-shared no-docs no-tests no-fips no-legacy",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "pango": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/pango/build @ROOT@/build/msys2-mingw64/pango/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dgtk_doc=false -Dintrospection=enabled -Dman-pages=false -Dfontconfig=enabled -Dfreetype=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "harfbuzz",
+          "fribidi",
+          "fontconfig",
+          "freetype",
+          "cairo"
+        ],
+        "known_failures": [
+          "pango:test-font",
+          "pango:test-fonts",
+          "pango:test-font-data"
+        ],
+        "libtype": "shared",
+        "patches": [
+          "pango-0001-test-font-compare-normalized-path.patch",
+          "pango-0002-tests-use-installed-fontconfig.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "env PANGOCAIRO_BACKEND=fc meson test -C @ROOT@/build/msys2-mingw64/pango/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {
+          "PANGOCAIRO_BACKEND": "fc"
+        }
+      },
+      "pcre2": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/pcre2/src -B @ROOT@/build/msys2-mingw64/pcre2/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DPCRE2_BUILD_PCRE2_16=OFF -DPCRE2_BUILD_PCRE2_32=OFF -DPCRE2_BUILD_PCRE2GREP=OFF -DPCRE2_BUILD_TESTS=OFF -DPCRE2_SUPPORT_JIT=OFF -DPCRE2_SUPPORT_UNICODE=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "pixman": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-mingw64/pixman/build @ROOT@/build/msys2-mingw64/pixman/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dtests=disabled -Ddemos=disabled -Dgtk=disabled -Dlibpng=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "shaderc": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/shaderc/src -B @ROOT@/build/msys2-mingw64/shaderc/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON -DSHADERC_ENABLE_INSTALL=ON -DSHADERC_ALLOW_EXTERNAL_LIBRARY=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glslang",
+          "spirv-tools",
+          "spirv-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "shaderc-0001-skip-shared-variant.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {
+          "third_party/glslang": "glslang",
+          "third_party/spirv-headers": "spirv-headers",
+          "third_party/spirv-tools": "spirv-tools"
+        },
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "shared-mime-info": {
+        "build": "meson",
+        "configure_cmd": "env GETTEXTDATADIR=\"@ROOT@/build/msys2-mingw64/shared-mime-info/src/data\" meson setup @ROOT@/build/msys2-mingw64/shared-mime-info/build @ROOT@/build/msys2-mingw64/shared-mime-info/src --prefix=@ROOT@/out/msys2-mingw64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dbuild-tools=true -Dbuild-translations=true -Dbuild-tests=true -Dupdate-mimedb=true ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "libxml2"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "shared-mime-info-0001-tests-absolute-bash.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-mingw64/shared-mime-info/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "spirv-headers": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/spirv-headers/src -B @ROOT@/build/msys2-mingw64/spirv-headers/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "spirv-tools": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/spirv-tools/src -B @ROOT@/build/msys2-mingw64/spirv-tools/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF -DSPIRV_SKIP_EXECUTABLES=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "spirv-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "spirv-tools-0001-skip-shared-variant.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {
+          "external/spirv-headers": "spirv-headers"
+        },
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "util-macros": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/util-macros/src &&  ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "vulkan-headers": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/vulkan-headers/src -B @ROOT@/build/msys2-mingw64/vulkan-headers/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "vulkan-loader": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/vulkan-loader/src -B @ROOT@/build/msys2-mingw64/vulkan-loader/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DBUILD_TESTS=OFF -DBUILD_WSI_WAYLAND_SUPPORT=OFF -DBUILD_WSI_DIRECTFB_SUPPORT=OFF -DBUILD_WSI_XCB_SUPPORT=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "vulkan-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "vulkan-loader-0001-static-library-support.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xcb-proto": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/xcb-proto/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xorgproto": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/xorgproto/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xtrans": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-mingw64/xtrans/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-mingw64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xz": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/xz/src -B @ROOT@/build/msys2-mingw64/xz/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DXZ_TOOL_XZ=OFF -DXZ_TOOL_XZDEC=OFF -DXZ_TOOL_LZMADEC=OFF -DXZ_TOOL_LZMAINFO=OFF -DXZ_TOOL_SCRIPTS=OFF -DXZ_TOOL_SYMLINKS=OFF -DXZ_NLS=OFF -DXZ_DOC=OFF -DXZ_DOXYGEN=OFF -DXZ_LZIP_DECODER=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "zlib": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-mingw64/zlib/src -B @ROOT@/build/msys2-mingw64/zlib/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-mingw64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-mingw64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-mingw64 -DZLIB_BUILD_SHARED=OFF -DZLIB_BUILD_STATIC=ON -DZLIB_BUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "zlib-0001-drop-windows-static-suffix.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      }
+    }
+  },
+  "msys2-ucrt64": {
+    "bash_argv": [
+      "C:/msys64/usr/bin/bash.exe",
+      "-lc"
+    ],
+    "plans": {
+      "appstream": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "curl",
+        "libxml2",
+        "xz",
+        "libxmlb",
+        "libfyaml",
+        "appstream"
+      ],
+      "gtk": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "harfbuzz-base",
+        "harfbuzz",
+        "fribidi",
+        "pango",
+        "libjpeg-turbo",
+        "libtiff",
+        "gdk-pixbuf",
+        "graphene",
+        "json-glib",
+        "egl-headers",
+        "libepoxy",
+        "vulkan-headers",
+        "vulkan-loader",
+        "spirv-headers",
+        "spirv-tools",
+        "glslang",
+        "shaderc",
+        "gstreamer",
+        "libogg",
+        "libopus",
+        "libvorbis",
+        "gl-headers",
+        "gst-plugins-base",
+        "directx-headers",
+        "directxmath",
+        "gst-plugins-bad",
+        "gtk"
+      ],
+      "libadwaita": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "harfbuzz-base",
+        "harfbuzz",
+        "fribidi",
+        "pango",
+        "libjpeg-turbo",
+        "libtiff",
+        "gdk-pixbuf",
+        "graphene",
+        "json-glib",
+        "egl-headers",
+        "libepoxy",
+        "vulkan-headers",
+        "vulkan-loader",
+        "spirv-headers",
+        "spirv-tools",
+        "glslang",
+        "shaderc",
+        "gstreamer",
+        "libogg",
+        "libopus",
+        "libvorbis",
+        "gl-headers",
+        "gst-plugins-base",
+        "directx-headers",
+        "directxmath",
+        "gst-plugins-bad",
+        "gtk",
+        "libadwaita"
+      ],
+      "shared-mime-info": [
+        "zlib",
+        "libffi",
+        "pcre2",
+        "libiconv",
+        "gettext",
+        "glib-base",
+        "pixman",
+        "freetype",
+        "expat",
+        "fontconfig",
+        "libpng",
+        "cairo",
+        "gobject-introspection",
+        "glib",
+        "libxml2",
+        "shared-mime-info"
+      ]
+    },
+    "prelude": [
+      "export PATH=$SYSROOT/bin:/c/msys64/ucrt64/bin:/c/msys64/usr/bin",
+      "export CC='gcc'",
+      "export CXX='g++'",
+      "export PKG_CONFIG='pkg-config'",
+      "export MESON='meson'",
+      "export NINJA='ninja'",
+      "export CMAKE='cmake'",
+      "export MAKE='make'",
+      "export PERL='perl'",
+      "export PKG_CONFIG_LIBDIR=\"$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig\"",
+      "export PKG_CONFIG_PATH=\"\"",
+      "export PYTHONUTF8=\"1\"",
+      "export CPPFLAGS=\"-I$SYSROOT/include\"",
+      "export LDFLAGS=\"-L$SYSROOT/lib\"",
+      "export LIBRARY_PATH=\"$SYSROOT/lib\"",
+      "export XDG_DATA_DIRS=\"$SYSROOT/share\""
+    ],
+    "recipes": {
+      "adwaita-icon-theme": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/adwaita-icon-theme/build @ROOT@/build/msys2-ucrt64/adwaita-icon-theme/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gtk"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [
+          "\"$SYSROOT/bin/gtk4-update-icon-cache\" -q -t -f \"$SYSROOT/share/icons/Adwaita\""
+        ],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "appstream": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/appstream/build @ROOT@/build/msys2-ucrt64/appstream/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dsystemd=false -Dapidocs=false -Dinstall-docs=false -Ddocs=false -Dman=false -Dqt=false -Dvapi=false -Dgir=false -Dstemming=false -Dsvg-support=false -Dzstd-support=false -Dapt-support=false -Dcompose=false -Ddisplay-detection=none -Dblake3-support=false -Dbash-completion=false -Dstatic-analysis=false -Dmaintainer=false -Dtools=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "curl",
+          "libxml2",
+          "libxmlb",
+          "libfyaml",
+          "gettext"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "cairo": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/cairo/build @ROOT@/build/msys2-ucrt64/cairo/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=disabled -Dfontconfig=enabled -Dfreetype=enabled -Dxlib=disabled -Dxcb=disabled -Dc_link_args=-Wl,--undefined=_tls_used ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "pixman",
+          "freetype",
+          "fontconfig",
+          "libpng",
+          "glib-base"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "curl": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/curl/src -B @ROOT@/build/msys2-ucrt64/curl/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DCURL_USE_OPENSSL=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBPSL=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DCURL_DISABLE_LDAP=ON -DENABLE_ARES=OFF -DENABLE_IDN2=OFF -DCURL_USE_SCHANNEL=ON",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "directx-headers": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/directx-headers/src -B @ROOT@/build/msys2-ucrt64/directx-headers/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DDXHEADERS_INSTALL=ON -DDXHEADERS_BUILD_TEST=OFF -DDXHEADERS_BUILD_GOOGLE_TEST=OFF -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "windows"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "directxmath": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/directxmath/src -B @ROOT@/build/msys2-ucrt64/directxmath/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "windows"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "egl-headers": {
+        "build": "data",
+        "configure_cmd": null,
+        "data": {
+          "install_files": {
+            "api/EGL": "include/EGL",
+            "api/KHR/khrplatform.h": "include/KHR"
+          },
+          "text_files": {
+            "lib/pkgconfig/egl.pc": "prefix=@PREFIX@\nexec_prefix=${prefix}\nincludedir=${prefix}/include\n\nName: egl\nDescription: EGL header files (Khronos EGL-Registry)\nVersion: 1.5\nCflags: -I${includedir}\nLibs:"
+          }
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "windows"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "expat": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/expat/src -B @ROOT@/build/msys2-ucrt64/expat/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DEXPAT_SHARED_LIBS=OFF -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_BUILD_DOCS=OFF -DEXPAT_BUILD_TOOLS=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-ucrt64/expat/build --output-on-failure -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "fontconfig": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/fontconfig/build @ROOT@/build/msys2-ucrt64/fontconfig/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Ddoc=disabled -Dtests=disabled -Dtools=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "expat",
+          "freetype"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [
+          "fontconfig-0001-install-conf-d-as-regular-files.patch",
+          "fontconfig-0002-absolute-confdir-in-fonts-conf.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "freetype": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/freetype/src -B @ROOT@/build/msys2-ucrt64/freetype/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DFT_DISABLE_BROTLI=TRUE -DFT_DISABLE_BZIP2=TRUE -DFT_DISABLE_HARFBUZZ=TRUE -DFT_DISABLE_PNG=TRUE -DFT_ENABLE_ZLIB=TRUE -DBUILD_SHARED_LIBS=ON",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "fribidi": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/fribidi/build @ROOT@/build/msys2-ucrt64/fribidi/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Ddocs=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/fribidi/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "gdk-pixbuf": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gdk-pixbuf/build @ROOT@/build/msys2-ucrt64/gdk-pixbuf/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dgtk_doc=false -Dintrospection=enabled -Dman=false -Dtests=true -Dbuiltin_loaders=all ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "libpng",
+          "libjpeg-turbo",
+          "libtiff"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/gdk-pixbuf/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "gettext": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/gettext/src/gettext-runtime &&  ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --enable-shared --disable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libiconv"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gl-headers": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gl-headers/build @ROOT@/build/msys2-ucrt64/gl-headers/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dglext=enabled -Dwglext=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "glib": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/glib/build @ROOT@/build/msys2-ucrt64/glib/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=true -Dgtk_doc=false -Dintrospection=enabled -Dselinux=disabled -Dlibmount=disabled -Ddtrace=disabled -Dnls=enabled -Dglib_debug=disabled -Dlibelf=disabled -Dsystemtap=disabled -Dsysprof=disabled -Dc_link_args=-Wl,--undefined=_tls_used ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib-base",
+          "gobject-introspection"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/glib/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "glib-base": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/glib-base/build @ROOT@/build/msys2-ucrt64/glib-base/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=false -Dgtk_doc=false -Dintrospection=disabled -Dselinux=disabled -Dlibmount=disabled -Ddtrace=disabled -Dnls=enabled -Dglib_debug=disabled -Dlibelf=disabled -Dsystemtap=disabled -Dsysprof=disabled -Dc_link_args=-Wl,--undefined=_tls_used ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib",
+          "libffi",
+          "pcre2",
+          "libiconv",
+          "gettext"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "glslang": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/glslang/src -B @ROOT@/build/msys2-ucrt64/glslang/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_TESTING=OFF -DENABLE_CTEST=OFF -DENABLE_OPT=ON -DALLOW_EXTERNAL_SPIRV_TOOLS=ON -DENABLE_GLSLANG_BINARIES=OFF -DENABLE_GLSLANG_JS=OFF -DENABLE_GLSLANG_WEB=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "spirv-tools",
+          "spirv-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gobject-introspection": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gobject-introspection/build @ROOT@/build/msys2-ucrt64/gobject-introspection/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=true -Dgtk_doc=false -Ddoctool=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib-base",
+          "libffi",
+          "cairo"
+        ],
+        "known_failures": [
+          "gobject-introspection:test_scanner.py"
+        ],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "env GI_SCANNER_DISABLE_CACHE=1 meson test -C @ROOT@/build/msys2-ucrt64/gobject-introspection/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {
+          "GI_SCANNER_DISABLE_CACHE": "1"
+        }
+      },
+      "graphene": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/graphene/build @ROOT@/build/msys2-ucrt64/graphene/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=false -Dintrospection=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gst-plugins-bad": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gst-plugins-bad/build @ROOT@/build/msys2-ucrt64/gst-plugins-bad/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=disabled -Dexamples=disabled -Ddoc=disabled -Dintrospection=disabled -Dauto_features=disabled -Dgpl=disabled -Dd3d12=enabled -Dd3d11=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gstreamer",
+          "gst-plugins-base",
+          "glib",
+          "directx-headers",
+          "directxmath"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [
+          "gst-plugins-bad-0001-check-xaml-interop-header.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gst-plugins-base": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gst-plugins-base/build @ROOT@/build/msys2-ucrt64/gst-plugins-base/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dgl=enabled -Daudioconvert=enabled -Daudioresample=enabled -Dplayback=enabled -Dtypefind=enabled -Dvideoconvertscale=enabled -Dvolume=enabled -Dogg=enabled -Dopus=enabled -Dvorbis=enabled -Dpango=enabled -Dvideotestsrc=enabled -Daudiotestsrc=enabled -Dtests=disabled -Dexamples=disabled -Ddoc=disabled -Dintrospection=disabled -Dauto_features=disabled -Dgl_winsys=win32 -Dgl_api=opengl -Dgl_platform=wgl ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gstreamer",
+          "glib",
+          "pango",
+          "cairo",
+          "libogg",
+          "libopus",
+          "libvorbis",
+          "gl-headers"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {
+          "subprojects/gl-headers": "gl-headers"
+        },
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gst-plugins-good": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gst-plugins-good/build @ROOT@/build/msys2-ucrt64/gst-plugins-good/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dmatroska=enabled -Dvpx=enabled -Dautodetect=enabled -Daudioparsers=enabled -Dwavparse=enabled -Disomp4=enabled -Ddeinterlace=enabled -Dtests=disabled -Dexamples=disabled -Ddoc=disabled -Dauto_features=disabled -Ddirectsound=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gstreamer",
+          "gst-plugins-base",
+          "glib",
+          "libvpx"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gstreamer": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gstreamer/build @ROOT@/build/msys2-ucrt64/gstreamer/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=disabled -Dexamples=disabled -Dbenchmarks=disabled -Ddoc=disabled -Dintrospection=disabled -Dlibunwind=disabled -Dlibdw=disabled -Ddbghelp=disabled -Dtools=enabled -Dauto_features=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "gtk": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/gtk/build @ROOT@/build/msys2-ucrt64/gtk/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dbuild-tests=true -Dbuild-testsuite=false -Dbuild-demos=true -Dbuild-examples=false -Ddocumentation=false -Dman-pages=false -Dintrospection=enabled -Dvulkan=enabled -Dmedia-gstreamer=enabled -Dsysprof=disabled -Dcloudproviders=disabled -Dtracker=disabled -Dcolord=disabled -Dprint-cups=disabled -Dx11-backend=false -Dwayland-backend=false -Dbroadway-backend=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "cairo",
+          "pango",
+          "gdk-pixbuf",
+          "graphene",
+          "json-glib",
+          "libepoxy",
+          "fontconfig",
+          "freetype",
+          "harfbuzz",
+          "gobject-introspection",
+          "vulkan-loader",
+          "shaderc",
+          "gstreamer",
+          "gst-plugins-base",
+          "gst-plugins-bad",
+          "directx-headers"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/gtk/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "harfbuzz": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/harfbuzz/build @ROOT@/build/msys2-ucrt64/harfbuzz/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dcairo=disabled -Dglib=enabled -Dgobject=enabled -Dicu=disabled -Dfreetype=enabled -Dintrospection=enabled -Ddocs=disabled -Dtests=disabled -Draster=disabled -Dvector=disabled -Dgpu=disabled -Ddirectwrite=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "harfbuzz-base",
+          "freetype",
+          "glib",
+          "gobject-introspection"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "harfbuzz-base": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/harfbuzz-base/build @ROOT@/build/msys2-ucrt64/harfbuzz-base/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dcairo=disabled -Dglib=enabled -Dgobject=disabled -Dicu=disabled -Dfreetype=enabled -Dintrospection=disabled -Ddocs=disabled -Dtests=disabled -Draster=disabled -Dvector=disabled -Dgpu=disabled -Ddirectwrite=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "freetype"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "json-glib": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/json-glib/build @ROOT@/build/msys2-ucrt64/json-glib/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dtests=false -Dintrospection=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libadwaita": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/libadwaita/build @ROOT@/build/msys2-ucrt64/libadwaita/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dtests=true -Dintrospection=enabled -Ddocumentation=false -Dvapi=false -Dexamples=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "gtk",
+          "glib",
+          "graphene",
+          "pango",
+          "fribidi",
+          "gobject-introspection"
+        ],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/libadwaita/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "libdrm": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/libdrm/build @ROOT@/build/msys2-ucrt64/libdrm/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libpciaccess"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libepoxy": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/libepoxy/build @ROOT@/build/msys2-ucrt64/libepoxy/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dtests=false -Ddocs=false -Degl=no ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "egl-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libffi": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libffi/src &&  ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-docs --enable-shared --disable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "shared",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libfyaml": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libfyaml/src -B @ROOT@/build/msys2-ucrt64/libfyaml/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libiconv": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libiconv/src &&  ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --enable-shared --disable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libjpeg-turbo": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libjpeg-turbo/src -B @ROOT@/build/msys2-ucrt64/libjpeg-turbo/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_TURBOJPEG=OFF -DWITH_SIMD=ON -DWITH_TOOLS=OFF -DWITH_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libogg": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libogg/src -B @ROOT@/build/msys2-ucrt64/libogg/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_TESTING=OFF -DINSTALL_DOCS=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libopus": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/libopus/build @ROOT@/build/msys2-ucrt64/libopus/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dasm=disabled -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libpciaccess": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/libpciaccess/build @ROOT@/build/msys2-ucrt64/libpciaccess/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "xorgproto"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libpng": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libpng/src -B @ROOT@/build/msys2-ucrt64/libpng/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DPNG_SHARED=OFF -DPNG_STATIC=ON -DPNG_EXECUTABLES=OFF -DPNG_TESTS=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "libpng-0001-tests-against-static-library.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "ctest --test-dir @ROOT@/build/msys2-ucrt64/libpng/build --output-on-failure -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "libpthread-stubs": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libpthread-stubs/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libtiff": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libtiff/src -B @ROOT@/build/msys2-ucrt64/libtiff/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF -DCMAKE_REQUIRED_LIBRARIES=-lm -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-docs=OFF -Dtiff-contrib=OFF -Dtiff-jbig=OFF -Dtiff-lerc=OFF -Dtiff-lzma=OFF -Dtiff-zstd=OFF -Dtiff-webp=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib",
+          "libjpeg-turbo"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libvorbis": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libvorbis/src &&  ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-oggtest --disable-examples --disable-docs --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libogg"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libvpx": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libvpx/src &&  ./configure --prefix=@ROOT@/out/msys2-ucrt64 --disable-shared --enable-static --enable-vp8 --enable-vp9 --enable-vp9-highbitdepth --enable-vp9-temporal-denoising --enable-experimental --enable-runtime-cpu-detect --enable-postproc --disable-unit-tests --disable-examples --disable-docs --disable-install-docs --disable-install-srcs --target=x86_64-win64-gcc --as=nasm",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libx11": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libx11/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "xtrans",
+          "libxcb"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxau": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxau/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxcb": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxcb/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libpthread-stubs",
+          "xcb-proto",
+          "libxau"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxcursor": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxcursor/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxrender",
+          "libxfixes"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxdamage": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxdamage/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxfixes"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxext": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxext/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxfixes": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxfixes/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxi": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxi/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxext",
+          "libxfixes"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxinerama": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/libxinerama/build @ROOT@/build/msys2-ucrt64/libxinerama/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false  ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "xorgproto",
+          "libx11",
+          "libxext"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxml2": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/libxml2/src -B @ROOT@/build/msys2-ucrt64/libxml2/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF -DLIBXML2_WITH_PYTHON=OFF -DLIBXML2_WITH_ICU=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_ZSTD=OFF -DLIBXML2_WITH_HTTP=OFF -DLIBXML2_WITH_FTP=OFF -DLIBXML2_WITH_ICONV=ON -DLIBXML2_WITH_ZLIB=ON -DLIBXML2_WITH_TESTS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "zlib",
+          "libiconv"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxmlb": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/libxmlb/build @ROOT@/build/msys2-ucrt64/libxmlb/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dlzma=enabled -Dgtkdoc=false -Dintrospection=false -Dtests=false -Dcli=false ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "xz"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxrandr": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxrandr/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxext",
+          "libxrender"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxrender": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxrender/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxshmfence": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxshmfence/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "libxxf86vm": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/libxxf86vm/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros",
+          "xorgproto",
+          "libx11",
+          "libxext"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "mesa": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/mesa/build @ROOT@/build/msys2-ucrt64/mesa/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dglx=dri -Degl=enabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dgallium-drivers=softpipe -Dvulkan-drivers= -Dvideo-codecs= -Dplatforms=x11 -Dxlib-lease=disabled -Dbuild-tests=false -Dvalgrind=disabled -Dlmsensors=disabled -Dzstd=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "libdrm",
+          "libpciaccess",
+          "libxshmfence",
+          "xorgproto",
+          "libx11",
+          "libxext",
+          "libxcb",
+          "libxxf86vm",
+          "expat",
+          "zlib"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "openssl": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/openssl/src &&  ./config --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib --openssldir=/etc/ssl no-shared no-docs no-tests no-fips no-legacy",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "pango": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/pango/build @ROOT@/build/msys2-ucrt64/pango/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=shared -Dprefer_static=false -Dgtk_doc=false -Dintrospection=enabled -Dman-pages=false -Dfontconfig=enabled -Dfreetype=enabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "harfbuzz",
+          "fribidi",
+          "fontconfig",
+          "freetype",
+          "cairo"
+        ],
+        "known_failures": [
+          "pango:test-font",
+          "pango:test-fonts",
+          "pango:test-font-data"
+        ],
+        "libtype": "shared",
+        "patches": [
+          "pango-0001-test-font-compare-normalized-path.patch",
+          "pango-0002-tests-use-installed-fontconfig.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "env PANGOCAIRO_BACKEND=fc meson test -C @ROOT@/build/msys2-ucrt64/pango/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {
+          "PANGOCAIRO_BACKEND": "fc"
+        }
+      },
+      "pcre2": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/pcre2/src -B @ROOT@/build/msys2-ucrt64/pcre2/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DPCRE2_BUILD_PCRE2_16=OFF -DPCRE2_BUILD_PCRE2_32=OFF -DPCRE2_BUILD_PCRE2GREP=OFF -DPCRE2_BUILD_TESTS=OFF -DPCRE2_SUPPORT_JIT=OFF -DPCRE2_SUPPORT_UNICODE=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "pixman": {
+        "build": "meson",
+        "configure_cmd": "meson setup @ROOT@/build/msys2-ucrt64/pixman/build @ROOT@/build/msys2-ucrt64/pixman/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dtests=disabled -Ddemos=disabled -Dgtk=disabled -Dlibpng=disabled ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "shaderc": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/shaderc/src -B @ROOT@/build/msys2-ucrt64/shaderc/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON -DSHADERC_ENABLE_INSTALL=ON -DSHADERC_ALLOW_EXTERNAL_LIBRARY=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glslang",
+          "spirv-tools",
+          "spirv-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "shaderc-0001-skip-shared-variant.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {
+          "third_party/glslang": "glslang",
+          "third_party/spirv-headers": "spirv-headers",
+          "third_party/spirv-tools": "spirv-tools"
+        },
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "shared-mime-info": {
+        "build": "meson",
+        "configure_cmd": "env GETTEXTDATADIR=\"@ROOT@/build/msys2-ucrt64/shared-mime-info/src/data\" meson setup @ROOT@/build/msys2-ucrt64/shared-mime-info/build @ROOT@/build/msys2-ucrt64/shared-mime-info/src --prefix=@ROOT@/out/msys2-ucrt64 --libdir=lib -Dbuildtype=release -Ddefault_library=static -Dprefer_static=false -Dbuild-tools=true -Dbuild-translations=true -Dbuild-tests=true -Dupdate-mimedb=true ",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "glib",
+          "libxml2"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "shared-mime-info-0001-tests-absolute-bash.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": "meson test -C @ROOT@/build/msys2-ucrt64/shared-mime-info/build --print-errorlogs -j 1",
+        "test_enabled": true,
+        "test_env": {}
+      },
+      "spirv-headers": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/spirv-headers/src -B @ROOT@/build/msys2-ucrt64/spirv-headers/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "spirv-tools": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/spirv-tools/src -B @ROOT@/build/msys2-ucrt64/spirv-tools/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF -DSPIRV_SKIP_EXECUTABLES=ON -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "spirv-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "spirv-tools-0001-skip-shared-variant.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {
+          "external/spirv-headers": "spirv-headers"
+        },
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "util-macros": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/util-macros/src &&  ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "vulkan-headers": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/vulkan-headers/src -B @ROOT@/build/msys2-ucrt64/vulkan-headers/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "vulkan-loader": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/vulkan-loader/src -B @ROOT@/build/msys2-ucrt64/vulkan-loader/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DBUILD_TESTS=OFF -DBUILD_WSI_WAYLAND_SUPPORT=OFF -DBUILD_WSI_DIRECTFB_SUPPORT=OFF -DBUILD_WSI_XCB_SUPPORT=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "vulkan-headers"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "vulkan-loader-0001-static-library-support.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xcb-proto": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/xcb-proto/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xorgproto": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/xorgproto/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xtrans": {
+        "build": "autotools",
+        "configure_cmd": "cd @ROOT@/build/msys2-ucrt64/xtrans/src && ACLOCAL_PATH=$SYSROOT/share/aclocal ./configure -C --prefix=@ROOT@/out/msys2-ucrt64 --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared --enable-static",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [
+          "util-macros"
+        ],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [
+          "linux"
+        ],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "xz": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/xz/src -B @ROOT@/build/msys2-ucrt64/xz/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DXZ_TOOL_XZ=OFF -DXZ_TOOL_XZDEC=OFF -DXZ_TOOL_LZMADEC=OFF -DXZ_TOOL_LZMAINFO=OFF -DXZ_TOOL_SCRIPTS=OFF -DXZ_TOOL_SYMLINKS=OFF -DXZ_NLS=OFF -DXZ_DOC=OFF -DXZ_DOXYGEN=OFF -DXZ_LZIP_DECODER=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      },
+      "zlib": {
+        "build": "cmake",
+        "configure_cmd": "cmake -S @ROOT@/build/msys2-ucrt64/zlib/src -B @ROOT@/build/msys2-ucrt64/zlib/build -G Ninja -DCMAKE_INSTALL_PREFIX=@ROOT@/out/msys2-ucrt64 -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_ROOT_PATH=@ROOT@/out/msys2-ucrt64 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH -DCMAKE_PREFIX_PATH=@ROOT@/out/msys2-ucrt64 -DZLIB_BUILD_SHARED=OFF -DZLIB_BUILD_STATIC=ON -DZLIB_BUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF",
+        "data": {
+          "install_files": {},
+          "text_files": {}
+        },
+        "deps": [],
+        "known_failures": [],
+        "libtype": "static",
+        "patches": [
+          "zlib-0001-drop-windows-static-suffix.patch"
+        ],
+        "platforms": [],
+        "post_install": [],
+        "submodules": {},
+        "test_cmd": null,
+        "test_enabled": false,
+        "test_env": {}
+      }
+    }
+  }
+}

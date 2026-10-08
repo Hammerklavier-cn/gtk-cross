@@ -19,9 +19,6 @@ meson:
     - -Dgobject=disabled
     - -Dicu=disabled
     - -Dfreetype=enabled
-    # pango 的 USE_HB_DWRITE 需要 hb_directwrite_face_create（DirectWrite 整形），
-    # 对齐 MSYS2 官方包（其 libharfbuzz 链接 DWrite.dll）
-    - -Ddirectwrite=enabled
     # test it
     - -Dintrospection=disabled
     - -Ddocs=disabled
@@ -33,3 +30,14 @@ meson:
     - -Draster=disabled
     - -Dvector=disabled
     - -Dgpu=disabled
+# DirectWrite 是 Windows 独有的字体后端：上游 meson.build 里整段以
+# `host_machine.system() == 'windows'` 为门（实测 harfbuzz 14.3.1），Linux 上
+# 传 -Ddirectwrite=enabled 会被静默忽略——不报错，但它属于"把 Windows 配置
+# 全局启用"的反例，故收进 windows 家族块，让 recipe 声明的意图与实际生效范围一致。
+targets:
+  - for: [windows]
+    meson:
+      options:
+        # pango 的 USE_HB_DWRITE 需要 hb_directwrite_face_create（DirectWrite 整形），
+        # 对齐 MSYS2 官方包（其 libharfbuzz 链接 DWrite.dll）
+        - -Ddirectwrite=enabled

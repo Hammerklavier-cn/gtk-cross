@@ -1,0 +1,24 @@
+name: libxcb
+version: 1.17.0
+source:
+  url: https://www.x.org/releases/individual/xcb/libxcb-1.17.0.tar.xz
+build: autotools
+platforms: [linux]
+# X C Binding：libX11 的传输层，也是 cairo `-Dxcb=enabled` / GTK x11 后端的底座。
+# 实测本包 tarball 根目录**只有 configure**（没有 meson.build），故走 autotools。
+# 构建期需要 xcb-proto 的 xcbgen 代码生成器把协议 XML 生成 C 源，所以它必须在
+# deps 里；pthread-stubs.pc 也是它的探测对象（见 recipes/libpthread-stubs.yaml）。
+#
+# 与 Windows 目标无关：本包只被 linux 家族块里的 cairo/gtk 依赖链引入，msys2-*
+# 的构建计划里没有它。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+  - xorgproto
+  - libpthread-stubs
+  - xcb-proto
+  - libxau
+test:
+  enabled: false

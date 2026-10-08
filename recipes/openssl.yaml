@@ -1,0 +1,89 @@
+name: openssl
+version: 3.5.8
+source:
+  # 只有 GitHub 的 release 资产是真身（实测 53,213,818 字节，sha256 见
+  # versions.lock.yaml）。两条看着像候选源的路都验证过、都不采用：
+  #   https://openssl-library.org/source/binaries/openssl-3.5.8.tar.gz
+  #     → 31,669 字节的 HTML 错误页（HEAD 返 200、Range GET 返 206，只有真下下来
+  #       才看得出是 404 页；`file` 判为 HTML document）。
+  #   https://www.openssl.org/source/openssl-3.5.8.tar.gz
+  #     → 301 之后续连 github.com，最终就是上面那个 release 资产（curl -L 实测），
+  #       列为镜像不增加任何独立冗余。
+  url: https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz
+build: autotools
+# 只属于 Linux 侧：Windows 的 TLS 后端是 schannel（见 recipes/curl.yaml 的 windows
+# 块），在那里自建 OpenSSL 既无必要，又会把 -lcrypto 与系统实现摆在一起。
+platforms: [linux]
+# curl 的 TLS 后端。选 OpenSSL 而不是 mbedTLS/GnuTLS 的理由（以及被否掉的方案）
+# 记在 recipes/platform-notes.md 的 OpenSSL 一节。
+#
+# 上游不用 autoconf 也不用 CMake：顶层没有 CMakeLists.txt（实测 openssl-3.5.8
+# 归档），入口是 perl 的 ./Configure，而 ./config 在 3.5.8 里只是
+# `THERE=`dirname $0`; exec "$THERE/Configure" "$@"` 的三行包装 —— 给它平台名
+# 或不给都一样，不给时 Configure 自己探测宿主（Configure:1271-1285
+# "If no target was given, try guessing"）。arch 由宿主决定，与 recipes/libvpx.yaml
+# 缺省 --target 同理，所以这里没有任何 arch 字面量（linux-native 要同时服务
+# x86_64 与 aarch64 两个 CI 容器）。
+# 宿主前置只有 perl ≥ 5.10（NOTES-PERL.md:28）。上游还提醒发行版打包差异：Debian
+# 系（CI 的两个 ubuntu 容器）装 `perl` 就连 core 模块一起装；RPM 系"要装
+# perl-core 而不是 perl"（NOTES-PERL.md:21-24）。这条在本机不成立——实测
+# Fedora 44 只装了 perl-5.42.3-525.fc44、`rpm -q perl-core` 报未安装，而下面
+# 整条 configure 命令照样跑通。两个"看起来要装包"的模块都不涉及：Text::Template
+# 上游在源码里带了兜底副本（:74-76），Test::More 只在跑测试时才需要（:80-85）
+# 而下面把测试关了。
+autotools:
+  # 走 raw 支（只注入 --prefix），不用常规支。原因实测过，而且是**静默**的那一类：
+  # 常规支还会补 `-C` 与 `--disable-shared --enable-static`，而 ./config 对 autoconf
+  # 式参数一律退出 0、不报错；其中库形态那两条实测完全不生效（只跑 configure，数生成
+  # 的 Makefile 里 `libcrypto.so` 出现次数）：
+  #   给 --disable-shared --enable-static ⇒ 236 处（仍在构建共享库！）
+  #   给上游关键字 no-shared            ⇒   0 处
+  #   什么都不给                        ⇒ 236 处
+  # 也就是说用常规支会得到一个"recipe 声明静态、产物却是 .so"的 sysroot，且没有任何
+  # 响动。库形态因此必须在这里用 no-shared 写全。
+  raw_configure: true
+  script: ./config
+  # 不能用默认 install：它 = install_sw + install_ssldirs（+ install_docs），
+  # 而 install_ssldirs 写 $(DESTDIR)$(OPENSSLDIR)（unix-Makefile.tmpl:707-750
+  # 是唯一写该目录的目标，另有 install_fips:679-691）——下面的 --openssldir 是
+  # 运行期绝对路径，于是它会试图往 /etc/ssl 装 openssl.cnf。
+  install_target: install_sw
+  configure:
+    # 必须显式给 libdir。默认值 = "lib$target{multilib}"（unix-Makefile.tmpl:329-333），
+    # 而 linux-x86_64 的 conf 里 multilib => "64"（Configurations/10-main.conf:894）、
+    # linux-aarch64 没有这一项 ⇒ 漏写就是 x86_64 装进 $SYSROOT/lib64、在 aarch64 上
+    # 装进 $SYSROOT/lib，同一份 target 定义在两个 CI 容器里产出不同布局，且 x86_64
+    # 一侧必被 sysroot 的 lib64 守卫拦下。上游 INSTALL.md:343-353 也正是这么建议的
+    # （"Please use --libdir=lib to override"）。本机实测（x86_64，只跑 configure）：
+    # 带这条时生成的 Makefile 是 LIBDIR=lib，删掉这条就变成 LIBDIR=lib64。
+    - --libdir=lib
+    # 绝对路径 ⇒ OPENSSLDIR 原样使用（unix-Makefile.tmpl:312-325 的三分支逻辑；
+    # 相对路径会被拼到 --prefix 下面）。选 /etc/ssl 是为了让**运行期**直接命中
+    # 发行版信任库：Ubuntu 是 /etc/ssl/certs/ca-certificates.crt，Fedora 的
+    # /etc/ssl/certs 与 cert.pem 是指向 /etc/pki/tls 的符号链接。装进 sysroot
+    # （相对路径）反而要求使用者设 SSL_CERT_FILE/SSL_CERT_DIR。
+    # 安装阶段不碰这个目录，靠的是上面的 install_target: install_sw。
+    - --openssldir=/etc/ssl
+    # 静态优先（项目 default_library: static）
+    - no-shared
+    # 文档：默认 all = build_sw + build_docs（unix-Makefile.tmpl:548），不关掉就得
+    # 为 man/html 准备 pod2man 等 perl 文档工具链，CI 的 apt 列表里没有。
+    - no-docs
+    # 测试程序也不构建。原因不是"不想跑"，而是框架跑不了：上游测试输出既不是
+    # meson 也不是 ctest 的行式，Builder._parse_test_output（_TEST_LINE/_CTEST_LINE）
+    # 认不出来，而 AutotoolsEngine 根本没有 test_command()。手工验证见
+    # recipes/platform-notes.md 的 OpenSSL 一节。
+    - no-tests
+    # FIPS/legacy 是 provider **模块**（.so），会随 install_modules 落进
+    # lib/os-modules/：静态-only 的 sysroot 里不该有游离 .so，而且
+    #  - legacy 只为 MD4/DES 一类旧算法存在，TLS 1.2/1.3 用不到；
+    #  - fips 需要运行期 fipsmodule.cnf（只有 install_fips 才生成），本项目不做认证。
+    # 两者都在 Configure 的 @disablables 里（:484、:496）。默认 provider 不受影响。
+    - no-fips
+    - no-legacy
+# 线程保持开启（上游默认）：静态链进 .so 时需要的 -lpthread/-ldl 由
+# exporters/pkg-config/libcrypto.pc.in 的 `Libs.private: @LDLIBS@` 带出，
+# 消费方按 pkg-config --static 查询即可（框架的 prefer_static 就是这个）。
+test:
+  # 见上面 no-tests 的注释。
+  enabled: false
