@@ -547,6 +547,7 @@ mesa 的 xrandr 需求在 `-Dxlib-lease=disabled` 后不成立）。真正的兜
 | 消费者 | 缺的宿主模块 | 上游探测位置 | 失败原文 |
 | --- | --- | --- | --- |
 | mesa | `python3-mako`（+ `python3-packaging`、`python3-yaml`） | `meson.build:1102-1141`：对 `python3.16 … python3 python` 逐个 `run_command` 探测 `import mako` / `import yaml` / `packaging.version` | arm64 容器上 `src/meson.build:1140: ERROR: Python (3.x) mako module >= 0.8.0 required to build mesa.` |
+| gobject-introspection | `python3-markdown`（**必须与 mako 成对**） | 没有 configure 期探测——是 `tests/scanner/test_docwriter.py:14` 的 `@unittest.skipUnless(HAS_MAKO)` 运行期开关，加上 `giscanner/docwriter.py:30` 的 `import markdown` | 补 mako 之后：65 项里 `test_docwriter.py` FAIL（exit 1，`ImportError: No module named 'markdown'`） |
 
 判据同样取自源码而非印象：那三条 import 在 `meson.build` 里都是 `check: false`
 的 `run_command`，任一失败就 `continue` 到下一个候选解释器，全部候选失败才
@@ -557,9 +558,23 @@ mesa 的 xrandr 需求在 `-Dxlib-lease=disabled` 后不成立）。真正的兜
 "碰巧有"不算有。CI 的 apt 名单已按此补齐（见 `.github/workflows/ci.yml` 的
 "安装宿主构建工具"注释）。
 
-注意 mesa **不是**唯一会走到宿主 Python 的包，但它是对模块要求最硬的一个
-（缺即 `error()` 中止 configure，而不是静默降级）。gobject-introspection 也有
-`import mako`（`meson.build:268`），但它只门控 doctool 那一支，本闭包未开。
+**这里有一条本文件上一版写错的判断，值得单独记下来**：上一版写着
+"gobject-introspection 也有 `import mako`，但它只门控 doctool 那一支，本闭包未开"
+——前半句对、结论错。`-Ddoctool=disabled` 关掉的只是 g-i **自己**的 docwriter
+构建支路，管不到 `tests/scanner/` 下那些**作为独立 meson test 运行**的
+Python 测试：`test_docwriter.py` 顶部就是 `try: import mako / except: HAS_MAKO
+= False`，配上 `@unittest.skipUnless(HAS_MAKO, "mako missing")`。所以给 mesa
+补 mako 会**顺带**把这个测试从"内部跳过（exit 0，meson 记 OK）"改成"真的执行"，
+而它真正需要的是 mako + markdown 两个——只补 mako 就让 CI 多出一条 FAIL。
+
+教训是通用的：**宿主模块的影响面要按"谁在运行期 import 它"来查，不能只看
+configure 期那几处 `run_command`**（那些是构建期硬门，探得到；测试里的
+`try/import` + `skipUnless` 才是隐形的软开关，探不到，而且"装上一个模块"
+这个动作本身就会把它翻到另一条分支）。做法：补任何一个宿主 Python 模块前，
+先 `grep -rn "import <mod>" <闭包内每个 src/>`，再看命中点是构建期还是
+`tests/`；本轮 `import mako` 在闭包内命中 mesa 多处 + g-i 两处，第二处正是
+这次漏掉的。上游把 `python3-mako` 与 `python3-markdown` 一起装
+（`.gitlab-ci/Dockerfile:43-44`）不是巧合。
 
 ## 框架侧的 Linux 专属隔离（不是 recipe 的事，但同属平台事实）
 
