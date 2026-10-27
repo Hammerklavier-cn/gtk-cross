@@ -11,7 +11,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gtkcross.export import export_sysroot, normalize_pc
+from gtkcross.export import (
+    _relocate_linkname,
+    _sysroot_forms,
+    export_sysroot,
+    normalize_pc,
+)
 
 PC_TEMPLATE = """\
 prefix={prefix}
@@ -245,6 +250,53 @@ class ExportSysrootTest(unittest.TestCase):
                 "gtk-cross-msys2-mingw64/lib/pkgconfig/foo.pc",
                 set(tf.getnames()),
             )
+
+
+class RelocateLinknameTest(unittest.TestCase):
+    """os.readlink 在 Windows 返回 NT 的 substitute name（`\\\\?\\C:\\...`）。
+
+    绝对目标才会被规范成那种形式，所以这条路径只能在 Windows 上碰到；用纯
+    函数测，免得依赖"能不能建符号链接"这种平台特权。
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.sysroot = Path(self._tmp.name) / "msys2-mingw64"
+        (self.sysroot / "lib").mkdir(parents=True)
+        self.link = self.sysroot / "lib" / "abs-link.dll.a"
+        self.forms = _sysroot_forms(self.sysroot)
+
+    def _relocate(self, linkname):
+        return _relocate_linkname(linkname, self.link, self.sysroot, self.forms)
+
+    def test_win32_file_prefix_is_relocated(self):
+        linkname = "\\\\?\\" + str(self.sysroot) + "\\lib\\libgtk-4.dll.a"
+        self.assertEqual(self._relocate(linkname), ("libgtk-4.dll.a", None))
+
+    def test_nt_substitute_name_prefix_is_relocated(self):
+        linkname = "\\??\\" + str(self.sysroot) + "\\lib\\libgtk-4.dll.a"
+        self.assertEqual(self._relocate(linkname), ("libgtk-4.dll.a", None))
+
+    def test_unc_prefix_is_relocated(self):
+        sysroot = Path("//server/share/sysroot")
+        linkname = "\\\\?\\UNC\\server\\share\\sysroot\\lib\\libfoo.a"
+        new, warning = _relocate_linkname(
+            linkname, sysroot / "lib" / "l.a", sysroot, _sysroot_forms(sysroot)
+        )
+        self.assertEqual((new, warning), ("libfoo.a", None))
+
+    def test_verbatim_target_outside_sysroot_is_kept_verbatim(self):
+        linkname = "\\\\?\\C:\\other\\libfoo.a"
+        new, warning = self._relocate(linkname)
+        self.assertEqual(new, linkname)
+        self.assertIn("sysroot 外", warning)
+
+    def test_sibling_directory_is_not_mistaken_for_the_sysroot(self):
+        linkname = os.path.join(str(self.sysroot) + "-extra", "lib", "libfoo.a")
+        new, warning = self._relocate(linkname)
+        self.assertEqual(new, linkname)
+        self.assertIn("sysroot 外", warning)
 
 
 if __name__ == "__main__":

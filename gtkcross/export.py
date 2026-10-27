@@ -112,11 +112,30 @@ def normalize_pc(text: str, sysroot: Path, pc_dir: Path | None = None) -> str:
     return text
 
 
+_VERBATIM_PREFIXES = ("//?/", "/??/")
+
+
+def _strip_verbatim(posix_link: str) -> str:
+    """Drop the NT path prefix ``os.readlink`` reports on Windows.
+
+    An absolute symlink target is stored as a reparse-point *substitute name*
+    (``\\??\\C:\\...``), and CPython turns the leading ``\\??\\`` into ``\\\\?\\``
+    before returning it.  Only absolute targets get that treatment: a relative
+    one keeps its original spelling, so this is a no-op for them.
+    """
+    for prefix in _VERBATIM_PREFIXES:
+        if posix_link.startswith(prefix + "UNC/"):
+            return "//" + posix_link[len(prefix) + 4:]
+        if posix_link.startswith(prefix):
+            return posix_link[len(prefix):]
+    return posix_link
+
+
 def _relocate_linkname(
     linkname: str, link_path: Path, sysroot: Path, forms: List[str]
 ) -> tuple[str, str | None]:
     """Turn an absolute symlink into sysroot into a relative one."""
-    posix_link = linkname.replace("\\", "/")
+    posix_link = _strip_verbatim(linkname.replace("\\", "/"))
     if not _is_absolute(posix_link):
         return linkname, None
 
