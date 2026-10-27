@@ -106,6 +106,36 @@ def cmd_doctor(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    from pathlib import Path
+
+    from .export import export_sysroot
+
+    project = ProjectConfig.load()
+    sysroot = project.sysroot(args.target)
+    try:
+        result = export_sysroot(
+            sysroot,
+            Path(args.output),
+            target=args.target,
+            archive_root=args.archive_root,
+            zstd_level=args.zstd_level,
+        )
+    except (ValueError, RuntimeError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    mib = result.size / (1024 * 1024)
+    print(f"exported {sysroot} -> {result.path}")
+    print(
+        f"  files: {result.files}  .pc: {result.pc_files}  "
+        f"size: {mib:.1f} MiB  sha256: {result.sha256}"
+    )
+    for warning in result.warnings:
+        print(f"  warning: {warning}")
+    return 0
+
+
 def cmd_lock(args) -> int:
     b = _builder(args)
     order = b.order(args.names)
@@ -174,6 +204,16 @@ def main(argv=None) -> int:
     sp = sub.add_parser("doctor", help="检查工具链")
     add_target(sp)
     sp.set_defaults(fn=cmd_doctor)
+
+    sp = sub.add_parser("export", help="把 sysroot 导出为可重定位归档")
+    add_target(sp)
+    sp.add_argument("-o", "--output", required=True,
+                    help="输出文件（.tar 或 .tar.zst）")
+    sp.add_argument("--archive-root", default=None,
+                    help="归档顶层目录（默认 gtk-cross-<target>）")
+    sp.add_argument("--zstd-level", type=int, default=15,
+                    help=".tar.zst 的 zstd 压缩级别（默认 15）")
+    sp.set_defaults(fn=cmd_export)
 
     sp = sub.add_parser("lock", help="下载源码并锁定 sha256（不构建）")
     add_target(sp)

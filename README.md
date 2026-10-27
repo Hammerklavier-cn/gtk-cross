@@ -87,6 +87,72 @@ aarch64 上都成立。真出现交叉工具链时（下表 `linux-mingw-x64` �
 > 最典型的是 msvcrt 没有 `en_US.UTF-8` 这个 POSIX 区域名（见 [NOTES.md](NOTES.md)
 > 的 libadwaita mingw64 条目）。
 
+## 发布产物（GitHub Release）
+
+Windows 两个 target 与 Linux 两个架构的 sysroot 都可以直接发布给外部消费者。
+推送 `v*` tag 会触发完整 CI；构建与自带测试全部通过后，对应的 job 把 sysroot
+导出为可重定位归档，`release` job 创建/更新 GitHub Release。也可以在 Actions
+里手动 dispatch 并填写 `release_tag`（构建当前分支 HEAD；若同名 tag 已存在但
+指向别的提交，发布 job 会报错，而不是发出错配的资产）。
+
+| 资产 | 平台 / CRT | 用途 |
+| --- | --- | --- |
+| `gtk-cross-msys2-mingw64-<tag>.tar.zst` | Windows / msvcrt | `x86_64-pc-windows-gnu` |
+| `gtk-cross-msys2-ucrt64-<tag>.tar.zst` | Windows / UCRT | `x86_64-pc-windows-gnullvm` / llvm-mingw |
+| `gtk-cross-linux-native-x86_64-<tag>.tar.zst` | Linux ELF x86_64 | 同架构原生链接/运行 |
+| `gtk-cross-linux-native-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | 同架构原生链接/运行 |
+
+`linux-native` 这个 target 名不带架构（同一份定义在两种宿主上成立）；发布资产
+必须带架构，因为同一个 tag 会在两个 runner 上各产出一份，顶层目录也按
+`gtk-cross-linux-native-<arch>/` 分开，避免解包时互相覆盖。
+
+归档内的 `.pc` 已把构建机的绝对 prefix 重写成 `${pcfiledir}/../..`，解包到任意
+目录都能用，**不需要 `PKG_CONFIG_SYSROOT_DIR`**。Windows 消费示例：
+
+```bash
+tar -xf gtk-cross-msys2-mingw64-v4.24.0-1.tar.zst
+S=$PWD/gtk-cross-msys2-mingw64
+export PKG_CONFIG_ALLOW_CROSS=1
+export PKG_CONFIG_LIBDIR="$S/lib/pkgconfig:$S/share/pkgconfig"
+export PKG_CONFIG_PATH=
+export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc
+export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+cargo build --target x86_64-pc-windows-gnu
+```
+
+Linux 原生消费示例（按宿主机架构选资产）：
+
+```bash
+tar -xf gtk-cross-linux-native-x86_64-v4.24.0-1.tar.zst
+S=$PWD/gtk-cross-linux-native-x86_64
+export PKG_CONFIG_LIBDIR="$S/lib/pkgconfig:$S/share/pkgconfig"
+export PKG_CONFIG_PATH=
+# 归档是重定位后的；.so 的 RUNPATH 仍指向构建机，运行时显式给库路径
+export LD_LIBRARY_PATH="$S/lib"
+```
+
+Windows 运行期还需要 GTK 的数据文件：`$S/bin/*.dll`、`$S/share`（至少
+`glib-2.0/schemas`、`icons`、`locale`）以及
+`$S/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache`，必须随 exe 一起分发；只拷 DLL
+会在启动时找不到 schema 或图片 loader。Linux 运行期同样需要 `$S/share`
+（schemas/icons/locale）与 `$S/lib/gdk-pixbuf-2.0/.../loaders.cache`，并且
+链接到 sysroot `.so` 的程序需要 `LD_LIBRARY_PATH="$S/lib"`（或在应用链接时写
+`-Wl,-rpath,$S/lib`）。
+
+本地也可以生成同样的归档（不发布）：
+
+```bash
+python -m gtkcross export -t msys2-mingw64 \
+    -o dist/gtk-cross-msys2-mingw64.tar.zst
+
+python -m gtkcross export -t linux-native \
+    --archive-root "gtk-cross-linux-native-$(uname -m)" \
+    -o "dist/gtk-cross-linux-native-$(uname -m).tar.zst"
+```
+
+导出只重定位 pkg-config 元数据（`.pc`）；`lib/cmake/*.cmake` 与 libtool `.la`
+里的绝对路径不会改写，这个归档的消费面是 pkg-config（meson / cargo）。
+
 ## recipe 的平台门控（targets: 选择器）
 
 Windows 专属的补丁、构建选项、依赖、测试环境**不再全局启用**：recipe 的

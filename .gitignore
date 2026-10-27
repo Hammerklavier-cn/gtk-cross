@@ -7,6 +7,8 @@ __pycache__/
 build/
 out/
 downloads/
+# 发布用 sysroot 归档（gtkcross export / CI release）
+dist/
 gtkcross-build.log
 gtkcross-events.log
 # CI 失败时收集的测试诊断（见 .github/workflows/ci.yml）
