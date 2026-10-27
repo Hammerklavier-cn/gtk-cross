@@ -6,6 +6,10 @@
 name: msys2-mingw64
 host: windows
 platform: win64
+# 目标 OS 家族：recipe 的 targets: 选择器按它匹配（windows 家族块在本目标生效）。
+# 原生工具链下它与 host 相同（缺省即回退到 host），显式写出是为了让"补丁/选项按
+# 目标 OS 门控"这件事在工具链定义里一眼可见。
+target_os: windows
 description: "MSYS2 mingw64 native (x86_64-w64-mingw32, GCC 16)"
 msys2_root: C:/msys64
 msystem: MINGW64

@@ -1,0 +1,16 @@
+name: libxshmfence
+version: 1.3.3
+source:
+  url: https://www.x.org/releases/individual/lib/libxshmfence-1.3.3.tar.xz
+build: autotools
+platforms: [linux]
+# 用共享内存实现 fence 的库（DRI3 路径需要）。实测 1.3.3 归档根目录只有
+# configure/configure.ac（无 meson.build），故走 autotools 并需要 ACLOCAL_PATH。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+  - xorgproto
+test:
+  enabled: false

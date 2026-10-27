@@ -12,6 +12,8 @@ source:
   # 与 pkg-config 文件（DirectXMath.pc），meson 两种探测方式都能命中。
   url: https://github.com/microsoft/DirectXMath/archive/apr2025/directxmath-apr2025.tar.gz
 build: cmake
+# 只属于 Windows：directx-headers 的数学库伴包，Linux 侧无人引用。
+platforms: [windows]
 # header-only：全部实现都在头文件里（all inline SIMD），没有库产物；
 # 静态/动态形态对本包无意义（框架注入的 BUILD_SHARED_LIBS=OFF 不影响
 # INTERFACE 目标）。

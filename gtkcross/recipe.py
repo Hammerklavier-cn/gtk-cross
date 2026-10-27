@@ -2,15 +2,75 @@
 
 A recipe is a declarative description of one dependency:
 source (url + sha256), build system, options, and per-target overrides.
+
+`targets:` is how a recipe says "this patch / option / dependency belongs only
+to one platform".  A selector is either an exact target name (`msys2-ucrt64`)
+or a toolchain OS family (`windows` — every target whose toolchain declares
+`target_os: windows`), and one block may list several selectors at once so
+that shared items are written once:
+
+    targets:
+      - for: [windows]                  # OS 家族：msys2-mingw64 + msys2-ucrt64 共用
+        meson:
+          options: [-Dc_link_args=-Wl,--undefined=_tls_used]
+        deps: [libiconv, gettext]
+      - for: [msys2-mingw64]            # 精确名，叠加在家族块之后
+        patches: [gtk-0001-fallback-to-windows-locale.patch]
+
+The legacy mapping form still works (each key is one selector):
+
+    targets:
+      msys2-mingw64:
+        patches: [gtk-0001-fallback-to-windows-locale.patch]
+
+`platforms:` is orthogonal and answers a different question — not "what does
+this package look like on each platform" but "does this package exist on this
+platform at all" (e.g. the X11/Mesa stack is only self-built on Linux, while
+egl-headers is only needed on Windows and would fight Mesa for include/EGL in
+the sysroot).  Selectors use the same language as `for:`; omitted means "all
+platforms".  `Builder.build` skips requests outside the current target and
+`Builder.order` raises when a package that *is* in scope depends on one that
+is not.
+
+Merge semantics relative to the recipe base — which is meant to hold only
+platform-neutral items:
+
+- items under the list keys in `_APPEND_PATHS` (`patches`, `deps`,
+  `submodules`, `meson.options`, `autotools.configure`,
+  `test.known_failures`) are **appended to the base list, whatever the
+  selector is**.  A block shared by several targets must only ever *add*:
+  with replace semantics `for: [msys2-mingw64, msys2-ucrt64]` would silently
+  drop the base patches/deps on both targets (the tests caught this);
+- dicts (`meson`/`cmake`/`autotools`/`test`/`source`/`data`) deep-merge and
+  their *leaf* values are replaced for the same key, so one platform can give
+  a different value to the same define;
+- scalars (`build`, `default_library`) are replaced;
+- OS-family blocks apply before exact-target blocks, so for the replace-y keys
+  the more specific block wins.  For appended lists the later block's items
+  just come later in the command line (meson/cmake honour the last occurrence
+  of a repeated `-D` key).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Tuple
 
 import yaml
+
+# OS 家族选择器（与 toolchains/*.yaml 的 target_os 取值一致）。
+OS_FAMILIES = ("windows", "linux", "darwin")
+
+# 按「追加」合并的列表路径；其余键按「替换」合并。
+_APPEND_PATHS = {
+    ("patches",),
+    ("deps",),
+    ("submodules",),
+    ("meson", "options"),
+    ("autotools", "configure"),
+    ("test", "known_failures"),
+}
 
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -22,6 +82,78 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
         else:
             out[k] = v
     return out
+
+
+def _merge(base: Dict[str, Any], override: Dict[str, Any],
+           path: Tuple[str, ...] = ()) -> Dict[str, Any]:
+    """Merge one override block into a field dict.
+
+    `_APPEND_PATHS` 下的列表追加到 base 之后（永不丢弃既有条目）；dict 深合并、
+    叶子值覆盖；其余（标量、非追加路径的列表）覆盖。
+    """
+    out = dict(base)
+    for k, v in override.items():
+        p = path + (k,)
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _merge(out[k], v, p)
+        elif p in _APPEND_PATHS and isinstance(v, list):
+            base_list = list(out.get(k) or [])
+            # 去重追加：一个块里同时写家族名和该家族的精确 target 名
+            # （`for: [windows, msys2-mingw64]`）时，同一份 body 会被拆成两个
+            # 匹配块，不去重就会把每条补丁/依赖/选项塞两遍。取值不同的选项
+            # （-Dfoo=1 / -Dfoo=2）字符串不同，不受影响，仍能后者覆盖前者。
+            out[k] = base_list + [item for item in v if item not in base_list]
+        else:
+            out[k] = v
+    return out
+
+
+def _normalize_targets(
+    name: str, targets: Any
+) -> List[Tuple[int, List[str], Dict[str, Any]]]:
+    """Return ordered (specificity, selectors, body) blocks; validate the shape.
+
+    specificity 0 = OS family, 1 = exact target name; it only decides the
+    *order* blocks are applied in (family first, so an exact-target block can
+    still win on dict/scalar keys).
+    """
+    if not targets:
+        return []
+    blocks: List[Tuple[int, List[str], Dict[str, Any]]] = []
+
+    def add(sel: Any, body: Dict[str, Any], where: str) -> None:
+        if not isinstance(sel, str) or not sel:
+            raise ValueError(f"{name}: {where} 的选择器必须是非空字符串")
+        if set(body) & {"for", "targets"}:
+            raise ValueError(f"{name}: {where} 的覆盖体里不能再写 for/targets")
+        spec = 0 if sel in OS_FAMILIES else 1
+        blocks.append((spec, [sel], body))
+
+    if isinstance(targets, dict):
+        for sel, body in targets.items():
+            if not isinstance(body, dict):
+                raise ValueError(f"{name}: targets.{sel} 必须是映射")
+            add(sel, body, f"targets.{sel}")
+    elif isinstance(targets, list):
+        for i, item in enumerate(targets):
+            if not isinstance(item, dict):
+                raise ValueError(f"{name}: targets[{i}] 必须是映射")
+            sel = item.get("for", item.get("targets"))
+            if sel is None:
+                raise ValueError(f"{name}: targets[{i}] 缺少 for: 选择器")
+            if isinstance(sel, str):
+                sel = [sel]
+            if not isinstance(sel, list) or not sel:
+                raise ValueError(f"{name}: targets[{i}].for 必须是字符串或字符串列表")
+            body = {k: v for k, v in item.items() if k not in ("for", "targets")}
+            for one in sel:
+                add(one, body, f"targets[{i}]")
+    else:
+        raise ValueError(f"{name}: targets 必须是映射或列表")
+
+    # 稳定排序：家族块先、精确 target 后；同类保持 YAML 书写顺序
+    blocks.sort(key=lambda b: b[0])
+    return blocks
 
 
 @dataclass
@@ -42,7 +174,16 @@ class Recipe:
     # 目标子目录 -> 依赖 recipe 名：解包后把依赖源码树复制到本包源码的子目录
     # （用于 tag 打包不含 git submodule 的工程，如 SPIRV-Tools/shaderc）
     submodules: Dict[str, str] = field(default_factory=dict)
-    targets: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    # 平台/目标覆盖块；形态见模块 docstring（映射或 for: 列表）
+    targets: Any = field(default_factory=dict)
+    # 本包**属于哪些 target 的构建范围**（选择器语法与 targets: 的 `for:` 相同：
+    # OS 家族名或精确 target 名；空 = 全平台）。与 targets: 的区别：targets: 是
+    # "同一个包在不同平台上取不同值"，platforms: 是"这个包只在某些平台上存在"。
+    # 典型例子：X 客户端栈与 Mesa 只在 Linux 侧自建，Windows 侧既不需要也不该
+    # 构建（egl-headers 会与之争抢 sysroot 里的 EGL 头）；反之 directx-headers/
+    # directxmath/egl-headers 只属于 Windows。CI 按 `list` 全量枚举 recipe，
+    # 归属由这里声明，不在 workflow 里抄一份排除名单（那份必然与 recipe 漂移）。
+    platforms: List[str] = field(default_factory=list)
     # 库链接形态覆盖（static | shared）；空 = 用项目级 default_library。
     # 少数包必须保留动态产物时（上游无静态构建路径）用它单独放开。
     default_library: str = ""
@@ -58,27 +199,64 @@ class Recipe:
         """本 recipe 实际使用的库形态（static | shared）。"""
         return self.default_library or project_default
 
-    def for_target(self, target: str) -> "Recipe":
-        """Return a copy with per-target overrides applied."""
-        override = self.targets.get(target)
-        if not override:
+    def selectors(self) -> List[str]:
+        """本 recipe 声明过的选择器（家族名或 target 名），供 CLI 展示。"""
+        seen: List[str] = []
+        for _, sels, _ in _normalize_targets(self.name, self.targets):
+            for s in sels:
+                if s not in seen:
+                    seen.append(s)
+        return seen
+
+    def applies_to(self, target: str, target_os: str = "") -> bool:
+        """本包是否属于该 target 的构建范围（`platforms:` 为空则属于所有平台）。"""
+        if not self.platforms:
+            return True
+        return any(s == target or (target_os and s == target_os)
+                   for s in self.platforms)
+
+    def _fields(self) -> Dict[str, Any]:
+        return {
+            "source": self.source,
+            "build": self.build,
+            "deps": self.deps,
+            "meson": self.meson,
+            "cmake": self.cmake,
+            "autotools": self.autotools,
+            "data": self.data,
+            "post_install": self.post_install,
+            "test": self.test,
+            "patches": self.patches,
+            "submodules": self.submodules,
+            "default_library": self.default_library,
+        }
+
+    def for_target(self, target: str, target_os: str = "") -> "Recipe":
+        """Return a copy with every matching override block applied.
+
+        `target_os` is the toolchain's OS family (toolchains/*.yaml `target_os`);
+        blocks whose selector is that family apply here as well, so Windows-only
+        patches/options are written once for all Windows targets.
+        """
+        blocks = _normalize_targets(self.name, self.targets)
+        matched = [
+            (spec, body)
+            for spec, sels, body in blocks
+            if target in sels or (target_os and target_os in sels)
+        ]
+        if not matched:
             return self
+        fields = self._fields()
+        for _spec, body in matched:
+            fields = _merge(fields, body)
         return Recipe(
             name=self.name,
             version=self.version,
-            source=_deep_merge(self.source, override.get("source", {})),
-            build=override.get("build", self.build),
-            deps=override.get("deps", self.deps),
-            meson=_deep_merge(self.meson, override.get("meson", {})),
-            cmake=_deep_merge(self.cmake, override.get("cmake", {})),
-            autotools=_deep_merge(self.autotools, override.get("autotools", {})),
-            data=_deep_merge(self.data, override.get("data", {})),
-            post_install=_deep_merge(self.post_install, override.get("post_install", {})),
-            test=_deep_merge(self.test, override.get("test", {})),
-            patches=override.get("patches", self.patches),
-            submodules=override.get("submodules", self.submodules),
             targets={},
-            default_library=override.get("default_library", self.default_library),
+            # platforms 是"包属于哪些平台"的身份信息，不随 target 覆盖变化，
+            # 也不在 _fields() 里（否则一个 targets: 块就能改自己的归属）
+            platforms=list(self.platforms),
+            **fields,
         )
 
 
@@ -99,6 +277,14 @@ def load_recipe(path: Path) -> Recipe:
     source = {"url": src["url"], "sha256": src.get("sha256", "")}
     if mirrors:
         source["mirrors"] = mirrors
+    targets = data.get("targets", {})
+    # 早失败：targets 形态写错时立刻报出文件名，而不是等到某个 target 构建时
+    _normalize_targets(data["name"], targets)
+    platforms = data.get("platforms") or []
+    if not isinstance(platforms, list) or any(
+        not isinstance(s, str) or not s for s in platforms
+    ):
+        raise ValueError(f"{path}: platforms 必须是非空字符串列表")
     return Recipe(
         name=data["name"],
         version=str(data["version"]),
@@ -113,7 +299,8 @@ def load_recipe(path: Path) -> Recipe:
         test=data.get("test", {}),
         patches=data.get("patches", []),
         submodules=data.get("submodules", {}),
-        targets=data.get("targets", {}),
+        targets=targets,
+        platforms=list(platforms),
         default_library=data.get("default_library", ""),
     )
 

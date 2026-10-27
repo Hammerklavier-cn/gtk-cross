@@ -12,3 +12,16 @@ default_library: shared
 autotools:
   configure:
     - --disable-docs
+# x86_64 GNU/Linux 上 libffi 会把库装到 $prefix/lib64 而不是 $prefix/lib：
+# configure 里 `multi_os_directory=`$CC $CFLAGS -print-multi-os-directory``，
+# 本机（Fedora 44）返回 `../lib64`，命中
+# `../*) toolexeclibdir=$toolexeclibdir/$multi_os_directory` 这条分支。
+# 而框架的 LDFLAGS / LIBRARY_PATH / PKG_CONFIG_LIBDIR 与 README 承诺的 sysroot
+# 布局都只认一个 lib 目录（meson 侧统一传 --libdir=lib、cmake 传
+# CMAKE_INSTALL_LIBDIR=lib）。上游正好提供了关掉它的开关，按平台门控传入。
+# Windows（mingw/ucrt）上该探测返回 `.`，不触发这条分支，所以只给 linux 家族块。
+targets:
+  - for: [linux]
+    autotools:
+      configure:
+        - --disable-multi-os-directory

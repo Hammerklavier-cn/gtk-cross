@@ -1,0 +1,42 @@
+# Linux 宿主原生工具链（宿主 = 目标，非交叉），**架构无关**：同一份定义在
+# x86_64 与 aarch64 宿主上都成立，arch 由宿主编译器决定（见下面 host_triple 的
+# 说明与 recipes/libvpx.yaml 的 --target 处理）。target 名里不写 arch，
+# CI 用两个容器（ubuntu-latest / ubuntu-26.04-arm）分别验证同一份配置。
+# 用途：在 Linux 宿主上用发行版的 GCC/binutils 原生构建 linux-native 目标。
+# 与 msys2-* 的对应关系：
+#   * msys2-* 用 `host: windows` 让框架去 spawn C:/msys64/usr/bin/bash.exe；
+#     这里 `host: linux` 走 `bash -lc`（发行版自带 bash），不再有 MSYSTEM/子系统目录概念。
+#   * recipe 的 Windows 专属补丁/选项写在 `targets: - for: [windows]` 里，
+#     框架按本文件的 `target_os: linux` 匹配选择器，因此这些内容在本目标下不生效。
+#   * target 侧依赖仍全部自建到 out/linux-native；只有编译器/构建工具来自宿主。
+name: linux-native
+host: linux
+# 输出平台标识。注意：框架代码**不读**这个键（三个 toolchain 文件都不读，
+# gtkcross/*.py 里没有任何 platform 消费点），它只是给人看的注解；
+# 真正参与匹配的是 target_os。
+platform: linux
+# 目标 OS 家族：recipe 的 targets: 选择器按它匹配（见 gtkcross/recipe.py）
+target_os: linux
+description: "Linux native (host triple, host GCC/binutils, ELF sysroot; arch from host compiler)"
+# 不写 host_triple：autotools 的 --host=/--build= 是给交叉编译用的。原生构建
+# 让 autoconf 自己探测（x86_64-redhat-linux 之类），显式喂一个"看着不一样但
+# 其实相同"的三元组会让它误判为交叉编译，进而跳过/改写若干运行期探测。
+tools:
+  cc: gcc
+  cxx: g++
+  pkg_config: pkg-config
+  meson: meson
+  ninja: ninja
+  cmake: cmake
+  make: make
+  perl: perl
+# 在 bash 内执行的默认环境（所有构建共享）：sysroot bin 前置，隔离 pkg-config
+env:
+  # Linux 上多目录分隔符是冒号（Windows 上的原生 pkgconf 需要分号，见 README）。
+  # PKG_CONFIG_LIBDIR 是**替换**默认搜索路径，所以系统 /usr/lib64/pkgconfig 不再
+  # 被看到——这是 hermetic 的关键：glib/cairo 等包绝不能嗅到发行版的同名 .pc。
+  PKG_CONFIG_LIBDIR: "$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig"
+  PKG_CONFIG_PATH: ""
+  # 不注入 PYTHONUTF8：那是 Windows 专属修复（本机代码页 cp936 下 Python 子进程
+  # 的 stderr 会被 testprogramrunner 的严格 utf-8 解码打挂）。Linux  locale 默认
+  # UTF-8，设了也无害，但按"平台专属项不全局启用"的约定留在这里注释说明。

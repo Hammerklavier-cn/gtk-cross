@@ -1,0 +1,22 @@
+name: libxi
+version: 1.8.3
+source:
+  url: https://www.x.org/releases/individual/lib/libXi-1.8.3.tar.xz
+build: autotools
+platforms: [linux]
+# X Input（XI2）。GTK 的 x11 后端用它收输入事件。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+  - xorgproto
+  - libx11
+  - libxext
+  # configure.ac 的 `PKG_CHECK_MODULES(XFIXES, xfixes >= 5)` 是**必需**探测，
+  # 干净 sysroot 里缺它就是 `configure: error: Package requirements (xfixes >= 5)
+  # were not met`（本轮首次全量构建在 libxi 上实测到）。以前"能过"是因为
+  # GTK 的 deps 里有 libxfixes，拓扑序恰好把它排在前面——那是运气不是声明。
+  - libxfixes
+test:
+  enabled: false

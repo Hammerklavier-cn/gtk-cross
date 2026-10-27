@@ -17,54 +17,74 @@ meson:
     - -Dgtk_doc=false
     - -Dintrospection=enabled
     - -Dman-pages=false
-    # Windows 上 fontconfig/freetype 选项默认 auto→disabled（meson.build 的
-    # disable_auto_if），导致无 pangoft2/fc 字体后端；显式启用以对齐 MSYS2
-    # 官方包（其 libpangoft2-1.0-0.dll 即此配置）。测试参考数据（boxes.ttf
-    # 度量、Cantarell 变体）按 fontconfig/FreeType 渲染路径编写，win32/
-    # DirectWrite 后端度量不同且不响应 cairo hint 选项。运行时默认后端
-    # 仍为 win32/DirectWrite，字体模糊修复不受影响。
+    # 两个平台都需要 fc/freetype 字体后端：测试参考度量（boxes.ttf、Cantarell
+    # 变体）是按 fontconfig/FreeType 栅格化路径写的。差别只在"为什么要显式写"：
+    # Windows 上上游 meson.build 的 disable_auto_if 会把 auto→disabled，必须显式
+    # 开；Linux 上 auto 本来就开，这里写出来是幂等的（留在 base 使两平台形态一致）。
     - -Dfontconfig=enabled
     - -Dfreetype=enabled
-patches:
-  # tests/test-font.c 的 /pango/font/custom：fontconfig 返回的 FC_FILE 用
-  # '/' 分隔，而 g_test_build_filename 在 Windows 产出混合分隔符（盘符后
-  # 跟 '\'），逐字比较必败；折叠分隔符后再断言（上游仅 Linux CI 通过）。
-  - pango-0001-test-font-compare-normalized-path.patch
-  # tests/meson.build 硬编码 FONTCONFIG_FILE=/etc/fonts/fonts.conf（Linux 专有
-  # 路径）。Windows 下该文件不存在，fontconfig 报 "Cannot load default config
-  # file" 并退回内建 fallback；fallback 不含本前缀安装的 conf.d 规则，度量/
-  # hint 设置与上游测试基线不一致。改为指向本前缀 fontconfig 安装的
-  # fonts.conf（fontconfig.pc 的 confdir 变量），使测试自足、不依赖系统包。
-  - pango-0002-tests-use-installed-fontconfig.patch
 test:
   enabled: true
   # 测试进程强制 fc 后端（见上）；经 engines 的 test.env 注入（meson test
   # 继承该变量，test_env 未设置 PANGOCAIRO_BACKEND 故不覆盖）。
   env:
     PANGOCAIRO_BACKEND: fc
-  # fc 后端（fontconfig/FreeType）2026-09-25 实测复验：原 win32/DirectWrite
-  # 下的 5 项失败（test-bidi/test-break/test-pangocairo-threads/test-font-data/
-  # test-font）中 4 项转好移出登记。另 3 项为**宿主字体环境依赖**，非产物缺陷：
-  # 同一份二进制换一台字体集不同的机器就变结论，故登记而不是改代码。
-  #  - test-font：roundtrip small-caps/all-small-caps/unicase 需系统级
-  #    Cantarell 变体字体（上游 Linux CI 预装）；无系统 Cantarell 时
-  #    "Cantarell Small-Caps 11" 回退到系统 Sans，describe 不含变体。
-  #    /pango/font/custom 的路径分隔符比较 bug 已由补丁修复。
-  #  - test-fonts：fontsets/cantarell2 对 DejaVu Sans/Mono 的 fontconfig
-  #    排序平序（tie）随 fontconfig 版本而异，纯平台差异。
-  #  - test-font-data：断言的是**派生态**度量。boxes.ttf 只含 0x20 与
-  #    A–P/Z 共 18 个字形，而上游用 "The quick brown fox jumps over the lazy
-  #    dog." 做采样串（44 字符）——其中 36 个字符必须回退到宿主字体，于是
-  #    approximate_char_width / approximate_digit_width 由宿主字体集决定
-  #    （pangofc-font.c 用布局实测值相除/取最大，非字体固有度量，故字体固有
-  #    的 ascent/descent 等断言在 CI 上照样通过）。实测同一二进制：
-  #    全量 Windows 字体集→49273/58368（上游期望值，通过）；精简集→
-  #    53178/65536（与 CI runner 逐字节一致）；pango 自带 tests/fonts→
-  #    52935/65536。不影响字体度量修复（DirectWrite 链）本身。
-  #    2026-09-26 CI 复验：fontconfig 改为绝对 confdir 后 test-ellipsize 已
-  #    转好（从失败列表消失），test-font-data 从上轮的 60416（conf.d 未加载、
-  #    hinting 退回 full）变为 53178，即 conf.d 已生效、只剩字体集差异。
-  known_failures:
-    - pango:test-font
-    - pango:test-fonts
-    - pango:test-font-data
+# Windows 专属补丁与登记失败项，只在 windows 家族块生效。
+targets:
+  - for: [windows]
+    patches:
+      # tests/test-font.c 的 /pango/font/custom：fontconfig 返回的 FC_FILE 用
+      # '/' 分隔，而 g_test_build_filename 在 Windows 产出混合分隔符（盘符后
+      # 跟 '\'），逐字比较必败；折叠分隔符后再断言（上游仅 Linux CI 通过）。
+      - pango-0001-test-font-compare-normalized-path.patch
+      # tests/meson.build 硬编码 FONTCONFIG_FILE=/etc/fonts/fonts.conf（Linux 专有
+      # 路径）。Windows 下该文件不存在，fontconfig 报 "Cannot load default config
+      # file" 并退回内建 fallback；fallback 不含本前缀安装的 conf.d 规则，度量/
+      # hint 设置与上游测试基线不一致。改为指向本前缀 fontconfig 安装的
+      # fonts.conf（fontconfig.pc 的 confdir 变量），使测试自足、不依赖系统包。
+      # 补丁本身按 host_system 分支：非 Windows 分支保留上游的 /etc/fonts
+      # 路径，所以在 Linux 上打不打效果相同——按"不打无效果的补丁"归到这里。
+      - pango-0002-tests-use-installed-fontconfig.patch
+    # fc 后端（fontconfig/FreeType）2026-09-25 实测复验：原 win32/DirectWrite
+    # 下的 5 项失败（test-bidi/test-break/test-pangocairo-threads/test-font-data/
+    # test-font）中 4 项转好移出登记。另 3 项为**宿主字体环境依赖**，非产物缺陷：
+    # 同一份二进制换一台字体集不同的机器就变结论，故登记而不是改代码。
+    #  - test-font：roundtrip small-caps/all-small-caps/unicase 需系统级
+    #    Cantarell 变体字体（上游 Linux CI 预装）；无系统 Cantarell 时
+    #    "Cantarell Small-Caps 11" 回退到系统 Sans，describe 不含变体。
+    #    /pango/font/custom 的路径分隔符比较 bug 已由补丁修复。
+    #  - test-fonts：fontsets/cantarell2 对 DejaVu Sans/Mono 的 fontconfig
+    #    排序平序（tie）随 fontconfig 版本而异，纯平台差异。
+    #  - test-font-data：断言的是**派生态**度量。boxes.ttf 只含 0x20 与
+    #    A–P/Z 共 18 个字形，而上游用 "The quick brown fox jumps over the lazy
+    #    dog." 做采样串（44 字符）——其中 36 个字符必须回退到宿主字体，于是
+    #    approximate_char_width / approximate_digit_width 由宿主字体集决定
+    #    （pangofc-font.c 用布局实测值相除/取最大，非字体固有度量，故字体固有
+    #    的 ascent/descent 等断言在 CI 上照样通过）。实测同一二进制：
+    #    全量 Windows 字体集→49273/58368（上游期望值，通过）；精简集→
+    #    53178/65536（与 CI runner 逐字节一致）；pango 自带 tests/fonts→
+    #    52935/65536。不影响字体度量修复（DirectWrite 链）本身。
+    #    2026-09-26 CI 复验：fontconfig 改为绝对 confdir 后 test-ellipsize 已
+    #    转好（从失败列表消失），test-font-data 从上轮的 60416（conf.d 未加载、
+    #    hinting 退回 full）变为 53178，即 conf.d 已生效、只剩字体集差异。
+    # 这三项都是 Windows 宿主字体集的产物，不套给 Linux：Linux 上有自己的
+    # 字体环境（本机 Fedora 44），首跑后按实际结果另开 linux 家族块登记。
+    test:
+      known_failures:
+        - pango:test-font
+        - pango:test-fonts
+        - pango:test-font-data
+  # Linux 宿主字体环境依赖，2026-09-30 首跑 CI 实测（ubuntu-latest x86_64，
+  # ubuntu-26.04-arm 同签名）：
+  #  - test-font：roundtrip small-caps/all-small-caps/unicase（test-font.c
+  #    654/703/750）与 Windows 侧同因——需要 Cantarell 变体字体（上游 Linux CI
+  #    预装）。GitHub 的 ubuntu runner 镜像只装 fonts-noto-color-emoji。已在
+  #    ci.yml 通过 apt 安装 fonts-cantarell 修复（装后 CI 实测该项转好）。
+  #  - test-font-data：boxes.ttf 只覆盖 0x20 与 A–P/Z，sample 串（"The quick
+  #    brown fox…"）的 36 个小写/空格字符回退宿主默认 sans，approximate 宽度
+  #    断言值（49273/58368）即按 Noto Sans/DejaVu 一类默认 sans 的字形宽度
+  #    算出的均值。只装 fonts-cantarell 后 Cantarell 成为默认 sans，其空格
+  #    宽度(22528)小于 Noto/DejaVu(26624)，均值漂到 46201/62464 → 失败
+  #    （本机 Cantarell-only 字体集精确复现）。已在 ci.yml 加装 fonts-noto-core
+  #    恢复上游基线默认 sans，本地复现回归 49273/58368 ✓ —— 不登记。
+  # 其余 28 项（含 test-fonts 的 fontsets 排序）在两个架构上均通过。

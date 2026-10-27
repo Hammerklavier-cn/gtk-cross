@@ -32,13 +32,9 @@ meson:
     # 本包提供给 GTK 的关键产物：gstreamer-play-1.0（gstplay 库，GTK 的
     # media-gstreamer 后端就用它）、gstreamer-gl-1.0（GTK meson 硬性
     # dependency）、gstreamer-allocators-1.0。play/allocators 是 gst-libs
-    # 里的常驻库，gl 需要显式开启下面三项。
+    # 里的常驻库，gl 需要显式开启，并且按平台补一组 winsys/api/platform
+    # （见下面 targets:）。
     - -Dgl=enabled
-    # 与 MSYS2 官方包一致的 Windows 后端组合：WGL + OpenGL（本机无
-    # EGL/ANGLE 运行时，gles2/egl 无法工作）
-    - -Dgl_winsys=win32
-    - -Dgl_api=opengl
-    - -Dgl_platform=wgl
     # 播放一条 WebM/OGG 所需的最小插件集（auto_features=disabled 下其余
     # 插件一律不编，保证 hermetic 且体积可控）：
     - -Daudioconvert=enabled
@@ -60,3 +56,49 @@ meson:
     - -Ddoc=disabled
     - -Dintrospection=disabled
     - -Dauto_features=disabled
+# GST GL 的窗口系统/API/平台三件套按平台而不同（上游 meson.options 实测取值域：
+# gl_api ∈ {opengl, gles2, auto}、gl_platform ∈ {glx, egl, cgl, wgl, eagl, auto}、
+# gl_winsys ∈ {x11, wayland, win32, winrt, cocoa, dispmanx, egl, eagl,
+# surfaceless, viv-fb, gbm, android, auto}），故收进家族块。
+targets:
+  - for: [windows]
+    meson:
+      options:
+        # 与 MSYS2 官方包一致的 Windows 后端组合：WGL + OpenGL（本机无
+        # EGL/ANGLE 运行时，gles2/egl 无法工作）
+        - -Dgl_winsys=win32
+        - -Dgl_api=opengl
+        - -Dgl_platform=wgl
+  - for: [linux]
+    deps:
+      # gl_winsys=x11 的实探测：src/gst-libs/gst/gl/meson.build 要 x11/xext
+      # （X11 客户端栈，已自建）与 OpenGL 库（`cc.find_library('GL')` +
+      # `cc.has_header('GL/gl.h')`，由本闭包自建的 Mesa 提供，理由记录见
+      # recipes/mesa.yaml）。
+      - libx11
+      - libxext
+      - mesa
+    meson:
+      options:
+        # Linux 原生：GLX over X11 + 桌面 OpenGL。三项取值都对着上游合法域写
+        # （实测 meson.options：winsys 含 x11、platform 含 glx），与 Windows
+        # 家族块的 win32/wgl 成对。
+        # gl_api 必须是 opengl：meson.build:355-368 那段在
+        # `need_api_opengl == 'yes'` 且找不到库时是
+        # error('Could not find requested OpenGL library')——缺 GL 从"静默
+        # 降级"变成硬失败，所以 GL 实现必须在 deps 里，不能靠宿主。
+        #
+        # `-Dx11=enabled` 不是多余的重复声明，而是这轮的实测教训：base 里有
+        # `-Dauto_features=disabled`（插件集刻意精简），而 `x11` 是
+        # `value: 'auto'` 的 **feature 选项**（meson.options:67），被它一并关掉；
+        # src/meson.build:336 那句 `x11_dep = dependency('x11',
+        # required: get_option('x11'))` 于是整条被跳过（日志原文
+        # `Dependency x11 for host machine skipped: feature x11 disabled`），
+        # 到 gst-libs/gst/gl/meson.build:712-741 就变成
+        # `error('Could not find requested X11 libraries')`——
+        # 即便 gl_winsys=x11 已显式要求。与 gl/gles/xshm 同一门道：
+        # auto_features=disabled 下每个要用的 feature 都得单独点名。
+        - -Dx11=enabled
+        - -Dgl_winsys=x11
+        - -Dgl_api=opengl
+        - -Dgl_platform=glx

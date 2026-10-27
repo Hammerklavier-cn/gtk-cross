@@ -1,0 +1,18 @@
+name: libxrandr
+version: 1.5.5
+source:
+  url: https://www.x.org/releases/individual/lib/libXrandr-1.5.5.tar.xz
+build: autotools
+platforms: [linux]
+# RANDR 扩展（分辨率/旋转/多显示器）。双构建包，X 栈统一 autotools。
+autotools:
+  env:
+    ACLOCAL_PATH: $SYSROOT/share/aclocal
+deps:
+  - util-macros
+  - xorgproto
+  - libx11
+  - libxext
+  - libxrender
+test:
+  enabled: false

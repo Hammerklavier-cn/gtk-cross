@@ -1,0 +1,92 @@
+name: mesa
+version: 26.2.3
+source:
+  url: https://archive.mesa3d.org/mesa-26.2.3.tar.xz
+build: meson
+platforms: [linux]
+# OpenGL 实现（libGL + gl.pc）。Linux 目标上唯一"驱动侧"的自建包，决定过程与
+# 代价记录在 recipes/platform-notes.md 的 Mesa 一节。
+#
+# 为什么必须自建而不能像 Windows 那样靠工具链的导入库：
+#   gst-plugins-base/src/gst-libs/gst/gl/meson.build:355-368 在非 Windows 走
+#   cc.find_library('GL') + cc.has_header('GL/gl.h')，而 recipe 显式要求
+#   gl_api=opengl ⇒ 缺任一即 error('Could not find requested OpenGL library')；
+#   又因 gtk-4.24.0/meson.build:497 的 dependency('gstreamer-gl-1.0',
+#   required: get_option('media-gstreamer')) 是硬要求，关 GL 就等于关整个媒体后端。
+#   Windows 侧的 opengl32 是 mingw-w64 头 + 导入库（宿主工具链提供）。Linux 上
+#   没有一个"本来就属于工具链"的对等物：实测 `dnf repoquery --whatprovides
+#   "*/GL/gl.h"` 与 `"*/libGL.so"` 命中的都是 **libglvnd-devel**（外加
+#   mingw32/64、ucrt64-headers 这些交叉包），即 GL 的头与链接名属系统图形栈，
+#   mesa-libGL-devel 本身并不拥有这两个路径。装它等于把 GL ABI 交给宿主，
+#   与本项目"target 侧全部自建"的立身目标不符 ⇒ 自建 Mesa。
+#
+# 为什么不需要 LLVM（这是本包能否进闭包的关键，全部取自源码而非记忆）：
+#   meson.build 里 `with_gallium_swrast = with_gallium_softpipe or
+#   with_gallium_llvmpipe`，只有 llvmpipe/i915/r300-IGP/radeonsi/lavapipe 那条
+#   .enable_if(...) 写着"requires LLVM"；**softpipe 不在其中**。
+#   所以 -Dllvm=disabled -Dgallium-drivers=softpipe 能出可用的 swrast：
+#   纯软件光栅化，运行期也不需要内核 DRM。代价是没有硬件加速路径
+#   （真 GPU 的 iris/radeonsi 才要 LLVM），对"编译+自带测试"这一目标是够的。
+#   本机实测llvm-config/llvm-devel 都不存在，正是这条路线成立的前提。
+meson:
+  options:
+    # GL 平台：GLX over DRI（需 libdrm + libpciaccess + xshmfence，都在 deps 里）。
+    # `glx` 是 combo（auto|disabled|dri|xlib），源码里 xlib 那条会
+    # error('xlib based GLX requires softpipe or llvmpipe.')，取 dri。
+    - -Dglx=dri
+    # EGL 开。两条实测依据：
+    #   * GTK 的 x11 后端**无条件**用 EGL：gdk/x11/gdkdisplay-x11.c:61 的
+    #     `#include <epoxy/egl.h>` 没有 #ifdef 保护，gdk/x11/meson.build:11
+    #     也无条件把 gdkglcontext-egl.c 列进 public sources（本轮实测的编译错误
+    #     就是 `fatal error: epoxy/egl.h：没有那个文件或目录`）。
+    #   * libepoxy 只是 dlopen EGL，头文件侧要有人提供；让 Mesa 一并接管
+    #     EGL/egl.h 与 egl.pc，比让 Khronos 头包和 Mesa 各装一份更可控
+    #     （egl-headers 因此在 Linux 上不再进入 libepoxy 的依赖，见该 recipe）。
+    # 平台只给 x11（下面 platforms 也是 x11），wayland 侧的 EGL/wayland-egl
+    # 留待以后与 wayland-egl 一起决定。
+    - -Degl=enabled
+    - -Dgles1=disabled
+    - -Dgles2=disabled
+    - -Dllvm=disabled
+    - -Dgallium-drivers=softpipe
+    # 不建任何 Vulkan 驱动（lvp/lavapipe 要 LLVM，且 sysroot 里已有
+    # vulkan-loader 这条独立链）；不建编解码器（gst 不需要 Mesa 的 VA-API）。
+    - -Dvulkan-drivers=
+    - -Dvideo-codecs=
+    # 只需要 x11 平台（wayland 不在闭包里，auto 会去探它）。
+    - -Dplatforms=x11
+    # VK_EXT_acquire_xlib_display（meson.options:574-578 的自述）。它是 feature
+    # 且默认 auto，在 `-Dplatforms=x11` 下会命中 → 触发 src/meson.build:2375 的
+    # `dependency('xrandr')`（无 required:false）。本闭包一个 Vulkan 驱动都不建，
+    # 这条扩展没有消费者 ⇒ 显式关，别把 libxrandr 变成 Mesa 的隐性依赖。
+    - -Dxlib-lease=disabled
+    # 注：不再传 `-Ddri3=true`——实测 26.2.3 的 meson.options 里**没有**这个
+    # 选项（DRI3 已不可关），传了会 src/meson.build:4:0 ERROR: Unknown option。
+    # dri 驱动安装路径也不用设：`dri-drivers-path` 默认空串即 "$libdir/dri"，
+    # 正好落在 sysroot 内；`xmlconfig`(driconf) 默认 auto 会命中我们的 expat。
+    - -Dbuild-tests=false
+    # 可选后端一律显式关，避免 meson 的 auto 从宿主目录里嗅到东西：
+    # zstd/lz4 不在闭包内（Mesa 用它只服务 trace/stvl 一类可选功能）。
+    - -Dvalgrind=disabled
+    - -Dlmsensors=disabled
+    - -Dzstd=disabled
+deps:
+  - libdrm
+  - libpciaccess
+  - libxshmfence
+  - xorgproto
+  - libx11
+  - libxext
+  # `if with_platform_x11` 之后紧接着就是两句**无 required:false** 的探测
+  # （src/meson.build:2308-2310：`dependency('xcb')`、`dependency('xcb-randr')`），
+  # glx=dri 那条分支还要 xcb-dri3/xcb-present/xcb-shm/xcb-sync——全部由 libxcb 提供。
+  # 这条以前没声明：首次全量干净构建（CI 等价环境）就是在 Mesa 之前少了它而
+  # configure 失败；先前"能过"是因为 sysroot 里恰好已有上一次构建留下的 xcb .pc。
+  - libxcb
+  # libGL 的 GLX 路径实测还硬要 xxf86vm（src/glx/meson.build 的 dependencies 里
+  # 与 x11/xext/xshmfence 并列），缺它 configure 直接 ERROR。
+  - libxxf86vm
+  - expat
+  - zlib
+test:
+  enabled: false

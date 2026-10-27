@@ -2,10 +2,18 @@
 # 每个 target（构建档案/profile）映射到一个 toolchain 定义（toolchains/*.yaml），
 # 命名约定 = 工具链标识（宿主-工具链[-运行时]），与 toolchains/*.yaml 文件名一致，
 # 便于未来区分 msvc、linux 交叉等工具链；产物安装到 <prefix>（该 profile 的 sysroot）。
+#
+# recipe 的 `targets:` 覆盖块按**选择器**匹配：既写精确 target 名（msys2-ucrt64），
+# 也写工具链的 OS 家族名（windows / linux，取自 toolchains/*.yaml 的 target_os）。
+# 针对 Windows 的补丁与选项一律写在 windows 家族块里，不污染其他平台。
 default_target: msys2-mingw64
 # 库默认链接形态：static = 只产出静态库（.a），不生成 DLL。
 # 目标：sysroot 里只有静态库，应用可静态链接成单文件（不依赖自建 DLL）。
 # 个别 recipe 需要动态产物时，可在该 recipe 里用 default_library: shared 覆盖。
+# Linux 目标沿用同一形态：introspection 链仍需动态的理由（g-ir-scanner 无法
+# introspect 静态库、typelib 运行期 dlopen）对 .so 同样成立，故不单独改默认值。
+# 注意：静态 .a 会被链进 .so，Linux 上必须是 PIC —— toolchain 的 prelude 对
+# 非 Windows 目标统一注入 -fPIC（见 gtkcross/toolchain.py）。
 default_library: static
 # meson 的 prefer_static 必须为 false：introspection 链（glib/cairo/pango/gtk…）
 # 仍是动态库，而 sysroot 里只有它们的导入库（.dll.a）。若让 dependency() 优先找
@@ -13,8 +21,13 @@ default_library: static
 # MSYS2 系统静态库（C:/msys64/ucrt64/lib/libglib-2.0.a）——既不 hermetic，符号也
 # 对不上（__imp_g_free 之类 undefined reference）。关闭后 meson 正常按
 # prefix 优先解析我们自己的 .dll.a（动态链）/ .a（纯静态包）。
-# 纯静态包的 Windows 静态消费宏（XML_STATIC、PCRE2_STATIC 等）改由 toolchain
-# 的 static_defines 显式注入（见 toolchains/*.yaml）。
+# Linux 原生目标同理：sysroot 里没有 libglib-2.0.a，开启 prefer_static 会让
+# meson 摸到发行版的系统静态库（/usr/lib64/libglib-2.0.a，若装了 *-static 包），
+# 同样破坏 hermetic，所以两个平台都用 false。
+# 纯静态包的依赖信息与静态消费宏（-DXML_STATIC、-DPCRE2_STATIC 等）不靠
+# pkg-config --static 带出，而是在每个包安装后把 .pc 的 Requires.private /
+# Libs.private / Cflags.private 提升为同名公开字段（builder.publish_pc_private_fields，
+# 幂等，跨平台通用）。
 prefer_static: false
 targets:
   msys2-mingw64:
@@ -24,5 +37,15 @@ targets:
   msys2-ucrt64:
     toolchain: msys2-ucrt64
     prefix: out/msys2-ucrt64
+  # Linux 原生（非交叉）：宿主 = 目标，工具链来自发行版（系统 gcc/clang），
+  # target 侧依赖仍全部自建到 out/linux-native。**名字里不写 arch**：本 target 与
+  # 架构无关，CI 用 ubuntu-latest（x86_64）与 ubuntu-26.04-arm（aarch64）两个容器跑
+  # 同一份配置，arch 由宿主编译器决定——不给 autotools 喂 --host/--build 三元组，
+  # libvpx 之类也不写 --target（见 toolchains/linux-native.yaml）。
+  # 与 msys2-* 的关键差别：没有 MSYS2 路径转换、没有 Win32 专属后端
+  # （win32/d3d11/d3d12/directsound/schannel…），改由 recipe 的 linux 家族块给本平台选项。
+  linux-native:
+    toolchain: linux-native
+    prefix: out/linux-native
 downloads_dir: downloads
 build_dir: build

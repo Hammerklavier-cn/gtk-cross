@@ -38,8 +38,14 @@ def cmd_info(args) -> int:
     print(f"deps:    {', '.join(r.deps) or '(none)'}")
     print(f"source:  {r.source['url']}")
     print(f"sha256:  {r.source.get('sha256') or '(auto-locked in versions.lock.yaml)'}")
-    if r.targets:
-        print(f"targets: {', '.join(sorted(r.targets))}")
+    # 选择器（OS 家族名或 target 名）。不能用 sorted(r.targets)：列表形态下元素
+    # 是 dict，排序会 TypeError；家族名的书写顺序本身就有意义。
+    selectors = r.selectors()
+    if selectors:
+        print(f"targets: {', '.join(selectors)}")
+    # 归属与覆盖是两件事：platforms 说"这个包只在这些平台上构建"
+    if r.platforms:
+        print(f"platforms: {', '.join(r.platforms)}")
     return 0
 
 
@@ -50,7 +56,12 @@ def cmd_graph(args) -> int:
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    recipes = b.recipes
+    # 依赖树按目标解析：家族块可以增删 deps（Windows 专属依赖不该出现在 Linux
+    # 的图里），所以这里必须用 resolved recipe，而不是 base 形态。
+    recipes = {
+        name: r.for_target(args.target, b.tc.target_os)
+        for name, r in b.recipes.items()
+    }
     visited = set()
 
     def walk(name: str, depth: int) -> None:
@@ -99,7 +110,7 @@ def cmd_lock(args) -> int:
     b = _builder(args)
     order = b.order(args.names)
     for name in order:
-        recipe = b.recipes[name].for_target(args.target)
+        recipe = b.recipes[name].for_target(args.target, b.tc.target_os)
         locked = b.lock().get(name) or {}
         want = recipe.source.get("sha256") or locked.get("sha256", "")
         from .download import fetch
@@ -119,7 +130,8 @@ def cmd_build(args) -> int:
     from .events import OutputTee
     from pathlib import Path
 
-    b = Builder(ProjectConfig.load(), args.target, jobs=args.jobs)
+    b = Builder(ProjectConfig.load(), args.target, jobs=args.jobs,
+                ignore_test_failures=args.ignore_test_failures)
     # fd 级 tee：构建全程（含 bash/meson/gcc 子进程输出）复制一份到当前目录
     with OutputTee(Path("gtkcross-build.log")):
         try:
@@ -173,6 +185,9 @@ def main(argv=None) -> int:
     sp.add_argument("names", nargs="+")
     sp.add_argument("-j", "--jobs", type=int, default=0,
                     help="并行度（默认 = CPU 数）")
+    sp.add_argument("--ignore-test-failures", action="store_true",
+                    help="测试失败只告警不中断构建（失败详情照常打印并落盘，"
+                         "用于诊断；不改变 known_failures 判定）")
     sp.set_defaults(fn=cmd_build)
 
     args = p.parse_args(argv)

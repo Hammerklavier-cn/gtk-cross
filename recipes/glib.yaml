@@ -22,10 +22,6 @@ meson:
     - -Dlibelf=disabled
     - -Dsystemtap=disabled
     - -Dsysprof=disabled
-    # 修复 "TLS callback not invoked"：GCC 分支的 G_DEFINE_TLS_CALLBACK 缺少
-    # MSVC 分支的 /INCLUDE:_tls_used 等价物；GNU bfd ld 仅在 _tls_used 被引用时
-    # 才生成 PE TLS directory 并收集 .CRT$XL* 回调（修复后 306 项测试全过）。
-    - -Dc_link_args=-Wl,--undefined=_tls_used
 test:
   enabled: true
   # mkenums.py / codegen.py 原登记为"负载相关偶发"，2026-09-26 排查确证实为
@@ -38,3 +34,70 @@ test:
   # 修复：toolchain env 统一设 PYTHONUTF8=1（与上游 glib .gitlab-ci.yml 一致），
   # 已实测 306 项全过，两项移出 known_failures。
   known_failures: []
+# PE 专属修复（见 recipes/glib-base.yaml 同名项与 recipes/platform-notes.md）：
+# Linux 上 _tls_used 不是符号，注入会让所有链接失败，故只在 windows 家族块生效。
+targets:
+  - for: [windows]
+    meson:
+      options:
+        # 修复 "TLS callback not invoked"：GCC 分支的 G_DEFINE_TLS_CALLBACK 缺少
+        # MSVC 分支的 /INCLUDE:_tls_used 等价物；GNU bfd ld 仅在 _tls_used 被引用时
+        # 才生成 PE TLS directory 并收集 .CRT$XL* 回调（修复后 306 项测试全过）。
+        - -Dc_link_args=-Wl,--undefined=_tls_used
+  # Linux 原生目标的测试环境差异（实测 linux-native 首跑有 3 项 SIGABRT
+  # ——glib:spawn-test / glib:gschema-compile / glib:gsubprocess；钉住 locale 并
+  # 给产物加 RUNPATH 后复跑为 424 个顶层测试退出码全 0、meson 汇总
+  # Ok 418 / Fail 0 / Skipped 6，见下面两条根因与 NOTES 的"计数口径"段）。
+  # 失败原因不是产物缺陷，而是"诊断文案被翻译"：glib 从源码构建时会把自己 po/
+  # 目录的编译产物装进 sysroot 的 share/locale（实测 out/linux-native/share/locale/
+  # zh_CN/LC_MESSAGES/glib20.mo 存在），宿主 LANG=zh_CN.UTF-8 就让 glib 的工具
+  # 输出中文诊断，而 tests/spawn-test.c:303 断言的是
+  #   strstr (erroutput, g_strerror (ENOENT))
+  # ——子进程输出与父进程取到的 strerror 不同语言时必然不匹配。
+  # 实测同一二进制：中文 locale 下 /spawn/basics FAIL，LC_ALL=C.UTF-8 下 ok。
+  # 固定测试 locale 而不是把它登记成 known_failure：这三项（含 gschema-compile /
+  # gsubprocess 的 rpath 问题）都是环境敏感，钉住环境后回归信号才是真的。
+  - for: [linux]
+    test:
+      env:
+        LC_ALL: C.UTF-8
+      # glib:memory-monitor-psi-env-set —— 上游自身带时序竞态的新测试，
+      # 不是本项目产物的缺陷。登记为 linux 已知失败（该测试在
+      # gio/tests/meson.build:165 的 `if host_system == 'linux'` 里，Windows
+      # 根本不注册，故只在 linux 块登记）。
+      #
+      # 实测现象（CI amd64 与 arm64 同一签名）：该测试 5 个子测试里
+      # write-env-null 一项被信号 6 (SIGABRT) 打死，meson 汇总
+      # `Ok: 407 / Fail: 1 / Skipped: 8`。上游同类失败有公开记录：
+      # Debian #1143197 的 Salsa CI 侧就是同一行断言
+      #   gio/tests/memory-monitor-psi-env-set.c:300:
+      #   test_write_env_null: assertion failed (warning_level == -1): (50 == -1)
+      # 维护者结论是"该测试目前应视为 flaky"（新特性的新覆盖，非回归）。
+      #
+      # 根因（本轮用探针程序在本机精确复现，非推测）：
+      #  1. 该子测试令 MEMORY_PRESSURE_WATCH=/dev/null，而 /dev/null 在
+      #     poll/epoll 下**恒可读**（实测 gcc 小程序：poll 立即
+      #     rc=1/revents=POLLIN）——所以监听它的 source 会在 worker 上下文中
+      #     立刻被 dispatch；
+      #  2. 该子测试给 monitor 传了 "proc-path"，于是 proc_override=TRUE，
+      #     gmemorymonitorpsi.c:280 走 `G_IO_IN | G_IO_ERR` 分支（非
+      #     `G_IO_PRI`），event_dispatch 的 G_IO_IN 判定随即通过，回调调用
+      #     gmemorymonitorbase.c:168 的 `g_main_context_invoke_full (NULL, …)`；
+      #  3. 测试主线程**不持有**默认主上下文（没有 acquire/iteration），于是
+      #     gmain.c:6976 的 `thread_default == context && g_main_context_acquire()`
+      #     在 worker 线程上成功 ⇒ 直接 `while (function (data))` **同步** emit
+      #     信号，把 warning_level 从 -1 置成 50；
+      #  4. 测试在 g_object_unref 之前不做任何同步，第 300 行随即断言
+      #     `warning_level == -1` ⇒ 竞态一旦落在窗口内就必然 SIGABRT。
+      #  探针实测（同一份自建二进制）：主线程不持有默认上下文时 200/200 全部
+      #  置位；主线程先 acquire 时 0/200 —— 即"是否命中"纯由调度决定。
+      #  这也解释了为什么本机 100+ 次串行复跑与 8 路并发压测都过（本机 24 核，
+      #  worker 线程通常在测试 unref 之后才被调度），而 CI 容器上偶发触发。
+      #
+      # 为什么不改测试源码：这条断言要修的是上游的时序假设（要么主线程先
+      # 持有默认上下文、要么 unref 后先做一次上下文迭代再断言），属上游
+      # 改动；本项目对"上游测试自身的竞态"一律登记而不打补丁改写断言
+      # （对比：glib 的 spawn-test 那类是**环境**敏感，本轮钉住
+      # LC_ALL=C.UTF-8 后即真通过，故不登记）。
+      known_failures:
+        - glib:memory-monitor-psi-env-set

@@ -14,24 +14,10 @@ deps:
   - glib
   - libxml2
 meson:
-  # 构建期环境（框架的 meson.env，$SRC = 本包源码目录）：
-  # data/meson.build 用 i18n.merge_file 合并 XML 翻译，meson 会把
-  # --datadirs=<源码>/data/. 以 Windows 形式（C:/...）写进 GETTEXTDATADIRS；
-  # 而 gettext 的搜索路径按 ':' 切分
-  # （gettext-tools/src/search-path.c:52 的 foreach_elements），盘符冒号把该
-  # 路径切成 "C" 与 "/msys64/..." 两个无效项，msgfmt 于是报
-  #   msgfmt: cannot locate ITS rules for ../src/data/freedesktop.org.xml.in
-  # （实测：同一命令换成 posix 形式的 datadir 即成功，Windows 形式必失败；
-  #  MSYS2 的 mingw64 包能用是因为它用的是 mingw 原生 gettext，原生构建按
-  #  ';' 切分）。单数的 GETTEXTDATADIR 是单一路径、不参与切分且优先级更高，
-  # 指向源码里的 its/ 目录即可让 ITS 规则被找到（实测产出 2470771 字节的
-  # 翻译后 freedesktop.org.xml）。
-  env:
-    GETTEXTDATADIR: "$SRC/data"
   options:
     - -Dbuild-tools=true
     # 只用到 en/zh 等翻译产出的 freedesktop.org.xml（i18n.merge_file），
-    # 构建期需要 msgfmt（MSYS2 宿主提供，不在 sysroot 内）
+    # 构建期需要 msgfmt/itstool（宿主提供，不在 sysroot 内）
     - -Dbuild-translations=true
     - -Dbuild-tests=true
     # 关键：安装后运行 update-mime-database 生成 share/mime/mime.cache。
@@ -41,21 +27,43 @@ meson:
     # 取不到数据库，内容类型识别（文件选择器 MIME 过滤器、拖放类型判定、
     # 默认应用查找）整体失效。安装脚本用的是刚构建出的 update-mime-database。
     - -Dupdate-mimedb=true
-patches:
-  # CI（GitHub windows-latest）上 translations / No duplicate mime-types 两项
-  # 失败（本地不可复现）。根因：这两个测试脚本的 shebang 是
-  # `#!/usr/bin/env bash`，而 Windows 上 meson 不理解 shebang——mtest.py 对
-  # 非 .exe 的已构建测试命令调 ExternalProgram._shebang_to_cmd()，其
-  # is_windows() 分支把 shebang 程序名剥成**裸名** `bash`。CreateProcess
-  # 解析裸名的顺序是「镜像目录→当前目录→System32→Windows→PATH」，System32
-  # 先于 PATH；runner 镜像（装了 WSL launcher 的 Win10/11）里
-  # C:\Windows\System32\bash.exe 是 wsl.exe 的转发器而非 bash，于是脚本实际
-  # 执行了 WSL launcher，报 "Windows Subsystem for Linux has no installed
-  # distributions."（UTF-16 输出）后非 0 退出。`#!/bin/sh` 的另外两个脚本
-  # 不受影响（System32 下没有 sh.exe，裸名 sh 正常落到 PATH 上的 MSYS2
-  # sh.exe）。本补丁把这两个测试改为配置期 find_program('bash') 解析出的
-  # 绝对路径 MSYS2 bash 作解释器、脚本经 files() 传参——绝对路径不触发上述
-  # 裸名搜索顺序。
-  - shared-mime-info-0001-tests-absolute-bash.patch
+# 两项 Windows 专属绕过，收进 windows 家族块（Linux 上都不需要，理由见各条）。
+targets:
+  - for: [windows]
+    meson:
+      # 构建期环境（框架的 meson.env，$SRC = 本包源码目录）：
+      # data/meson.build 用 i18n.merge_file 合并 XML 翻译，meson 会把
+      # --datadirs=<源码>/data/. 以 Windows 形式（C:/...）写进 GETTEXTDATADIRS；
+      # 而 gettext 的搜索路径按 ':' 切分
+      # （gettext-tools/src/search-path.c:52 的 foreach_elements），盘符冒号把该
+      # 路径切成 "C" 与 "/msys64/..." 两个无效项，msgfmt 于是报
+      #   msgfmt: cannot locate ITS rules for ../src/data/freedesktop.org.xml.in
+      # （实测：同一命令换成 posix 形式的 datadir 即成功，Windows 形式必失败；
+      #  MSYS2 的 mingw64 包能用是因为它用的是 mingw 原生 gettext，原生构建按
+      #  ';' 切分）。单数的 GETTEXTDATADIR 是单一路径、不参与切分且优先级更高，
+      # 指向源码里的 its/ 目录即可让 ITS 规则被找到（实测产出 2470771 字节的
+      # 翻译后 freedesktop.org.xml）。
+      # Linux 上 meson 传的就是 posix 路径（无盘符冒号），GETTEXTDATADIRS 本身
+      # 就能工作，不需要这个绕过。
+      env:
+        GETTEXTDATADIR: "$SRC/data"
+    patches:
+      # CI（GitHub windows-latest）上 translations / No duplicate mime-types 两项
+      # 失败（本地不可复现）。根因：这两个测试脚本的 shebang 是
+      # `#!/usr/bin/env bash`，而 Windows 上 meson 不理解 shebang——mtest.py 对
+      # 非 .exe 的已构建测试命令调 ExternalProgram._shebang_to_cmd()，其
+      # is_windows() 分支把 shebang 程序名剥成**裸名** `bash`。CreateProcess
+      # 解析裸名的顺序是「镜像目录→当前目录→System32→Windows→PATH」，System32
+      # 先于 PATH；runner 镜像（装了 WSL launcher 的 Win10/11）里
+      # C:\Windows\System32\bash.exe 是 wsl.exe 的转发器而非 bash，于是脚本实际
+      # 执行了 WSL launcher，报 "Windows Subsystem for Linux has no installed
+      # distributions."（UTF-16 输出）后非 0 退出。`#!/bin/sh` 的另外两个脚本
+      # 不受影响（System32 下没有 sh.exe，裸名 sh 正常落到 PATH 上的 MSYS2
+      # sh.exe）。本补丁把这两个测试改为配置期 find_program('bash') 解析出的
+      # 绝对路径 MSYS2 bash 作解释器、脚本经 files() 传参——绝对路径不触发上述
+      # 裸名搜索顺序。
+      # Linux 上内核按 shebang 直接 exec /usr/bin/env bash，不存在这条搜索顺序，
+      # 补丁里那些 Windows 相关分支也不会命中，故不打。
+      - shared-mime-info-0001-tests-absolute-bash.patch
 test:
   enabled: true
