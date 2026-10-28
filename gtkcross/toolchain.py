@@ -101,12 +101,18 @@ class Toolchain:
         """
         lines = [f"export PATH={self.base_path()}"]
         tools = self.cfg.get("tools", {})
+        # tools 用 `${VAR:-默认}` 而非直接赋值：调用方环境里显式设置的
+        # CC/CXX/PKG_CONFIG 等必须保留（用户要由此自定义编译器与参数），
+        # 只在未设置时才落入工具链默认值。
         for key, val in tools.items():
-            lines.append(f"export {key.upper()}='{val}'")
+            k = key.upper()
+            lines.append(f'export {k}="${{{k}:-{val}}}"')
         for k, v in self.cfg.get("env", {}).items():
             lines.append(f"export {k}=\"{v}\"")
         # Bias every compiler search at our sysroot (headers/libs first).
-        lines.append('export CPPFLAGS="-I$SYSROOT/include"')
+        # 调用方已有的 CPPFLAGS 追加在后（sysroot 头目录优先，hermetic 不被
+        # 用户 -I 遮蔽；用户的 -D/-I 补充参数随后生效）。
+        lines.append('export CPPFLAGS="-I$SYSROOT/include${CPPFLAGS:+ $CPPFLAGS}"')
         # 注：曾尝试在 LDFLAGS 加 -static-libgcc/-static-libstdc++ 以消除产物对
         # MSYS2 工具链运行时（libgcc_s_seh-1.dll / libstdc++-6.dll）的依赖，
         # 实测不可靠：meson 对 link_language=cpp 的工程会在 -Wl,--start-group
@@ -115,7 +121,7 @@ class Toolchain:
         # 时灵时不灵的全局开关比不加更糟，且多份 C++ 运行时在跨 DLL 场景有
         # 风险，故不启用。这些运行时 DLL 由 MSYS2 工具链提供，非本项目产物。
         if self.target_os == "windows":
-            lines.append('export LDFLAGS="-L$SYSROOT/lib"')
+            lines.append('export LDFLAGS="-L$SYSROOT/lib${LDFLAGS:+ $LDFLAGS}"')
         else:
             # Linux/ELF 上 LDFLAGS 需要三件事，缺一在实测中都会失败：
             #   -L                       ：在自己的 sysroot 里找库
@@ -148,7 +154,8 @@ class Toolchain:
             #     文件默认就把 pow 链上了。
             lines.append(
                 'export LDFLAGS="-L$SYSROOT/lib '
-                '-Wl,-rpath-link,$SYSROOT/lib -Wl,-rpath,$SYSROOT/lib -lm"'
+                '-Wl,-rpath-link,$SYSROOT/lib -Wl,-rpath,$SYSROOT/lib '
+                '-lm${LDFLAGS:+ $LDFLAGS}"'
             )
         # 让 gcc 的 *内建* 库搜索目录包含 $SYSROOT/lib。LDFLAGS 里的 -L 做不到
         # 这件事，而 g-ir-scanner 只读内建目录：
@@ -167,7 +174,8 @@ class Toolchain:
         # （C:/msys64/ucrt64/lib/libglib-2.0.dll.a 正好落在 gcc 内建目录里），
         # 属侥幸；干净环境（CI 镜像、本机 mingw64）必失败。
         # 只加自己的 sysroot，不引入系统路径，不损 hermetic（且与 -L 同源）。
-        lines.append('export LIBRARY_PATH="$SYSROOT/lib"')
+        # 调用方已有的 LIBRARY_PATH（: 分隔的目录列表）追加在后。
+        lines.append('export LIBRARY_PATH="$SYSROOT/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"')
         if self.target_os != "windows":
             # 静态优先策略（default_library: static）在 Linux 上要求所有 .a 都是
             # PIC：它们最终会被链进 glib/cairo/pango/gtk 这些 .so，非 PIC 目标文件

@@ -222,6 +222,47 @@ python -m gtkcross list -t msys2-ucrt64        # recipe 清单
 构建产物在 `out/<target>/`（bin/lib/include/pkgconfig 齐全），构建中间态在
 `build/<target>/<recipe>/`（configure/compile/install/test 四类 stamp 断点续跑）。
 
+## 自定义编译参数（CC/CFLAGS 等环境变量）
+
+构建会透传以下环境变量给全部引擎；prelude 以**加性**方式导出它们
+（sysroot 参数在前，调用方值保留在后），不会覆盖你的设置：
+
+| 变量 | 说明 |
+| --- | --- |
+| `CC` / `CXX` | 编译器选择（调用方设置了就用你的值，否则回退 toolchains/*.yaml 默认的 gcc/g++） |
+| `CFLAGS` / `CXXFLAGS` | C/C++ 编译参数（Linux 上框架追加 `-fPIC`；Windows 透传原值） |
+| `CPPFLAGS` | 预处理参数（框架把 `-I$SYSROOT/include` 放最前，你的值追加在后） |
+| `LDFLAGS` | 链接参数（框架把 `-L$SYSROOT/lib` 及 Linux 的 rpath/-lm 放最前，你的值追加在后） |
+| `LIBRARY_PATH` | gcc 内建库搜索路径（sysroot 前置，你的目录追加在后） |
+
+各引擎的生效方式：
+
+- **meson**：首次 `meson setup` 时读取环境（CFLAGS/CXXFLAGS/CPPFLAGS → c_args，
+  LDFLAGS → 链接参数），固化进 build 目录；
+- **cmake**：显式注入 `-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS"` 等五个变量
+  （CMake 自身不读 `CPPFLAGS`——libxml2 FindIconv 探测不对称的根因）。只有你
+  显式设置了任一变量时才注入，未设置时 configure 命令与旧版逐字节相同；
+- **autotools**：configure 直接读环境。
+
+框架记录每个 recipe 配置时的**环境指纹**（上表变量）。再次构建时若指纹变化，
+该 recipe 的 `build` 目录与 configure/compile/install stamp 会被整体废弃、
+强制重新配置——改 `CFLAGS` 后重跑 `build` 即生效，无需手动删目录。旧版本框架
+构建过的 workspace 首次构建也会按"无指纹"强制重配。
+
+示例（Windows 目标）：
+
+```bash
+CFLAGS="-march=x86-64-v4 -O3" CXXFLAGS="-march=x86-64-v4 -O3" \
+  python -m gtkcross build gtk -t msys2-ucrt64
+```
+
+注意：
+
+- meson 的 `-Dbuildtype=release` 已隐含 `-O3`，对 meson 工程再传 `-O3` 是冗余的；
+- cmake 的 `-D` 值以分号分隔列表，参数里不要用 `;`；
+- 环境变量是**全局**的：一次改动会作用于本次构建的全部依赖链
+  （每个已建包的指纹都变，整条链重新配置）。
+
 ## 快速开始（linux-native，Linux 原生）
 
 Linux 原生 = 宿主即目标，**不是交叉编译**：编译器与构建工具直接用发行版的，

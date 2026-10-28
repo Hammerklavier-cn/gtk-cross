@@ -182,6 +182,20 @@ class CmakeEngine(Engine):
         defines.setdefault("BUILD_SHARED_LIBS", "OFF" if self.static else "ON")
         def_str = " ".join(f"-D{k}={v}" for k, v in defines.items())
         sr = posix(self.sysroot)
+        # 调用方显式设置了 CFLAGS/CXXFLAGS/CPPFLAGS/LDFLAGS 时，把完整
+        # 参数经 -D 注入配置命令（值在 bash 内展开，含 prelude 合并进来的
+        # sysroot -I/-L 与 Linux 的 -fPIC）。CMake 自身只从环境读
+        # CFLAGS/CXXFLAGS/LDFLAGS、且仅在首次 configure 落缓存，**不读
+        # CPPFLAGS**（libxml2 FindIconv 探测不对称的根因）——显式传参让
+        # 探测/编译/链接三处看到同一份参数，且不受"缓存已存在"影响。
+        # 仅在调用方设置有变量时注入（os.environ 即调用方环境：prelude 的
+        # export 发生在 bash 子进程内，不回写 Python 进程），未设置时命令
+        # 与旧行为逐字节一致。值含空格故整体加引号；注意 CMake 的 -D 值
+        # 中分号是列表分隔符，参数里不要使用。
+        flags_str = ""
+        flags = self._env_flag_defines()
+        if flags:
+            flags_str = " ".join(flags) + " "
         # Hermetic sysroot: never pick up libs/headers/CMake packages outside
         # our prefix; only programs (compilers/tools) may come from the
         # toolchain PATH (CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH).
@@ -196,8 +210,22 @@ class CmakeEngine(Engine):
             f"-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY "
             f"-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH "
             f"-DCMAKE_PREFIX_PATH={sr} "
-            f"{def_str}"
+            f"{flags_str}{def_str}"
         )
+
+    def _env_flag_defines(self) -> List[str]:
+        """调用方设置的编译/链接参数 -> 注入的 -D 列表（未设置则空）。"""
+        if not any(
+            os.environ.get(k) for k in ("CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS")
+        ):
+            return []
+        return [
+            '-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS"',
+            '-DCMAKE_CXX_FLAGS="$CXXFLAGS $CPPFLAGS"',
+            '-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS"',
+            '-DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS"',
+            '-DCMAKE_MODULE_LINKER_FLAGS="$LDFLAGS"',
+        ]
 
     def configure(self) -> None:
         print(f"  [cmake configure] {self.recipe.name}")

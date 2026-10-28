@@ -163,6 +163,12 @@ sysroot 里的 `include/EGL` 与 `egl.pc`）。集合由
    **通用做法**：给这类探测显式定义结论（本项目用 `Iconv_IS_BUILT_IN=OFF`，
    条件正是 FindIconv 自己的 `if(NOT DEFINED …)`），而不是去放宽 find-root 模式。
    同类坑还要留意别的 CMake 工程的 `check_symbol_exists`/`find_library` 组合。
+   **2026-10-28 补充**：CmakeEngine 现在会在**调用方显式设置了**
+   `CFLAGS`/`CXXFLAGS`/`CPPFLAGS`/`LDFLAGS` 时把完整参数注入 configure 命令
+   （`-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS"` 等，bash 内展开，见 README「自定义
+   编译参数」一节）——此时探测/编译/链接三处看到同一份参数。libxml2 的
+   `Iconv_IS_BUILT_IN=OFF` 是显式结论定义（`NOT DEFINED` 条件为假），依然优先，
+   两条路径都正确；未设置任何变量时命令与过去逐字节相同，本条的默认情形不变。
 10. **上游会按 `host_machine.system()` 分叉"必需依赖"**，这是最容易漏的一类
     Linux-only 阻塞（实测两处，都在 gdk-pixbuf）：
     - 直接写死分支：`if host_system not in ['windows','darwin','android']`

@@ -956,3 +956,67 @@ OpenSSL 并进 curl 之后的链接都还没跑** —— 本轮按约定停在�
 归因于 CI 首跑的 20 项失败）、`configure_cmd` / `prelude` / `bash_argv` / `plans`
 零变化。
 
+## 环境变量透传与指纹失效（2026-10-28）
+
+**需求**：`CC/CXX/CFLAGS/CXXFLAGS/CPPFLAGS/LDFLAGS` 等要能**有效**作用于
+cmake 与 meson 的构建过程（原来"只设置"不生效，逐层原因见下）。配套文档：
+README「自定义编译参数」一节；单测 `tests/test_env_flags.py`（16 项）。
+
+**改前失效的三个层次**（每层都独立地让用户设置落空）：
+
+1. **prelude 覆盖**：`export CC='gcc'` 等把调用方的 CC/CXX 整体盖掉；
+   `export CPPFLAGS="-I$SYSROOT/include"`、`LDFLAGS=...`、`LIBRARY_PATH=...`
+   也是覆盖式——用户加的参数全被丢弃（只是"传进了构建环境"而已，值已被换）。
+2. **cmake 不读 CPPFLAGS**：CMake 从环境只取 CFLAGS/CXXFLAGS/LDFLAGS（且只在
+   首次 configure 落缓存），CPPFLAGS 完全不看——用户放 CPPFLAGS 里的参数对
+   cmake 包无效（libxml2 FindIconv 探测不对称同根，见 platform-notes 第 9 条）。
+3. **configure 后固化 + stamp 跳过**：meson 只在**首次 setup** 读环境
+   （`_set_default_options_from_env` 的 `if self.first_invocation:`，之后
+   reconfigure 也忽略 env 变化），参数固化进 build 目录；而框架的
+   `done/*.stamp` 让已配好的包直接跳过 configure——改了环境变量重跑 build，
+   既不会重配也不会用新参数。
+
+**改法**（都在框架层，recipe 零改动）：
+
+1. **prelude 加性导出**（toolchain.py）：tools 循环改 `${VAR:-默认}`（只有未设置
+   才落默认值）；CPPFLAGS/LDFLAGS/LIBRARY_PATH 改 `${VAR:+ $VAR}` 追加，sysroot
+   参数保持在最前（hermetic 优先，用户的 -I/-L 排后）。
+2. **cmake 显式注入**（engines.py CmakeEngine）：调用方设置了任一相关变量时，
+   在 configure 命令里注入 `-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS"`、
+   `-DCMAKE_CXX_FLAGS="$CXXFLAGS $CPPFLAGS"`、EXE/SHARED/MODULE 三个
+   `LINKER_FLAGS="$LDFLAGS"`（bash 内展开，含 prelude 合并进的 sysroot 参数）。
+   **未设置任何变量时注入为空，命令与旧版逐字节相同**（这点由 golden 守住）。
+3. **环境指纹失效**（builder.py）：`_ENV_TRACKED` 11 个变量算 sha256 指纹，
+   存 `done/env-fp.stamp`；每次 build_recipe 先比对，变了就删 `build/` 目录
+   （meson 的 coredata / cmake 的 CMakeCache 必须连目录删，光删 stamp 无效——
+   记忆里反复踩过的坑）与全部阶段 stamp，autotools 另删 src 里
+   `config.cache/config.status/config.log`（configure 带 -C，缓存会复用旧探测）。
+   旧框架建的无指纹 workspace 首次构建也强制重配（保守：不知道当时用的什么参数）。
+   data 引擎跳过（纯拷贝无编译参数）。
+
+meson 侧**不需要**引擎改动：meson 首配本来就读环境变量（CFLAGS/CXXFLAGS/
+CPPFLAGS → c_args、LDFLAGS → link_args），指纹失效保证 env 变化后 setup 会重跑，
+就把这条链路补完整了。
+
+**连带修的一个快照问题**：`capture_plan` 原来不清 `_ENV_FLAG_VARS`，宿主残留的
+CFLAGS 会让 golden 失配；另外 `bash_argv` 里的 msys2 bash 路径 `str(Path(...))`
+在 Windows 宿主生成反斜杠、Linux 生成正斜杠，golden 随生成平台漂移——`_rel()`
+现在把 `\` 归一为 `/`。重新生成后 golden 差异**只有** prelude 22 行
+（11 行 × 2 个 Windows 目标），configure_cmd/plans/bash_argv 零变化（环境未设置
+时的命令逐字节保持——这正是"默认行为不变"的证明）。
+
+**验证**：单测 77 → 93（`test_env_flags.py` 16 项：指纹稳定性/变化、prelude 加性、
+cmake 注入三态、指纹失效四态含 data 跳过与 autotools 缓存清理）。
+
+**真机冒烟（msys2-ucrt64，zlib 1.3.2，cmake 引擎）**，正好踩中"旧框架构建的
+无指纹 workspace"迁移路径：
+1. 旧 workspace（有 configure/compile/install stamp、无 env-fp.stamp）带上
+   `CFLAGS="-O2 -march=x86-64-v2"` 首跑 → 报 `[env] zlib: 编译参数环境变化，
+   废弃缓存重新 configure`，重新 configure/install；
+2. `CMakeCache.txt` 里 `CMAKE_C_FLAGS=-O2 -march=x86-64-v2
+   -I…/out/msys2-ucrt64/include` —— 用户参数与合并进来的 sysroot -I 都进了
+   CMake 缓存，非仅打印；
+3. 同环境重跑 → configure/compile/install 全部 `[skip]`（指纹匹配，幂等）；
+4. 撤销 CFLAGS 重跑 → 再次 `[env]` 触发重配，`CMAKE_C_FLAGS` 恢复为空
+   （回到默认），sysroot 不残留自定义参数。
+

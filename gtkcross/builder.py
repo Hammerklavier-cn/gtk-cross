@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -32,6 +33,24 @@ _ENGINE_CLS = {
     "data": DataEngine,
 }
 _LOCKFILE = "versions.lock.yaml"
+
+# 参与构建参数的用户环境变量（prelude 加性保留它们，见 toolchain.py）。
+# 任一变量值变化 ⇒ 已配置的 build 目录（meson 的 coredata / cmake 的
+# CMakeCache）里固化的参数过期，必须删目录重配。只跟踪"用户可配置"维度；
+# 框架自身注入的 sysroot 参数属 toolchain 配置，其变更走既有"删 build 目录"
+# 约定，不在此列。
+_ENV_TRACKED = (
+    "CC", "CXX", "AR", "RANLIB", "NM", "STRIP",
+    "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LIBRARY_PATH",
+)
+
+
+def env_fingerprint() -> str:
+    """当前环境下的编译参数指纹（sha256，固定变量顺序）。"""
+    h = hashlib.sha256()
+    for k in _ENV_TRACKED:
+        h.update(f"{k}={os.environ.get(k, '')}\0".encode("utf-8"))
+    return h.hexdigest()
 
 # .pc 的字段：Requires.private / Libs.private / Cflags.private 需提升为公开字段
 _PC_KEY_RE = re.compile(r"^([A-Za-z0-9_.]+)\s*:\s*(.*)$")
@@ -204,6 +223,10 @@ class Builder:
             default_library=self.project.default_library,
             prefer_static=self.project.prefer_static,
         )
+        # 编译参数环境（调用方 CC/CFLAGS/...）与上次配置时不同 ⇒ 删掉整个
+        # build 目录与阶段 stamp 强制重配。光删 stamp 不够：meson 的 coredata
+        # 与 cmake 的 CMakeCache.txt 固化着旧参数（框架既有坑，见 NOTES）。
+        self._invalidate_on_env_change(name, recipe, ws)
         engine.apply("configure", engine.configure)
         engine.apply("compile", engine.compile)
         print(f"  [install] {name} -> {self.sysroot}")
@@ -213,6 +236,52 @@ class Builder:
             print(f"  [pc] {name}: 提升静态 .pc 私有字段 -> {', '.join(published)}")
         self._apply_post_install(name, recipe)
         self._apply_test(name, engine)
+
+    def _invalidate_on_env_change(self, name: str, recipe: Recipe, ws: Path) -> None:
+        """调用方编译参数环境（CC/CFLAGS/...）变化时，废弃本 recipe 的缓存。
+
+        prelude 把这些变量加性透传给 configure（见 toolchain.py），而
+        meson/cmake 只在 setup/configure 时把它们固化进 build 目录（meson 的
+        coredata、cmake 的 CMakeCache.txt），之后环境再变也不会被重读——光删
+        stamp 重跑 compile 换不了参数（NOTES 里反复踩过的坑：改构建选项后要
+        连 build 目录一起删）。故指纹不匹配时连 build 目录与全部阶段 stamp
+        一起删，强制重新 configure；随后写入新指纹。
+
+        data 引擎没有编译参数（纯文件拷贝），跳过；否则 install stamp 每次
+        环境变化都被失效，白做重装。
+        """
+        if recipe.build == "data":
+            return
+        fp = env_fingerprint()
+        done = ws / "done"
+        fp_path = done / "env-fp.stamp"
+        prev = fp_path.read_text(encoding="utf-8") if fp_path.exists() else None
+        if prev == fp:
+            return
+        # 环境与上次配置不同，或旧 workspace 有 stamp 但没记指纹（框架升级前
+        # 构建的，coredata/CMakeCache 里的参数未知）——都按"缓存参数过期"处理，
+        # 强制重配。完全没有配置痕迹（全新 workspace）时无可废弃，直接记指纹。
+        if prev is not None or any(done.glob("*.stamp")):
+            print(
+                f"  [env] {name}: 编译参数环境变化，废弃缓存重新 configure"
+            )
+            # meson/cmake 的 build 目录（ninja/meson-private/CMakeCache.txt）
+            shutil.rmtree(ws / "build", ignore_errors=True)
+            if recipe.build == "autotools":
+                # autotools 是 in-source 构建且 configure 带 -C（config cache）：
+                # config.cache 会按变量缓存探测结果，CFLAGS 变了旧结论未必成立。
+                # 产物在 source_dir（默认 src 根）里。
+                sub = recipe.autotools.get("source_dir", "")
+                root = ws / "src" / sub if sub else ws / "src"
+                for f in ("config.cache", "config.status", "config.log"):
+                    p = root / f
+                    if p.is_file():
+                        p.unlink()
+            for s in done.glob("*.stamp"):
+                if s.name != "env-fp.stamp":
+                    s.unlink()
+        done.mkdir(parents=True, exist_ok=True)
+        fp_path.write_text(fp, encoding="utf-8")
 
     def _apply_post_source(self, name: str, recipe: Recipe, ws: Path, src: Path) -> None:
         """Apply recipe patches to the extracted source tree.
