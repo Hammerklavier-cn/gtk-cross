@@ -264,15 +264,16 @@ jobs:
           echo "recipe 数 : ${#NAMES[@]}"
           echo "并行度    : $(nproc)"
           echo "磁盘      :"; df -h . | sed 's/^/  /'
-          # v4 变体且探针判定 CPU 无 AVX-512：构建照常（发布要三份资产），
-          # 测试跳过。其他变体 test_args 为空数组，命令与基线逐字节一致。
-          test_args=()
+          # v4 变体且探针判定 CPU 无 AVX-512：构建照常（发布仍要资产），
+          # 但必须同时关掉 GIR dumper 与测试程序构建——它们都会执行 v4 目标码。
+          # 其他变体参数为空数组，命令与基线逐字节一致。
+          build_args=()
           if [ "${{ matrix.cflags }}" = "-march=x86-64-v4" ] && \
              [ "${{ steps.avx512.outputs.supported }}" != "yes" ]; then
-            echo "::warning::CPU 不支持 AVX-512：x86-64-v4 测试跳过（--no-test）"
-            test_args=(--no-test)
+            echo "::warning::CPU 不支持 AVX-512：v4 关闭 GIR/测试构建并跳过测试"
+            build_args=(--no-test --no-introspection --no-test-build)
           fi
-          python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} -j"$(nproc)" "${test_args[@]}"
+          python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} -j"$(nproc)" "${build_args[@]}"
 
       # 产物统计：本项目核心目标是尽量少产 DLL（静态优先），把计数打出来，
       # 便于在 CI 日志里一眼看出静态化是否回退。仅诊断，不参与判定。
@@ -456,11 +457,9 @@ jobs:
             variant: " [x86-64-v3]"
             cflags: "-march=x86-64-v3"
             asset_suffix: "-x86-64-v3"
-          - arch: x86_64
-            runs_on: ubuntu-latest
-            variant: " [x86-64-v4]"
-            cflags: "-march=x86-64-v4"
-            asset_suffix: "-x86-64-v4"
+          # x86-64-v4 不再在本 job 做 native 构建：GIR 生成会在构建期执行
+          # AVX-512 dumper，托管 runner 的 CPU 不保证支持。改由下面的
+          # linux-cross 矩阵用 linux-x64-v4（真正的 cross 模式）产出同名资产。
 
     env:
       # 无头容器没有 X。框架把 GTKCROSS_TEST_WRAPPER 作为整条测试命令的前缀
@@ -547,6 +546,7 @@ jobs:
             perl \
             nasm \
             gperf \
+            bison flex \
             gettext itstool \
             python3 python3-dev python3-yaml \
             python3-mako python3-markdown python3-packaging \
@@ -586,31 +586,6 @@ jobs:
           python3 --version
           PYTHONPATH=. python3 -m gtkcross doctor -t linux-native
 
-      # x86-64-v4（AVX-512）变体专用探针：语义与 Windows job 同款（见其注释）。
-      # Linux 宿主有 cc（build-essential），探针编译不依赖 MSYS2；运行结果
-      # 是"v4 测试程序能不能跑"的真实判定。非 v4 变体此步骤被 if 跳过。
-      - name: 探测 AVX-512（x86-64-v4 变体）
-        if: matrix.cflags == '-march=x86-64-v4'
-        id: avx512
-        run: |
-          set -euo pipefail
-          cat > v4probe.c <<'EOF'
-          #include <immintrin.h>
-          int main(void) {
-            __m512i a = _mm512_set1_epi32(1);
-            __m512i b = _mm512_add_epi32(a, a);
-            return _mm512_cvtsi512_si32(b) == 2 ? 0 : 1;
-          }
-          EOF
-          cc -march=x86-64-v4 v4probe.c -o v4probe
-          if ./v4probe; then
-            echo "AVX-512 可用：x86-64-v4 测试照常"
-            echo "supported=yes" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::runner CPU 不支持 AVX-512：x86-64-v4 构建照常，测试跳过"
-            echo "supported=no" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: 完整编译全部 recipe
         env:
           CFLAGS: ${{ matrix.cflags }}
@@ -629,15 +604,8 @@ jobs:
           echo "变体      : ${CFLAGS:-（基线，未设置）}"
           echo "recipe 数 : ${#NAMES[@]}"
           echo "磁盘      :"; df -h . | sed 's/^/  /'
-          # v4 变体且探针判定 CPU 无 AVX-512：构建照常（发布要三份资产），
-          # 测试跳过。其他变体 test_args 为空数组，命令与基线逐字节一致。
-          test_args=()
-          if [ "${{ matrix.cflags }}" = "-march=x86-64-v4" ] && \
-             [ "${{ steps.avx512.outputs.supported }}" != "yes" ]; then
-            echo "::warning::CPU 不支持 AVX-512：x86-64-v4 测试跳过（--no-test）"
-            test_args=(--no-test)
-          fi
-          PYTHONPATH=. python3 -m gtkcross build "${NAMES[@]}" -t linux-native -j"$(nproc)" "${test_args[@]}"
+          # x86-64-v4 不再在这条 native job 里构建（见 linux-cross）。
+          PYTHONPATH=. python3 -m gtkcross build "${NAMES[@]}" -t linux-native -j"$(nproc)"
 
       # 产物统计 + 架构一致性。静态优先与"sysroot 只有一个 lib 目录"是本项目
       # 的形态约定；额外验证所有 .so 的 ELF Machine 都等于本 runner 的架构 ——
@@ -728,11 +696,228 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # cross 构建的 native 工具前缀。不是发布资产，只给下面的 cross job 用。
+  # 只编工具链闭包（glib/gdk-pixbuf/shared-mime-info/shaderc），不跑测试。
+  linux-tools:
+    name: build native tools (linux x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装宿主构建工具
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git pkg-config ninja-build cmake make \
+            autoconf automake libtool perl nasm gperf bison flex gettext itstool \
+            python3 python3-dev python3-yaml python3-mako python3-packaging \
+            xz-utils zstd
+          pipx install meson
+          echo "meson    : $(meson --version)"
+          echo "nproc    : $(nproc)"
+
+      - name: 缓存下载的源码包
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: downloads-linux-tools-${{ hashFiles('versions.lock.yaml') }}
+          restore-keys: |
+            downloads-linux-tools-
+
+      - name: 单元与交叉计划测试
+        run: PYTHONPATH=. python3 -m unittest discover -s tests -v
+
+      - name: 构建 native 工具 sysroot
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m gtkcross build \
+            glib-base gdk-pixbuf shared-mime-info shaderc \
+            -t linux-tools -j"$(nproc)" --no-test --no-test-build
+          test -x out/linux-tools/bin/glib-compile-resources
+          test -x out/linux-tools/bin/gdk-pixbuf-query-loaders
+          test -x out/linux-tools/bin/update-mime-database
+          test -x out/linux-tools/bin/glslc
+          echo "native tools:"
+          ls -1 out/linux-tools/bin | sed 's/^/  /'
+
+      - name: 打包 native tools
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -C out -cf - linux-tools | zstd -T0 -15 -f -o dist/linux-tools.tar.zst
+          ls -lh dist/linux-tools.tar.zst
+
+      - name: 上传 native tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-cross-tools-linux-x86_64
+          path: dist/linux-tools.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  # Linux 宿主的三个 cross 目标。共同点：
+  #   * native 工具来自 linux-tools；
+  #   * Builder 默认关 GIR 与测试程序（cross 下目标码不能在构建机执行）；
+  #   * 目标侧依赖仍全部自建，CMake/Meson/autotools 都走 cross 路径。
+  linux-cross:
+    name: cross (${{ matrix.label }})
+    needs: linux-tools
+    # mingw-w64 11 (Ubuntu 24.04) 缺 WinRT 头与 d2d1_3.h；26.04 的 13 才够
+    # gst-plugins-bad d3d12 / GTK WinRT 探测。aarch64 target 也统一用这里。
+    runs-on: ubuntu-26.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-mingw-x64
+            label: linux-x64 -> windows-x64 (mingw64)
+            apt: gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 binutils-mingw-w64-x86-64
+            asset: gtk-cross-linux-mingw-x64
+            archive_root: gtk-cross-linux-mingw-x64
+          - target: linux-aarch64
+            label: linux-x64 -> linux-aarch64
+            apt: gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross
+            asset: gtk-cross-linux-aarch64
+            archive_root: gtk-cross-linux-aarch64
+          # 保持旧 v4 资产名，消费者不需要改。目标名是 linux-x64-v4（cross），
+          # 归档顶层仍是 gtk-cross-linux-native-x86_64-x86-64-v4。
+          - target: linux-x64-v4
+            label: linux-x64 -> linux-x64-v4 (forced cross)
+            apt: ""
+            asset: gtk-cross-linux-native-x86_64-x86-64-v4
+            archive_root: gtk-cross-linux-native-x86_64-x86-64-v4
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装宿主构建工具与交叉编译器
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git pkg-config ninja-build cmake make \
+            autoconf automake libtool perl nasm gperf bison flex gettext itstool \
+            python3 python3-dev python3-yaml python3-mako python3-packaging \
+            python3-markdown xz-utils zstd \
+            ${{ matrix.apt }}
+          pipx install meson
+          echo "meson    : $(meson --version)"
+          echo "uname -m : $(uname -m)"
+          echo "target   : ${{ matrix.target }}"
+
+      - name: 缓存下载的源码包
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: downloads-cross-${{ matrix.target }}-${{ hashFiles('versions.lock.yaml') }}
+          restore-keys: |
+            downloads-cross-${{ matrix.target }}-
+
+      - name: 下载 native tools
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-cross-tools-linux-x86_64
+          path: dist
+
+      - name: 解包 native tools
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          tar -C out -xf dist/linux-tools.tar.zst
+          test -x out/linux-tools/bin/glib-compile-resources
+
+      - name: 工具链自检（doctor）
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m gtkcross doctor -t ${{ matrix.target }}
+
+      - name: 完整交叉编译全部 recipe
+        run: |
+          set -euo pipefail
+          mapfile -t NAMES < <(python3 -m gtkcross list | tail -n +2 | awk '{print $1}' | sort -u)
+          if [ "${#NAMES[@]}" -eq 0 ]; then
+            echo "::error::recipe 枚举为空，gtkcross list 可能失败或输出格式已变"
+            exit 1
+          fi
+          echo "目标      : ${{ matrix.target }}"
+          echo "recipe 数 : ${#NAMES[@]}"
+          echo "磁盘      :"; df -h . | sed 's/^/  /'
+          PYTHONPATH=. python3 -m gtkcross build "${NAMES[@]}" \
+            -t ${{ matrix.target }} -j"$(nproc)"
+
+      - name: 产物格式与架构检查
+        if: always()
+        run: |
+          set +e
+          root="out/${{ matrix.target }}"
+          [ -d "$root" ] || { echo "sysroot 未生成：$root"; exit 0; }
+          echo ".a   : $(find "$root/lib" -name '*.a' | wc -l)"
+          echo ".so  : $(find "$root/lib" -name '*.so*' -type f | wc -l)"
+          echo ".dll* : $(find "$root" -name '*.dll' -o -name '*.dll.a' | wc -l)"
+          echo ".pc  : $(find "$root" -name '*.pc' | wc -l)"
+          echo "bin  : $(find "$root/bin" -type f | wc -l)"
+          case "${{ matrix.target }}" in
+            linux-mingw-x64)
+              f="$root/bin/gtk4-demo.exe"
+              [ -f "$f" ] && file "$f"
+              file "$root/lib/libgtk-4-1.dll" 2>/dev/null
+              ;;
+            linux-aarch64)
+              f=$(find "$root/lib" -name 'libglib-2.0.so*' -type f | head -1)
+              [ -n "$f" ] && readelf -h "$f" | sed -n 's/^  Machine: */&/p'
+              ;;
+            linux-x64-v4)
+              f=$(find "$root/lib" -name 'libglib-2.0.so*' -type f | head -1)
+              [ -n "$f" ] && readelf -h "$f" | sed -n 's/^  Machine: */&/p'
+              ;;
+          esac
+
+      - name: 导出可重定位 sysroot（仅发布 tag）
+        if: success() && env.RELEASE_TAG != ''
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG//\//-}"
+          mkdir -p dist
+          # dist/ 里还有下载下来的 linux-tools.tar.zst；不要把它带进发布资产。
+          rm -f dist/linux-tools.tar.zst
+          out="dist/${{ matrix.asset }}-${tag}.tar.zst"
+          PYTHONPATH=. python3 -m gtkcross export -t ${{ matrix.target }} \
+            --archive-root "${{ matrix.archive_root }}" \
+            -o "$out" --zstd-level 15
+          ls -lh dist
+
+      - name: 上传 sysroot 归档
+        if: success() && env.RELEASE_TAG != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-cross-sysroot-${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}-*.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: 收集交叉构建诊断（仅失败时）
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtkcross-diagnostics-cross-${{ matrix.target }}
+          path: |
+            gtkcross-events.log
+            gtkcross-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # 发布：Windows 两个 target 与 Linux 两个架构的 sysroot 都作为资产；四份
   # 归档齐全才创建 Release。Linux job 同时是同一份 recipe 定义的回归证据。
   release:
     name: publish sysroot release
-    needs: [build, linux]
+    needs: [build, linux, linux-tools, linux-cross]
     if: success() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != ''))
     runs-on: ubuntu-latest
     permissions:
@@ -793,6 +978,8 @@ jobs:
             "gtk-cross-linux-native-x86_64-x86-64-v3-${tag}.tar.zst"
             "gtk-cross-linux-native-x86_64-x86-64-v4-${tag}.tar.zst"
             "gtk-cross-linux-native-aarch64-${tag}.tar.zst"
+            "gtk-cross-linux-mingw-x64-${tag}.tar.zst"
+            "gtk-cross-linux-aarch64-${tag}.tar.zst"
           )
           for f in "${required[@]}"; do
             if [ ! -f "dist/$f" ]; then
