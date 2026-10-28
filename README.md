@@ -75,7 +75,11 @@ aarch64 上都成立。真出现交叉工具链时（下表 `linux-mingw-x64` �
 | msys2-mingw64（MSYS2 MINGW64 原生）      | ✅ 完成 | 39 个 recipe 全链构建 + 自带测试                                           |
 | msys2-ucrt64（MSYS2 UCRT64 原生）        | ✅ 完成 | 同 recipe 复用；UCRT 运行时，独立 sysroot（全链 39 recipe + 测试已复验）   |
 | linux-native（Linux 原生，x86_64 + aarch64） | ✅ 全链完成 | 同 recipe 复用，工具链 `target_os: linux`；Windows 专属补丁/选项/依赖已门控出本目标，Linux 侧的必需依赖、X11 客户端栈与 Mesa（GL/EGL 实现）**反向**门控/新增。`build libadwaita` 闭包 62 recipe 全绿，含 libadwaita 430 个子用例。CI 在 `ubuntu-latest` 与 `ubuntu-26.04-arm` 两个容器上全量构建 |
-| linux-musl-x64 / linux-mingw-x64（交叉） | 规划    | meson cross-file + exe_wrapper                                             |
+| linux-tools（native 工具前缀） | ✅ 交叉前置 | 以 `glib-base` / `gdk-pixbuf` / `shared-mime-info` / `shaderc` 为入口的工具链闭包（实际 33 recipe，含 g-i/cairo/X11 依赖），给 cross 目标提供构建机可执行的 `glib-compile-resources`、`gdk-pixbuf-query-loaders`、`update-mime-database`、`glslc`。不是发布资产 |
+| linux-mingw-x64（Linux → Windows x64） | 🧪 本地到 gst；待 CI | mingw-w64 交叉 GCC，msvcrt CRT；目标侧依赖自建到 `out/linux-mingw-x64`。本地 Ubuntu 24.04 的 mingw-w64 11 头文件只能跑到 gst-plugins-bad；GTK 需 13+，CI 固定 `ubuntu-26.04`。UCRT 仍由 Windows 原生 `msys2-ucrt64` 提供 |
+| linux-aarch64（Linux x64 → aarch64） | ✅ 本地全链；待 CI | `aarch64-linux-gnu` 交叉 GCC，glibc；目标侧依赖自建到 `out/linux-aarch64`，69 recipe 全链通过（跳过 target g-i/appstream） |
+| linux-x64-v4（Linux x64 内部 cross） | ✅ 本地全链 | 宿主 gcc + `-march=x86-64-v4`，`needs_exe_wrapper=true`；构建期不执行 AVX-512 目标码，用于替代原先在无 AVX-512 runner 上必挂的 native v4。`libadwaita` 完整闭包通过（cross 跳过 target g-i） |
+| linux-native + `--force-cross` | ✅ 工具 | 同架构时强制走 cross 语义，产物/中间态落到 `out/linux-native-cross`；用于验证 cross 路径或临时做同 arch ISA 变体 |
 
 > msys2-mingw64 与 msys2-ucrt64 同为 win64 输出平台（x86_64-w64-mingw32 三元组，
 > toolchain 的 `platform: win64` 字段标注），区别在 CRT 运行时（msvcrt.dll vs
@@ -86,6 +90,91 @@ aarch64 上都成立。真出现交叉工具链时（下表 `linux-mingw-x64` �
 > `targets:` 块按目标覆盖（`Recipe.for_target`），因为 CRT 能力本身不同——
 > 最典型的是 msvcrt 没有 `en_US.UTF-8` 这个 POSIX 区域名（见 [NOTES.md](NOTES.md)
 > 的 libadwaita mingw64 条目）。
+
+## 交叉编译（Linux 宿主）
+
+cross 构建把 **build machine 工具** 与 **target sysroot** 分开：
+
+- `out/linux-tools`：native 构建工具前缀（glib-compile-resources、glib-compile-schemas、
+  gdk-pixbuf-query-loaders、update-mime-database、glslc）。
+- `out/<cross-target>`：目标库/头文件/.pc；target 侧依赖仍全部从源码自建。
+- 三个引擎都走 cross 模式：Meson `--cross-file` + `--native-file`（native
+  pkg-config 指向 `linux-tools`，GTK 的 `dependency(..., native: true)` 不会
+  误取 target 的 `glib-compile-resources`）、CMake `--toolchain-file`、
+  autotools `--host/--build`。
+- cross 构建默认**不生成 GIR/typelib、不编译测试程序、不跑 post_install**：
+  这些步骤要么需要执行目标二进制，要么会调用目标工具。上游 g-i 还会用目标
+  编译器编 `_giscanner` Python 扩展（却拿宿主 `Python.h`），所以 cross 直接
+  跳过 target 侧 g-i；native 工具前缀里仍有原生 g-i。基线/v3 原生 job 继续
+  覆盖完整测试；cross 资产是链接/运行用的 sysroot，GIR/typelib 可从同 OS/ABI
+  的基线资产取用。数据类步骤单独处理：`shared-mime-info` 的 `mime.cache`
+  由 native tools 里的 `update-mime-database` 生成，不执行目标工具；
+  `adwaita-icon-theme` 的 `icon-theme.cache` 在 cross 下不生成（GTK 运行期
+  会扫目录，基线资产里有缓存）。`appstream` 也跳过：libadwaita 1.10 已
+  vendored ministream，cross 资产没有 appstream 消费者。
+
+先装宿主交叉编译器。Ubuntu：
+
+```bash
+sudo apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 binutils-mingw-w64-x86-64
+sudo apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+                 binutils-aarch64-linux-gnu libc6-dev-arm64-cross
+```
+
+> Ubuntu 24.04 的 mingw-w64 **11** 缺 `windows.applicationmodel.core.h`
+> 与 `d2d1_3.h`（gst-plugins-bad d3d12 / GTK WinRT 需要）；请用 Ubuntu
+> 26.04（mingw-w64 13）或 Fedora 的新版 `mingw64-*`。交叉 CI job 固定在
+> `ubuntu-26.04`。
+
+Fedora：
+
+```bash
+sudo dnf install mingw64-gcc mingw64-gcc-c++ mingw64-binutils nasm
+# Fedora 官方 cross-gcc 只支持编译内核、不带 aarch64 glibc；做用户态 aarch64
+# 交叉需要 COPR：
+#   sudo dnf copr enable lantw44/aarch64-linux-gnu-toolchain
+#   sudo dnf install aarch64-linux-gnu-{binutils,gcc,glibc}
+# 或者在 Ubuntu 容器里构建（CI 走 Ubuntu 包）。
+```
+
+此外还需要框架惯用的宿主构建工具：`meson` / `ninja` / `cmake` / `make`、
+`autoconf` / `automake` / `libtool`、`bison` / `flex`、`gperf`、
+`gettext` / `itstool`、`nasm`、Python 3 + PyYAML。
+
+构建顺序：
+
+```bash
+# 1) native 工具前缀（每次工具链/版本变化后重建）
+python -m gtkcross build glib-base gdk-pixbuf shared-mime-info shaderc \
+    -t linux-tools --no-test --no-test-build
+
+# 2) 目标 sysroot
+python -m gtkcross build -t linux-mingw-x64   # Linux x86_64 -> Windows x86_64 (msvcrt)
+python -m gtkcross build -t linux-aarch64     # Linux x86_64 -> Linux aarch64
+python -m gtkcross build -t linux-x64-v4      # Linux x86_64 -> x86-64-v4
+```
+
+`--force-cross` 用于目标与本机同架构、但想验证/使用 cross 语义的情况：
+
+```bash
+python -m gtkcross build -t linux-native --force-cross --no-test
+# 产物/中间态：out/linux-native-cross、build/linux-native-cross
+```
+
+它生成 `needs_exe_wrapper = true` 的 Meson cross file 和 `--host/--build`
+不同的 autotools 配置；不会把目标二进制当成本机程序执行。`--native-sysroot`
+可覆盖 target 的 `native_target`（默认 `out/linux-tools`）。对应的导出：
+
+```bash
+python -m gtkcross export -t linux-native --force-cross \
+    -o dist/gtk-cross-linux-native-cross.tar.zst
+# 默认顶层目录 gtk-cross-linux-native-cross
+```
+
+`linux-mingw-x64` 使用 Linux 发行版的 mingw-w64 交叉 GCC，CRT 是 **msvcrt**；
+需要 UCRT 时仍用 Windows 原生 `msys2-ucrt64`。cross 资产不包含 GIR/typelib；
+需要 Python/GJS 运行期 intro 的消费者请使用对应平台的基线资产，或从同
+OS/ABI 的基线 sysroot 覆盖 `share/gir-1.0` 与 `lib/girepository-1.0`。
 
 ## 发布产物（GitHub Release）
 
@@ -100,17 +189,20 @@ Windows 两个 target 与 Linux 两个架构的 sysroot 都可以直接发布给
 | `gtk-cross-msys2-mingw64-<tag>.tar.zst` | Windows / msvcrt | `x86_64-pc-windows-gnu` |
 | `gtk-cross-msys2-ucrt64-<tag>.tar.zst` | Windows / UCRT | `x86_64-pc-windows-gnullvm` / llvm-mingw |
 | `gtk-cross-msys2-ucrt64-x86-64-v3-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v3`（AVX2/BMI/FMA，2013 年后的 x86-64 CPU 均可跑） |
-| `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v4`（AVX-512，需要 CPU 支持） |
+| `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v4`（AVX-512，需要 CPU 支持）；runner 无 AVX-512 时关闭 GIR/测试构建，产物为库/头文件 only |
 | `gtk-cross-linux-native-x86_64-<tag>.tar.zst` | Linux ELF x86_64 | 同架构原生链接/运行 |
 | `gtk-cross-linux-native-x86_64-x86-64-v3-<tag>.tar.zst` | Linux ELF x86_64 | 同上，`-march=x86-64-v3` |
-| `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64 | 同上，`-march=x86-64-v4` |
+| `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64 | 由 `linux-x64-v4` **cross** 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 | `gtk-cross-linux-native-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | 同架构原生链接/运行 |
+| `gtk-cross-linux-mingw-x64-<tag>.tar.zst` | Windows / msvcrt | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
+| `gtk-cross-linux-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 
-编译参数变体（基线 / x86-64-v3 / x86-64-v4）由 CI 矩阵产出，经环境变量
-CFLAGS/CXXFLAGS 透传进构建（见「自定义编译参数」一节）；`x86-64-vN` 是
-x86 指令级别，故 aarch64 不设变体。CI 的 v4 变体在 runner CPU 不支持
-AVX-512 时**构建照常、跳过自带测试**（构建前有探针步骤实测，避免测试程序
-SIGILL 噪音失败）；v3 与基线始终完整构建 + 测试。
+编译参数变体（基线 / x86-64-v3 / x86-64-v4）由 CI 矩阵产出；Linux 的
+x86-64-v4 现在由 `linux-x64-v4` cross job 产出（构建期不执行 AVX-512），
+不再依赖 runner CPU。Windows 的 UCRT v4 仍在 Windows 原生 job 上构建，并用
+AVX-512 探针决定是否跑测试。`x86-64-vN` 是 x86 指令级别，故 aarch64 不设
+变体。v3 与基线始终完整构建 + 测试；cross 资产只做库/头文件构建（见「交叉
+编译」一节的限制）。
 
 `linux-native` 这个 target 名不带架构（同一份定义在两种宿主上成立）；发布资产
 必须带架构，因为同一个 tag 会在两个 runner 上各产出一份，顶层目录也按
@@ -172,11 +264,11 @@ target 名；一个块用 `for:` 列多个选择器，多个 target 就共用同
 
 ```yaml
 targets:
-  - for: [windows]                  # 两个 msys2 目标共用，Linux 不生效
+  - for: [windows]                  # Windows 族（msys2 原生 + linux-mingw-x64 cross）
     deps: [directx-headers]
     meson:
       options: [-Dc_link_args=-Wl,--undefined=_tls_used]
-  - for: [msys2-mingw64]            # 同族里的单个例外（msvcrt 区域名）
+  - for: [msys2-mingw64, linux-mingw-x64]  # 同族里的 msvcrt 例外（区域名）
     patches: [gtk-0001-fallback-to-windows-locale.patch]
   - for: [linux]
     deps: [libx11]
@@ -244,6 +336,12 @@ python -m gtkcross list -t msys2-ucrt64        # recipe 清单
 | `CPPFLAGS` | 预处理参数（框架把 `-I$SYSROOT/include` 放最前，你的值追加在后） |
 | `LDFLAGS` | 链接参数（框架把 `-L$SYSROOT/lib` 及 Linux 的 rpath/-lm 放最前，你的值追加在后） |
 | `LIBRARY_PATH` | gcc 内建库搜索路径（sysroot 前置，你的目录追加在后） |
+
+cross 构建中，`CFLAGS`/`CXXFLAGS` 只注入 **target** 编译（Meson cross file、
+CMake toolchain file、autotools configure 前缀）；native 构建工具来自
+`linux-tools`，不会用目标 ISA flags 重编。工具链自带的 `target_cflags`
+（例如 `linux-x64-v4` 的 `-march=x86-64-v4`）也走同一注入路径，不写进全局
+`CFLAGS`。
 
 各引擎的生效方式：
 

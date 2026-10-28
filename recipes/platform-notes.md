@@ -667,3 +667,36 @@ configure 期那几处 `run_command`**（那些是构建期硬门，探得到；
   牵进 libgcrypt/nettle/p11-kit 一串）——与"Mesa 要不要自建"同类，留给用户裁决。
   注意 appstream 依赖 curl 取远端数据，这条缺口会传导到它。
 
+## 交叉构建（Linux 宿主）
+
+`toolchains/linux-*.yaml` 里的 cross 目标不是"native + `-march`"：Builder 会生成
+Meson cross-file / CMake toolchain file，autotools 收到不同的 `--host/--build`。
+三个引擎的 target flags 都只注入 target 编译，native 构建工具来自
+`out/linux-tools`（`glib-base` / `gdk-pixbuf` / `shared-mime-info` / `shaderc`
+的产物），不会用目标 ISA flags 重编。
+
+两条已经踩过的机制：
+
+1. **Meson cross 不读环境 `CPPFLAGS`**：glib 的 iconv 探测会因此命中宿主
+   `/usr/include/iconv.h`，链接期缺 `-liconv`。修复是把
+   `-I<target-sysroot>/include` 显式写进 cross-file 的 `c_args/cpp_args` 和
+   CMake toolchain 的 `CMAKE_*_FLAGS_INIT`；`LDFLAGS` 则由 cross prelude 提供。
+2. **目标侧代码执行默认全部关闭**：cross 下 `g-ir-scanner` 的 dumper、测试程序、
+   `gtk4-update-icon-cache` 等 post_install 都不执行；`glib` 的
+   `-Dintrospection=enabled` 必须覆盖成 `disabled`，g-i 加
+   `-Dbuild_introspection_data=false`。需要 GIR/typelib 的消费者用同 OS/ABI 的
+   基线资产覆盖。要真正在 cross 里生成 GIR，需要能执行目标二进制的
+   `exe_wrapper`（ARM 的 qemu、Windows 的 Wine 环境，或 Intel SDE）；当前
+   未启用。
+
+`libvpx` 和 `openssl` 的 target 名不能靠构建机 `gcc -dumpmachine` 猜：
+`recipes/libvpx.yaml` 对 `linux-aarch64` 显式 `--target=arm64-linux-gcc`，
+`recipes/openssl.yaml` 对 `linux-aarch64` 显式 `linux-aarch64`。Windows 侧
+libvpx 继续用 `for: [windows]` 的 `--target=x86_64-win64-gcc --as=nasm`。
+
+宿主工具：Ubuntu 用发行版交叉包即可；Fedora 的官方 `gcc-aarch64-linux-gnu`
+只覆盖内核构建、不带用户态 glibc，做用户态 aarch64 交叉需要 COPR
+`lantw44/aarch64-linux-gnu-toolchain` 或 Ubuntu 容器。`linux-mingw-x64` 用
+发行版 mingw-w64 交叉 GCC，CRT 是 msvcrt；UCRT 仍走 Windows 原生
+`msys2-ucrt64`。
+

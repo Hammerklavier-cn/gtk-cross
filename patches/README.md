@@ -9,10 +9,11 @@
 专有源文件 ⇒ 只在 Windows 上有作用；补丁改的是上游与平台无关的分支（典型是
 "静态构建时不产出共享变体"）⇒ 跨平台。
 
-## Windows 专属（9 个，只在 windows 家族块生效）
+## Windows 专属（10 个，只在 windows 家族或精确 msvcrt cross target 生效）
 
 | 补丁 | 归属 | 上游分支 / 生效条件 |
 | --- | --- | --- |
+| `glib-0001-win32-package-parser-no-winrt.patch` | **linux-mingw-x64**（精确 target，不是整个 windows 家族） | Ubuntu 24.04 的 mingw-w64 11 头文件没有 WinRT generated headers；Meson 探测 `windows.applicationmodel.core.h` 失败时改用 stub，原生 MSYS2 有头文件不打 |
 | `fontconfig-0001-install-conf-d-as-regular-files.patch` | windows | 改 `conf.d/link_confs.py` 里 `os.symlink` 的 `NotImplementedError` / `winerror 1314` 兜底分支 |
 | `fontconfig-0002-absolute-confdir-in-fonts-conf.patch` | windows | 去掉上游"剥离 prefix 变相对路径"的逻辑；Linux 上编译内置 `FONTCONFIG_PATH` 即 `$SYSROOT/etc`，相对 include 本就能落地 |
 | `gst-plugins-bad-0001-check-xaml-interop-header.patch` | windows | 给 WinRT d3d11 探测加头文件判定；Linux 不编译该分支 |
@@ -22,6 +23,12 @@
 | `shared-mime-info-0001-tests-absolute-bash.patch` | windows | 绕开 Windows 上 meson `ExternalProgram._shebang_to_cmd()` 把 shebang 剥成裸名 `bash` 的搜索顺序问题；Linux 由内核识别 shebang |
 | `vulkan-loader-0001-static-library-support.patch` | windows | 只改 `loader/CMakeLists.txt` 的 `if(WIN32)` 段、`loader_windows.c` 的 DllMain、`if(WIN32)` 里的 `VULKAN_LIB_SUFFIX`；上游非 Windows 分支是 `add_library(vulkan SHARED)`，不受影响 |
 | `zlib-0001-drop-windows-static-suffix.patch` | windows | 改的是上游 `if(WIN32) set(zlib_static_suffix "s")` 那一行 |
+
+## Cross 专属（1 个，linux-* cross target）
+
+| 补丁 | 归属 | 上游分支 / 生效条件 |
+| --- | --- | --- |
+| `adwaita-icon-theme-0001-skip-icon-cache-in-cross.patch` | **linux-mingw-x64 / linux-aarch64 / linux-x64-v4** | 上游 Meson install script 会执行 target `gtk4-update-icon-cache`；补丁在 `meson.is_cross_build()` 时跳过，原生构建保留缓存生成 |
 
 ## 跨平台（3 个，base `patches:`，两平台都打）
 

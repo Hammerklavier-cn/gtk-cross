@@ -38,5 +38,17 @@ export LD_LIBRARY_PATH="$S/lib"
 Linux 运行期同样需要 `$S/share` 与
 `lib/gdk-pixbuf-2.0/2.10.0/loaders.cache`。
 
+### Linux 宿主交叉产物
+
+- `gtk-cross-linux-mingw-x64`：Linux 宿主 -> Windows x86_64（mingw-w64 / msvcrt）
+- `gtk-cross-linux-aarch64`：Linux x86_64 宿主 -> Linux aarch64（glibc）
+- `gtk-cross-linux-native-x86_64-x86-64-v4`：Linux 宿主 -> x86-64-v4（cross）
+
+这三份是**链接/运行用 sysroot**：库、头文件、`.pc` 与数据文件齐全，但
+cross 构建默认不生成 GIR/typelib、不构建测试程序、不跑 post_install。需要
+introspection 的消费者请使用同 OS/ABI 的原生基线资产，或把基线里的
+`share/gir-1.0` 与 `lib/girepository-1.0` 覆盖进来。Windows 的 UCRT 资产仍由
+Windows 原生 job 产出；`linux-mingw-x64` 是 msvcrt，不替代 `msys2-ucrt64`。
+
 导出只重定位 pkg-config 元数据；`lib/cmake/*.cmake` 与 libtool `.la` 中的
 绝对路径不会改写，这个归档的消费面是 pkg-config（meson / cargo）。

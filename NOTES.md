@@ -1062,3 +1062,68 @@ cmake 注入三态、指纹失效四态含 data 跳过与 autotools 缓存清理
 不受影响：capture 本就走清空环境变量的路径）；真机 zlib 冒烟 `--no-test`：
 configure/compile/install 照常 `[skip]` + `[skip] test（--no-test）`。
 
+## 2026-10-28 交叉编译支持
+
+新增 `linux-mingw-x64`、`linux-aarch64`、`linux-x64-v4` 三个 cross 目标，以及
+仅给 cross 提供构建工具的 `linux-tools`；`linux-native` 增加
+`--force-cross`（同架构强制 cross 语义，产物落 `out/linux-native-cross`）。
+
+**机制**：
+- Builder 生成 Meson cross-file 与 CMake toolchain file；autotools 用
+  `--host/--build` 不同三元组。target flags 只进 target 编译，native 工具
+  来自 `out/linux-tools`。
+- Meson cross **不读环境 CPPFLAGS**：必须把 `-I<target-sysroot>/include`
+  写进 cross-file `c_args/cpp_args`；CMake 同理。首次 smoke 的失败签名正是
+  glib 的 `undefined reference to libiconv_open`（探测命中了宿主
+  `/usr/include/iconv.h`）。
+- 只给 cross-file 不够：GTK 用 `dependency('gio-2.0', native: true)` 取
+  glib-compile-resources / glib-mkenums，native pkg-config 默认仍命中 target
+  sysroot，于是解析到 target 二进制。现在额外生成 Meson native-file，把
+  native pkg-config 指向 `linux-tools` 的 `.pc`；GTK/libadwaita/pango/
+  gstreamer/gdk-pixbuf 的构建日志已复查为 `out/linux-tools/bin/...`。
+- Meson 的 `cc.has_function()` / `cc.find_library()` 链接检查**既不用**
+  `c_link_args`，也会过滤 `c_args` 里的 `-L`；Windows glib 的 intl 探测因此
+  报 `cannot find -liconv`，最终触发 `libintl.type_name() == 'internal'`
+  assert。修复是把 `-L<target-sysroot>/lib` 放进 cross-file 的 `c`/`cpp`
+  编译器 argv（`c = ['x86_64-w64-mingw32-gcc', '-L…']`），这样 checker 的
+  每条编译/链接命令都带搜索路径。
+- cross 默认关 GIR/typelib、测试程序构建和 post_install；需要这些的消费者
+  用同 OS/ABI 的基线资产，或提供能执行目标二进制的 exe_wrapper。
+- target 侧 `gobject-introspection` 在 cross 中整体跳过：上游无条件用目标
+  编译器编 `_giscanner` Python 扩展，却拿宿主 `Python.h`，aarch64/Windows
+  必然失败（同 arch 的 v4 只是碰巧 pyconfig 路径存在）。cross 资产本来不含
+  GIR，native tools 前缀仍有原生 g-i，故直接 `_CROSS_SKIP_RECIPES` 剔除。
+- `shared-mime-info -Dupdate-mimedb=true` 会执行目标 `update-mime-database`；
+  cross 下改成 false，并在 install 后用 native tools 里的同名工具生成
+  `mime.cache`（数据与架构无关）。
+- `adwaita-icon-theme` 的 Meson install script 也会执行 target
+  `gtk4-update-icon-cache`（框架的 post_install 跳过管不到它）；cross-only
+  补丁在 `meson.is_cross_build()` 时跳过缓存生成，GTK 运行期自行扫目录。
+- `appstream` 只是全量枚举带进来的独立包（libadwaita 1.10 已 vendored
+  ministream），cross setup 要求 native appstream；cross 资产没有消费者，
+  放进 `_CROSS_SKIP_RECIPES` 跳过。
+- CMake cross 的 `try_run` 用固定失败的 `cross-no-run.sh` 作为
+  `CMAKE_CROSSCOMPILING_EMULATOR`，避免 configure 直接 exec 目标码。
+
+**Linux v4 资产改由 cross 产出**：native v4 的 `g-ir-scanner` dumper 会在
+无 AVX-512 的 runner 上 SIGILL；`linux-x64-v4` 用 `needs_exe_wrapper=true`
+的 cross 构建，构建期不执行 v4。Windows UCRT v4 仍走原生 job；探针 no 时
+追加 `--no-introspection --no-test-build --no-test` 降级。
+
+**宿主工具缺口**：`linux-tools` 的 native `gobject-introspection` 在容器里
+首次失败于 `Program 'flex win_flex' not found`；CI 的 Linux / linux-tools /
+linux-cross 宿主清单已显式补 `bison flex`，不再依赖 runner 镜像的隐式包。
+
+**本地验证**：`linux-tools` 33 recipe 通过；`linux-x64-v4` 的 `glib-base`
+（6 recipe）与 `gobject-introspection` 闭包（23 recipe）通过，产出 ELF
+x86-64 且编译命令带 `-march=x86-64-v4`；完整 `libadwaita` 闭包通过，并
+复查所有 Meson 日志不再解析 target 的 glib tools。g-i 的 target 侧在
+cross 中已整体跳过。
+
+`linux-aarch64` 在 Ubuntu 24.04 容器里 **69 recipe 全链通过**（跳过 target
+g-i/appstream），`libgtk-4.so` 实测 `ELF64 AArch64`，`libvpx.a`/`libssl.a`
+也由 target 编译。`linux-mingw-x64` 在同一容器跑到 `gst-plugins-bad` 通过；
+GTK 阶段被 mingw-w64 11 的 `rpcndr.h`/DirectX-Headers 版本不匹配挡住，
+不是代码问题：CI cross job 已固定 `ubuntu-26.04`（mingw-w64 13），并给
+`doctor` 加了 `d2d1_3.h` 预检，旧头文件会直接报可操作错误。
+
