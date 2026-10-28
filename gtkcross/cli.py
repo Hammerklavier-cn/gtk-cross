@@ -161,7 +161,8 @@ def cmd_build(args) -> int:
     from pathlib import Path
 
     b = Builder(ProjectConfig.load(), args.target, jobs=args.jobs,
-                ignore_test_failures=args.ignore_test_failures)
+                ignore_test_failures=args.ignore_test_failures,
+                skip_tests=args.no_test)
     # fd 级 tee：构建全程（含 bash/meson/gcc 子进程输出）复制一份到当前目录
     with OutputTee(Path("gtkcross-build.log")):
         try:
@@ -228,6 +229,10 @@ def main(argv=None) -> int:
     sp.add_argument("--ignore-test-failures", action="store_true",
                     help="测试失败只告警不中断构建（失败详情照常打印并落盘，"
                          "用于诊断；不改变 known_failures 判定）")
+    sp.add_argument("--no-test", action="store_true",
+                    help="完全不运行自带测试（configure/compile/install 照常；"
+                         "CI 里 x86-64-v4 变体在宿主 CPU 不支持 AVX-512 时用它"
+                         "产出未跑测试的 sysroot）")
     sp.set_defaults(fn=cmd_build)
 
     args = p.parse_args(argv)

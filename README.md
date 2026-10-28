@@ -99,8 +99,18 @@ Windows 两个 target 与 Linux 两个架构的 sysroot 都可以直接发布给
 | --- | --- | --- |
 | `gtk-cross-msys2-mingw64-<tag>.tar.zst` | Windows / msvcrt | `x86_64-pc-windows-gnu` |
 | `gtk-cross-msys2-ucrt64-<tag>.tar.zst` | Windows / UCRT | `x86_64-pc-windows-gnullvm` / llvm-mingw |
+| `gtk-cross-msys2-ucrt64-x86-64-v3-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v3`（AVX2/BMI/FMA，2013 年后的 x86-64 CPU 均可跑） |
+| `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v4`（AVX-512，需要 CPU 支持） |
 | `gtk-cross-linux-native-x86_64-<tag>.tar.zst` | Linux ELF x86_64 | 同架构原生链接/运行 |
+| `gtk-cross-linux-native-x86_64-x86-64-v3-<tag>.tar.zst` | Linux ELF x86_64 | 同上，`-march=x86-64-v3` |
+| `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64 | 同上，`-march=x86-64-v4` |
 | `gtk-cross-linux-native-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | 同架构原生链接/运行 |
+
+编译参数变体（基线 / x86-64-v3 / x86-64-v4）由 CI 矩阵产出，经环境变量
+CFLAGS/CXXFLAGS 透传进构建（见「自定义编译参数」一节）；`x86-64-vN` 是
+x86 指令级别，故 aarch64 不设变体。CI 的 v4 变体在 runner CPU 不支持
+AVX-512 时**构建照常、跳过自带测试**（构建前有探针步骤实测，避免测试程序
+SIGILL 噪音失败）；v3 与基线始终完整构建 + 测试。
 
 `linux-native` 这个 target 名不带架构（同一份定义在两种宿主上成立）；发布资产
 必须带架构，因为同一个 tag 会在两个 runner 上各产出一份，顶层目录也按

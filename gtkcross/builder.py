@@ -107,13 +107,18 @@ class Builder:
     """Fetches and builds recipes in dependency order into a sysroot."""
 
     def __init__(self, project: ProjectConfig, target: str, jobs: int = 0,
-                 ignore_test_failures: bool = False):
+                 ignore_test_failures: bool = False, skip_tests: bool = False):
         self.project = project
         self.target = target
         # True 时测试失败（unexpected / 退出码异常）只告警不中断构建。与
         # known_failures 不同：这不是登记——所有失败都会原样打印并落盘
         # test-failure.log、记入事件日志，只是不 raise。用于一次性诊断。
         self.ignore_test_failures = ignore_test_failures
+        # True 时**完全不运行**自带测试（configure/compile/install 照常）。
+        # 与 ignore_test_failures 的区别：后者仍执行测试命令，只是失败不
+        # 中断；前者连命令都不发。CI 里 x86-64-v4 变体在宿主 CPU 不支持
+        # AVX-512 时用这个产出"未跑测试的 v4 sysroot"（发布仍有三份资产）。
+        self.skip_tests = skip_tests
         self.recipes = load_recipes(project.root / "recipes")
         self.sysroot = project.sysroot(target)
         self.jobs = jobs or (min(32, int(__import__("os").cpu_count() or 4)))
@@ -422,6 +427,9 @@ class Builder:
         return res
 
     def _apply_test(self, name: str, engine: Engine) -> None:
+        if self.skip_tests:
+            print(f"  [skip] test（--no-test）")
+            return
         t = engine.recipe.test or {}
         if not t.get("enabled", False):
             return

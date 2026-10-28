@@ -1020,3 +1020,45 @@ cmake 注入三态、指纹失效四态含 data 跳过与 autotools 缓存清理
 4. 撤销 CFLAGS 重跑 → 再次 `[env]` 触发重配，`CMAKE_C_FLAGS` 恢复为空
    （回到默认），sysroot 不残留自定义参数。
 
+## CI 编译参数变体与 --no-test（2026-10-28）
+
+**需求**：发布时想给外部消费者**基线 / x86-64-v3 / x86-64-v4 三份** sysroot
+资产，同时 CI 不能因 runner CPU 缺指令级而跳过 v4 的**构建**。
+
+**关键事实**（决定设计的依据）：
+- `-march=x86-64-v4` 含 **AVX-512**；gcc **编码**这些指令不需要目标 CPU 支持
+  （-march 只影响指令选择），但**运行** v4 编译的程序会 SIGILL。
+- GitHub 托管 runner **不承诺** AVX-512（actions/runner#1069 官方口径
+  "DS2V2 Azure VM doesn't support AVX512"；community#183550 长期跟踪）。
+  x86-64-v3（AVX2/BMI/FMA）则全线满足——社区甚至专门维护了
+  "GitHub-Actions-X86-64-v3" 这类仓库证明 v3 可用。
+- 本项目的"编译检查"隐含跑自带测试（configure 后自动 meson test/ctest），
+  而 v4 测试程序在无 AVX-512 的 CPU 上必然 SIGILL——所以**测试**不能硬跑。
+
+**设计**（`.github/workflows/ci.yml`）：
+- 矩阵变体：基线（无 CFLAGS/CXXFLAGS）+ v3 + v4，只挂 x86_64 可跑的
+  target（Windows 侧 msys2-ucrt64、Linux 侧 linux-native/x86_64；mingw64 与
+  aarch64 保持基线——CRT 差异/架构与指令级别正交，避免 CI 时长翻倍）。
+  cflags 经构建步骤的 `env: CFLAGS/CXXFLAGS` 透传，基线空串与未设置等价。
+- **AVX-512 探针步骤**（仅 v4 变体，`if: matrix.cflags == '-march=x86-64-v4'`）：
+  编译并**实际运行**一个强制 AVX-512 指令的小程序，`supported=yes/no` 写
+  `$GITHUB_OUTPUT`。用真实执行而不是读 /proc/cpuinfo：探针程序本身就是
+  "v4 测试程序能不能跑"的最小复现，判定与测试同构。
+- **构建照常、测试条件化**：v4 且探针 no → 构建命令追加 `--no-test`（资产
+  照常导出发布，"未跑测试的 v4 sysroot"）；v4 且探针 yes / v3 / 基线 →
+  完整构建 + 测试。探针不过时打 `::warning` 明示，不把环境差异伪装成失败。
+- 发布资产带变体后缀：文件名与 `--archive-root` 都带（基线空串 → 与旧行为
+  逐字节一致），三份同类资产解包互不覆盖；release job 的完整性检查从"通配
+  符匹配任意一份"改为**逐份精确**验证 8 个文件（基线名是变体名的前缀，通配
+  会漏检基线缺失）。
+
+**框架新增 `--no-test`**（`gtkcross/cli.py` + `builder.py`）：
+`Builder(skip_tests=True)` 时 `_apply_test` 直接返回，configure/compile/install
+照常。与既有 `--ignore-test-failures` 的区别：后者**仍执行**测试命令只是失败
+不中断（无 AVX-512 的机器上会得到满屏 SIGILL 噪音，且耗时）；前者连命令都不
+发。单测 93 → 96（`tests/test_no_test.py`）。
+
+**验证**：YAML 解析通过（矩阵 4+5+release 条目齐全）；96 项单测全绿（golden
+不受影响：capture 本就走清空环境变量的路径）；真机 zlib 冒烟 `--no-test`：
+configure/compile/install 照常 `[skip]` + `[skip] test（--no-test）`。
+
