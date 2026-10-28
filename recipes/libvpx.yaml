@@ -55,3 +55,10 @@ targets:
         # 错误的汇编器；x86_64 上 auto 同样会选到 nasm，与 Windows 取值一致，
         # 而缺 nasm/yasm 时是响亮失败而非静默降级。
         - --as=nasm
+  # Linux x86_64 -> aarch64 cross：上游缺省用 `gcc -dumpmachine` 推测目标，
+  # 交叉构建里那会是构建机 gcc（x86_64），必须显式给它们自己的命名。
+  # 只写精确 cross target，不写 linux 家族——linux-native 仍保持架构中立。
+  - for: [linux-aarch64]
+    autotools:
+      configure:
+        - --target=arm64-linux-gcc

@@ -112,13 +112,24 @@ def cmd_export(args) -> int:
     from .export import export_sysroot
 
     project = ProjectConfig.load()
-    sysroot = project.sysroot(args.target)
+    if args.force_cross:
+        tconf = project.target(args.target)
+        prefix = tconf.get("cross_prefix")
+        if not prefix:
+            base = tconf.get("prefix") or f"out/{args.target}"
+            prefix = f"{base}-cross"
+        sysroot = project.root / prefix
+    else:
+        sysroot = project.sysroot(args.target)
+    archive_root = args.archive_root
+    if archive_root is None and args.force_cross:
+        archive_root = f"gtk-cross-{args.target}-cross"
     try:
         result = export_sysroot(
             sysroot,
             Path(args.output),
             target=args.target,
-            archive_root=args.archive_root,
+            archive_root=archive_root,
             zstd_level=args.zstd_level,
         )
     except (ValueError, RuntimeError) as e:
@@ -160,9 +171,23 @@ def cmd_build(args) -> int:
     from .events import OutputTee
     from pathlib import Path
 
-    b = Builder(ProjectConfig.load(), args.target, jobs=args.jobs,
-                ignore_test_failures=args.ignore_test_failures,
-                skip_tests=args.no_test)
+    b = Builder(
+        ProjectConfig.load(),
+        args.target,
+        jobs=args.jobs,
+        ignore_test_failures=args.ignore_test_failures,
+        skip_tests=args.no_test,
+        force_cross=args.force_cross,
+        native_sysroot=args.native_sysroot,
+        skip_introspection=(
+            False if args.introspection
+            else (True if args.no_introspection else None)
+        ),
+        skip_test_build=(
+            False if args.test_build
+            else (True if args.no_test_build else None)
+        ),
+    )
     # fd 级 tee：构建全程（含 bash/meson/gcc 子进程输出）复制一份到当前目录
     with OutputTee(Path("gtkcross-build.log")):
         try:
@@ -212,6 +237,9 @@ def main(argv=None) -> int:
                     help="输出文件（.tar 或 .tar.zst）")
     sp.add_argument("--archive-root", default=None,
                     help="归档顶层目录（默认 gtk-cross-<target>）")
+    sp.add_argument("--force-cross", action="store_true",
+                    help="导出 --force-cross 构建的同架构 cross sysroot "
+                         "（out/<target>-cross）")
     sp.add_argument("--zstd-level", type=int, default=15,
                     help=".tar.zst 的 zstd 压缩级别（默认 15）")
     sp.set_defaults(fn=cmd_export)
@@ -231,8 +259,23 @@ def main(argv=None) -> int:
                          "用于诊断；不改变 known_failures 判定）")
     sp.add_argument("--no-test", action="store_true",
                     help="完全不运行自带测试（configure/compile/install 照常；"
-                         "CI 里 x86-64-v4 变体在宿主 CPU 不支持 AVX-512 时用它"
-                         "产出未跑测试的 sysroot）")
+                         "cross 构建默认在无 exe_wrapper 时跳过）")
+    sp.add_argument("--force-cross", action="store_true",
+                    help="目标与本机同架构时也走交叉构建语义（needs_exe_wrapper、"
+                         "cross-file、autotools --host/--build）；产物目录加 -cross 后缀")
+    sp.add_argument("--native-sysroot", default=None,
+                    help="cross 构建的 native 构建工具 sysroot（默认取 target 的 "
+                         "native_target）")
+    intro = sp.add_mutually_exclusive_group()
+    intro.add_argument("--no-introspection", action="store_true", default=None,
+                       help="禁用 GIR/typelib 生成（cross 默认开启）")
+    intro.add_argument("--introspection", action="store_true", default=None,
+                       help="强制保留 GIR 生成（需要能执行目标二进制的 wrapper）")
+    testb = sp.add_mutually_exclusive_group()
+    testb.add_argument("--no-test-build", action="store_true", default=None,
+                       help="不编译测试程序（cross 默认开启）")
+    testb.add_argument("--test-build", action="store_true", default=None,
+                       help="保留测试程序构建（cross 默认关闭）")
     sp.set_defaults(fn=cmd_build)
 
     args = p.parse_args(argv)

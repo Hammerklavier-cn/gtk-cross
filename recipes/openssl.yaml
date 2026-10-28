@@ -87,3 +87,11 @@ autotools:
 test:
   # 见上面 no-tests 的注释。
   enabled: false
+# Linux x86_64 -> aarch64 cross：Configure 的缺省分支靠构建机 `cc` 猜目标，
+# 会猜成 linux-x86_64。显式给 linux-aarch64；只写精确 cross target，保持
+# linux-native 的架构中立。
+targets:
+  - for: [linux-aarch64]
+    autotools:
+      configure:
+        - linux-aarch64

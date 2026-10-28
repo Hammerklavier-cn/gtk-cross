@@ -136,9 +136,18 @@ class MesonEngine(Engine):
         # prefer_static：dependency() 优先选 .a，并以 pkg-config --static 查询，
         # 从而带出 .pc 的 Cflags.private（XML_STATIC / PCRE2_STATIC 等静态消费宏）
         prefer = "true" if self.prefer_static else "false"
+        cross_file = ""
+        if self.tc.cross:
+            if not self.tc.cross_file:
+                raise BuildError(
+                    f"{self.recipe.name}: cross toolchain has no Meson cross file"
+                )
+            cross_file = f"--cross-file={posix(self.tc.cross_file)} "
+            if self.tc.native_file:
+                cross_file += f"--native-file={posix(self.tc.native_file)} "
         return (
             f"{self.env_prefix()}"
-            f"meson setup {posix(self.build_dir)} {posix(self.src_dir)} "
+            f"meson setup {cross_file}{posix(self.build_dir)} {posix(self.src_dir)} "
             f"--prefix={posix(self.sysroot)} --libdir=lib -Dbuildtype=release "
             f"-Ddefault_library={libtype} -Dprefer_static={prefer} {opt_str} {cross}"
         )
@@ -182,6 +191,20 @@ class CmakeEngine(Engine):
         defines.setdefault("BUILD_SHARED_LIBS", "OFF" if self.static else "ON")
         def_str = " ".join(f"-D{k}={v}" for k, v in defines.items())
         sr = posix(self.sysroot)
+        if self.tc.cross:
+            if not self.tc.cmake_toolchain:
+                raise BuildError(
+                    f"{self.recipe.name}: cross toolchain has no CMake toolchain file"
+                )
+            # cross 分支的 compiler、sysroot find-root 与 target flags 都在
+            # toolchain file 里；这里只保留安装前缀与 recipe defines。
+            return (
+                f"cmake -S {posix(self.src_dir)} -B {posix(self.build_dir)} "
+                f"-G Ninja -DCMAKE_INSTALL_PREFIX={sr} "
+                f"-DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release "
+                f"-DCMAKE_TOOLCHAIN_FILE={posix(self.tc.cmake_toolchain)} "
+                f"{def_str}"
+            )
         # 调用方显式设置了 CFLAGS/CXXFLAGS/CPPFLAGS/LDFLAGS 时，把完整
         # 参数经 -D 注入配置命令（值在 bash 内展开，含 prelude 合并进来的
         # sysroot -I/-L 与 Linux 的 -fPIC）。CMake 自身只从环境读
@@ -337,6 +360,7 @@ class AutotoolsEngine(Engine):
         opts = list(self.recipe.autotools.get("configure", []))
         envs = self.recipe.autotools.get("env", {})
         env_str = " ".join(f"{k}={v}" for k, v in envs.items())
+        target_env = self.tc.autotools_target_env()
         # 配置入口脚本名：绝大多数上游是 autoconf 生成的 ./configure，少数手写入口
         # 各有自己的名字（OpenSSL 的 ./config 在 3.5.8 里就是
         # `exec "$THERE/Configure" "$@"` 三行包装）。默认值保持与旧行为逐字节一致。
@@ -354,7 +378,7 @@ class AutotoolsEngine(Engine):
             # 仍有 236 处 libcrypto.so；只有上游关键字 no-shared 才是 0）。
             print(f"  [autotools configure/raw] {self.recipe.name}")
             self.tc.expect(
-                f"cd {self.source_posix()} && {env_str} {script} "
+                f"cd {self.source_posix()} && {target_env}{env_str} {script} "
                 f"--prefix={posix(self.sysroot)} {' '.join(opts)}",
                 cwd=self.ws,
             )
@@ -365,10 +389,11 @@ class AutotoolsEngine(Engine):
         if not any("--enable-static" in o or "--disable-static" in o for o in opts):
             opts.append("--enable-static" if self.static else "--disable-static")
         opt_str = " ".join(opts)
-        host = self.tc.cfg.get("host_triple")
-        host_str = f"--host={host} --build={host}" if host else ""
+        host = self.tc.host_triple
+        build = self.tc.build_triple or host
+        host_str = f"--host={host} --build={build}" if host else ""
         cmd = (
-            f"cd {self.source_posix()} && {env_str} {script} -C "
+            f"cd {self.source_posix()} && {target_env}{env_str} {script} -C "
             f"--prefix={posix(self.sysroot)} {host_str} {opt_str}"
         )
         print(f"  [autotools configure] {self.recipe.name}")

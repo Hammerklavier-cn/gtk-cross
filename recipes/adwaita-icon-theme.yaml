@@ -26,3 +26,10 @@ post_install:
     # 运行期扫目录）。MSYS2 官方包由 pacman hook 做同一件事。命令经 toolchain
     # prelude 执行，$SYSROOT 已导出。
     - '"$SYSROOT/bin/gtk4-update-icon-cache" -q -t -f "$SYSROOT/share/icons/Adwaita"'
+# 上游 Meson 的 install script 也会跑 gtk4-update-icon-cache；cross 没有
+# 可执行的 target 二进制，补丁在 meson.is_cross_build() 时跳过。框架的
+# post_install 已由 Builder 在 cross 下跳过，这里补上上游这一步。
+targets:
+  - for: [linux-mingw-x64, linux-aarch64, linux-x64-v4]
+    patches:
+      - adwaita-icon-theme-0001-skip-icon-cache-in-cross.patch

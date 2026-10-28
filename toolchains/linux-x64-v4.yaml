@@ -1,0 +1,40 @@
+# Linux x86_64 宿主 -> Linux x86_64 (x86-64-v4) 同架构交叉工具链。
+#
+# 编译器还是宿主 gcc，但产物带 -march=x86-64-v4。必须走 cross 模式：
+#   * Meson 拿到 needs_exe_wrapper=true 的 cross-file，不会在构建期执行
+#     AVX-512 dumper/测试；
+#   * autotools 收到不同的 --host/--build 三元组，AC_RUN_IFELSE 不运行；
+#   * CMake 用 toolchain file + CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY。
+# native 构建工具仍由 linux-tools（baseline x86_64）提供。
+name: linux-x64-v4
+host: linux
+cross: true
+platform: linux
+target_os: linux
+target_arch: x86_64
+build_arch: x86_64
+description: "Linux x86_64 host -> Linux x86_64 x86-64-v4 cross"
+host_triple: x86_64-unknown-linux-gnu
+build_triple: x86_64-pc-linux-gnu
+# 只进 target compiler；不会写进全局 CFLAGS（否则 native 工具也会带 AVX-512）。
+target_cflags: "-march=x86-64-v4"
+target_cxxflags: "-march=x86-64-v4"
+tools:
+  cc: gcc
+  cxx: g++
+  ar: ar
+  ranlib: ranlib
+  nm: nm
+  strip: strip
+  objcopy: objcopy
+  as: as
+  ld: ld
+  pkg_config: pkg-config
+  meson: meson
+  ninja: ninja
+  cmake: cmake
+  make: make
+  perl: perl
+env:
+  PKG_CONFIG_LIBDIR: "$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig"
+  PKG_CONFIG_PATH: ""

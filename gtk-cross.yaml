@@ -47,5 +47,32 @@ targets:
   linux-native:
     toolchain: linux-native
     prefix: out/linux-native
+    # --force-cross 时使用的独立产物/中间态目录；native 与 cross 不混用。
+    cross_prefix: out/linux-native-cross
+    # cross 构建的 native 构建工具前缀（见 linux-tools）。
+    native_target: linux-tools
+  # 仅用于给 cross 目标提供 build-machine 可执行的工具（glib-compile-resources
+  # / glib-compile-schemas / gdk-pixbuf-query-loaders / update-mime-database /
+  # glslc）。不是发布资产，也不跑测试。
+  linux-tools:
+    toolchain: linux-native
+    prefix: out/linux-tools
+  # Linux 宿主 -> Windows x86_64（mingw-w64 / msvcrt）。UCRT 仍由 Windows
+  # 原生的 msys2-ucrt64 target 提供。
+  linux-mingw-x64:
+    toolchain: linux-mingw-x64
+    prefix: out/linux-mingw-x64
+    native_target: linux-tools
+  # Linux x86_64 宿主 -> Linux aarch64（glibc）。
+  linux-aarch64:
+    toolchain: linux-aarch64
+    prefix: out/linux-aarch64
+    native_target: linux-tools
+  # 同架构 force-cross 的正式 target：用宿主 gcc + x86-64-v4 target flags，
+  # 构建期不执行 AVX-512 目标码。
+  linux-x64-v4:
+    toolchain: linux-x64-v4
+    prefix: out/linux-x64-v4
+    native_target: linux-tools
 downloads_dir: downloads
 build_dir: build
