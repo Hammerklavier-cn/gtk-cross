@@ -61,6 +61,11 @@ class Engine:
     def static(self) -> bool:
         return self.libtype != "shared"
 
+    def test_jobs(self) -> int:
+        """测试并行度：recipe 的 test.jobs 是上限，且不超过全局 -j。"""
+        cap = (self.recipe.test or {}).get("jobs")
+        return min(self.jobs, int(cap)) if cap else self.jobs
+
     # -- stamp helpers (idempotent, resumable) ----------------------------
 
     def stamp(self, key: str) -> Path:
@@ -172,12 +177,18 @@ class MesonEngine(Engine):
     def test_command(self) -> str | None:
         # recipe test.env: 以 `env K=V` 前缀注入测试进程环境（shell 层继承，
         # 不覆盖 meson.build 里 test_env 显式设置的变量）
-        env = self.recipe.test.get("env") or {}
+        t = self.recipe.test or {}
+        env = t.get("env") or {}
         prefix = " ".join(f"{k}={v}" for k, v in env.items())
         prefix = f"env {prefix} " if prefix else ""
+        args = f"-j {self.test_jobs()}"
+        # meson 的 --timeout-multiplier 会覆盖 setup 里的值（glib 默认 2），
+        # 不是在其之上再乘一次。
+        if t.get("timeout_multiplier"):
+            args += f" --timeout-multiplier {t['timeout_multiplier']}"
         return (
             f"{test_wrapper()}{prefix}meson test -C {posix(self.build_dir)} "
-            f"--print-errorlogs -j {self.jobs}"
+            f"--print-errorlogs {args}"
         )
 
 
@@ -265,7 +276,7 @@ class CmakeEngine(Engine):
     def test_command(self) -> str | None:
         return (
             f"{test_wrapper()}ctest --test-dir {posix(self.build_dir)} "
-            f"--output-on-failure -j {self.jobs}"
+            f"--output-on-failure -j {self.test_jobs()}"
         )
 
 

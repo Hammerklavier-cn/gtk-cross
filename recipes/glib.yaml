@@ -66,6 +66,15 @@ targets:
     test:
       env:
         LC_ALL: C.UTF-8
+      # glib 2.90 的 g_thread_yield() 是 clock_nanosleep(1ns)，不是
+      # sched_yield：threadtests 的 threaded-object-init 做 10 万次，
+      # threaded-weak-ref 还做 5000 次线程 create/join。CI 只有 4 vCPU，
+      # meson test -j4 与 1bit-mutex/performance 等 CPU 密集测试并发时，
+      # 实测该测试可从本机 ~1s 膨胀到 60s 超时（上游 #3320/#4099）。
+      # 测试并发降到 2；meson 的 --timeout-multiplier 覆盖 glib 默认的
+      # 2，这里设 4（30s -> 120s）给调度抖动留余量，不登记 known_failure。
+      jobs: 2
+      timeout_multiplier: 4
       # glib:memory-monitor-psi-env-set —— 上游自身带时序竞态的新测试，
       # 不是本项目产物的缺陷。登记为 linux 已知失败（该测试在
       # gio/tests/meson.build:165 的 `if host_system == 'linux'` 里，Windows
