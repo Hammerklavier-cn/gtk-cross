@@ -79,8 +79,7 @@ aarch64 上都成立。真出现交叉工具链时（下表 `linux-mingw-x64` �
 | linux-tools（native 工具前缀） | ✅ 交叉前置 | 以 `glib-base` / `gdk-pixbuf` / `shared-mime-info` / `shaderc` 为入口的工具链闭包（实际 33 recipe，含 g-i/cairo/X11 依赖），给 cross 目标提供构建机可执行的 `glib-compile-resources`、`gdk-pixbuf-query-loaders`、`update-mime-database`、`glslc`。不是发布资产 |
 | linux-mingw-x64（Linux → Windows x64） | 🧪 本地到 gst；待 CI | mingw-w64 交叉 GCC，msvcrt CRT；目标侧依赖自建到 `out/linux-mingw-x64`。本地 Ubuntu 24.04 的 mingw-w64 11 头文件只能跑到 gst-plugins-bad；GTK 需 13+，CI 固定 `ubuntu-26.04`。UCRT 仍由 Windows 原生 `msys2-ucrt64` 提供 |
 | linux-aarch64（Linux x64 → aarch64） | ✅ 本地全链；待 CI | `aarch64-linux-gnu` 交叉 GCC，glibc；目标侧依赖自建到 `out/linux-aarch64`，69 recipe 全链通过（跳过 target g-i/appstream） |
-| linux-x64-v4（Linux x64 内部 cross） | ✅ 本地全链 | 宿主 gcc + `-march=x86-64-v4`，`needs_exe_wrapper=true`；构建期不执行 AVX-512 目标码，用于替代原先在无 AVX-512 runner 上必挂的 native v4。`libadwaita` 完整闭包通过（cross 跳过 target g-i） |
-| linux-native + `--force-cross` | ✅ 工具 | 同架构时强制走 cross 语义，产物/中间态落到 `out/linux-native-cross`；用于验证 cross 路径或临时做同 arch ISA 变体 |
+| linux-native + `--force-cross`（Linux x64 内部 cross，x86-64-v4） | ✅ 本地全链 | 复用 `linux-native` 工具链（无专用 toolchain 文件，与 Windows v4 同一机制）：native 工具来自 `out/linux-tools`，target 产物落 `out/linux-native-cross`，`CFLAGS=-march=x86-64-v4` 只进 target 编译。`needs_exe_wrapper=true`，构建期不执行 AVX-512 目标码——替代原先在无 AVX-512 runner 上必挂的 native v4。`libadwaita` 完整闭包通过（cross 跳过 target g-i） |
 
 > msys2-mingw64 与 msys2-ucrt64 同为 win64 输出平台（x86_64-w64-mingw32 三元组，
 > toolchain 的 `platform: win64` 字段标注），区别在 CRT 运行时（msvcrt.dll vs
@@ -105,13 +104,13 @@ cross 构建把 **build machine 工具** 与 **target sysroot** 分开：
   pkg-config 指向工具前缀，GTK 的 `dependency(..., native: true)` 不会
   误取 target 的 `glib-compile-resources`）、CMake `--toolchain-file`、
   autotools `--host/--build`。
-- Windows 的 x86-64-v4 用同一机制：`-t msys2-ucrt64 --force-cross`。它复用
-  现有 ucrt64 gcc 与 CRT，不新增 toolchain；baseline `out/msys2-ucrt64`
-  作为 build machine 工具前缀，target flags 只进 cross file，产物落
-  `out/msys2-ucrt64-cross`。原生 Windows 构建做不到这个分离——
-  `-march=x86-64-v4` 会同时落到 Meson `native: true` 的 fribidi gen-tab
-  等工具上，无 AVX-512 的 runner 一执行就
-  `STATUS_ILLEGAL_INSTRUCTION`（0xC000001D）。
+- x86-64-v4 在两个平台用同一机制：`-t linux-native --force-cross`（Linux，
+  native 工具来自 `out/linux-tools`）与 `-t msys2-ucrt64 --force-cross`
+  （Windows，baseline `out/msys2-ucrt64`）。都复用现有 gcc 与 CRT，不新增
+  toolchain；target flags 只进 cross file / configure 前缀，产物落
+  `out/<target>-cross`。原生构建做不到这个分离——`-march=x86-64-v4` 会
+  同时落到 Meson `native: true` 的 fribidi gen-tab 等工具上，无 AVX-512
+  的 runner 一执行就 `STATUS_ILLEGAL_INSTRUCTION`（0xC000001D）。
 - recipe 的 `targets:` 支持 `for: [cross]`：只在该次构建为 cross 时应用
   （包括 `--force-cross`），用于 cross 专属补丁/选项；原生构建不受影响。
 - cross 构建默认**不生成 GIR/typelib、不编译测试程序、不跑 post_install**：
@@ -163,7 +162,9 @@ python -m gtkcross build glib-base gdk-pixbuf shared-mime-info shaderc \
 # 2) 目标 sysroot
 python -m gtkcross build -t linux-mingw-x64   # Linux x86_64 -> Windows x86_64 (msvcrt)
 python -m gtkcross build -t linux-aarch64     # Linux x86_64 -> Linux aarch64
-python -m gtkcross build -t linux-x64-v4      # Linux x86_64 -> x86-64-v4
+# Linux x86_64 -> x86-64-v4：v4 没有专用 target，force-cross + CFLAGS 传入 ISA
+CFLAGS="-march=x86-64-v4" CXXFLAGS="-march=x86-64-v4" \
+python -m gtkcross build -t linux-native --force-cross
 ```
 
 `--force-cross` 用于目标与本机同架构、但想验证/使用 cross 语义的情况：
@@ -204,16 +205,16 @@ Windows 两个 target 与 Linux 两个架构的 sysroot 都可以直接发布给
 | `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst` | Windows / UCRT | 由 `msys2-ucrt64 --force-cross` 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 | `gtk-cross-linux-native-x86_64-<tag>.tar.zst` | Linux ELF x86_64 | 同架构原生链接/运行 |
 | `gtk-cross-linux-native-x86_64-x86-64-v3-<tag>.tar.zst` | Linux ELF x86_64 | 同上，`-march=x86-64-v3` |
-| `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64 | 由 `linux-x64-v4` **cross** 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
+| `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64 | 由 `linux-native --force-cross` 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 | `gtk-cross-linux-native-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | 同架构原生链接/运行 |
 | `gtk-cross-linux-mingw-x64-<tag>.tar.zst` | Windows / msvcrt | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 | `gtk-cross-linux-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 
 编译参数变体（基线 / x86-64-v3 / x86-64-v4）由 CI 矩阵产出。x86-64-v4
-在 Linux 用 `linux-x64-v4` 同架构 cross，在 Windows 用
-`msys2-ucrt64 --force-cross`；两者构建期都不执行 AVX-512 目标码，不再
-依赖 runner CPU。Windows v4 先用 baseline `out/msys2-ucrt64` 作为 build
-machine 工具前缀。
+在 Linux 与 Windows 用同一机制：分别 `-t linux-native --force-cross`
+（native 工具来自 `out/linux-tools`）与 `-t msys2-ucrt64 --force-cross`
+（baseline `out/msys2-ucrt64`）；两者构建期都不执行 AVX-512 目标码，不再
+依赖 runner CPU。
 `x86-64-vN` 是 x86 指令级别，故 aarch64 不设变体。v3 与基线始终完整构建 +
 测试；cross 资产只做库/头文件构建（见「交叉编译」一节的限制）。
 
@@ -352,11 +353,11 @@ python -m gtkcross list -t msys2-ucrt64        # recipe 清单
 
 cross 构建中，`CFLAGS`/`CXXFLAGS` 只注入 **target** 编译（Meson cross file、
 CMake toolchain file、autotools configure 前缀）；native 构建工具来自
-target 的 `native_target`（Linux 是 `linux-tools`；Windows v4 用
-`--native-sysroot out/msys2-ucrt64`），不会用目标 ISA flags 重编。工具链
-自带的 `target_cflags`（例如 `linux-x64-v4` 的 `-march=x86-64-v4`）也走
-同一注入路径，不写进全局 `CFLAGS`；Windows v4 的 v4 flags 由
-`CFLAGS`/`CXXFLAGS` 传入，只在 `--force-cross` 下进 target 编译。
+target 的 `native_target`（Linux 是 `linux-tools`），不会用目标 ISA flags
+重编。工具链自带的 `target_cflags`（框架支持的注入路径，当前各工具链均未
+使用）也走同一路径，不写进全局 `CFLAGS`；ISA 变体没有专用工具链，v3/v4
+的 `-march` 完全由 `CFLAGS`/`CXXFLAGS` 传入，只在 `--force-cross` 下进
+target 编译。
 
 各引擎的生效方式：
 
@@ -380,18 +381,24 @@ CFLAGS="-O2" CXXFLAGS="-O2" \
 ```
 
 ISA 变体（x86-64-v4）必须走 `--force-cross`，让 build machine 的生成器
-用 baseline 编译。先编 baseline 工具前缀，再编 target：
+用 baseline/native 前缀编译。Linux 侧工具前缀来自 `out/linux-tools`（见
+「交叉编译」）；Windows 侧先编 baseline 工具前缀，再编 target：
 
 ```bash
+# Linux：
+CFLAGS="-march=x86-64-v4" CXXFLAGS="-march=x86-64-v4" \
+  python -m gtkcross build gtk -t linux-native --force-cross
+# Windows：
 python -m gtkcross build glib-base gdk-pixbuf shared-mime-info shaderc \
   -t msys2-ucrt64 --no-test --no-test-build
 CFLAGS="-march=x86-64-v4" CXXFLAGS="-march=x86-64-v4" \
   python -m gtkcross build gtk -t msys2-ucrt64 --force-cross
 ```
 
-同架构 `--force-cross` 默认把该 target 的 baseline 前缀
-（`out/msys2-ucrt64`）当作 build machine 工具 sysroot；需要别的目录时用
-`--native-sysroot <dir>` 覆盖。
+同架构 `--force-cross` 的 build machine 工具 sysroot：有 `native_target`
+的 target（`linux-native` → `out/linux-tools`）由它决定，否则回退该 target
+自己的前缀（`msys2-ucrt64` → baseline `out/msys2-ucrt64`）；需要别的目录
+时用 `--native-sysroot <dir>` 覆盖。
 
 注意：
 

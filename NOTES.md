@@ -1168,3 +1168,46 @@ file buildcc）：`native: true` 目标只调用 buildcc，host 目标才调用 
 `CFLAGS=-DPROBE_V4` 只出现在 hostcc 命令行，buildcc 完全没有。`test_cross.py`
 增加 Windows `--force-cross` 的 cross file / native file / triple 断言，
 单测全绿；Windows CI 尚未跑，等首次 job 结果确认。
+
+## 2026-10-31 libvpx 汇编事故与 Linux v4 统一到 `--force-cross`
+
+**事故**：CI `cross (linux-x64 -> linux-x64-v4 (forced cross))` 构建 libvpx
+1.17.0 失败：`vpx_ports/emms_mmx.asm.o` 报 `elf64: can't open elf64 for
+reading` + 一串 `no such instruction`。签名即答案——实际执行的汇编命令是
+`as -f elf64 …`：GNU as 把 `-f` 当自己的 fast 选项，`elf64` 成了输入文件名。
+
+**根因**：`toolchains/linux-x64-v4.yaml` 的 `tools:` 声明了 `as: as`，prelude
+把每个 tools 键大写导出（toolchain.py），即每条命令前都有
+`export AS="${AS:-as}"`。libvpx 的手工 configure 只在 `AS` 为空/`auto` 时才
+探测 nasm→yasm（build/make/configure.sh 的 x86 分支），环境里已有 `AS` 就
+直接采用并跳过探测；Linux 分支随后 `add_asflags -f elf64`，于是 GNU as 拿
+yasm 的参数格式去编 nasm 语法的 .asm。三个条件同时成立才炸：x86 目标 +
+Linux 侧未传 `--as` + 环境预设了 `AS`——linux-native（不导出 AS → auto 选
+nasm）、linux-aarch64（`--target=arm64-linux-gcc` 走 ARM gas 分支）、
+windows 家族（recipe 钉死 `--as=nasm`）都不满足。CI 其实装了 nasm
+（ci.yml 安装清单）。
+
+**修复**：从 linux-x64-v4 的 tools 删除 `as: as`——同架构下宿主 as 即目标
+as，导出纯冗余，删除即恢复 auto 探测；单测
+`test_prelude_as_export_follows_arch_relation` 把"同架构不导出 / 异架构必须
+导出 target binutils"两头钉死。
+
+**统一**：事故的深层原因是 `linux-x64-v4.yaml` 整份 tools/env 是
+linux-native 的复制品——复制品就会漂移。逐项比对确认 `linux-native
+--force-cross` 在 x86_64 宿主上与专用 target 等价：合成的
+`x86_64-unknown-linux-gnu`/`x86_64-pc-linux-gnu` 与静态值逐字节相同、native
+前缀同为 `out/linux-tools`（gtk-cross.yaml 的 `cross_prefix`/`native_target`
+早已备好）、`_CROSS_SKIP_RECIPES` 与 recipe 选择器归属一致、CFLAGS 在环境
+指纹里（builder._ENV_TRACKED）。故删除专用 toolchain 文件与 target 注册，
+Linux v4 与 Windows v4 统一为 `--force-cross` + CFLAGS 机制：CI linux-cross
+矩阵条目改 `target: linux-native` + `cflags: "-march=x86-64-v4"` +
+`cross: true`，doctor/build/export 三步都带条件 `--force-cross`（export
+不带会去找不存在的 `out/linux-native` 直接报错），产物落
+`out/linux-native-cross`；归档顶层与资产名不变，release 校验零改动。
+
+**取舍**：专用 target 的好处是不带环境变量也能编出 v4；统一后 `-march`
+完全依赖 CFLAGS，漏设会**静默**产出 baseline ISA（指纹不会报错）。兜底：
+linux-cross 的产物检查步骤断言 `build/linux-native-cross/meson-cross.ini`
+含 `-march=x86-64-v4`（cross file c_args 与 autotools configure 前缀同源于
+`_target_cflags()`）。`linux-aarch64`/`linux-mingw-x64` 是真交叉（异架构/
+异 OS），受 builder 的同架构守卫约束，专用文件保留。

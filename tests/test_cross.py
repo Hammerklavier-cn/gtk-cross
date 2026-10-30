@@ -51,7 +51,6 @@ class CrossToolchains(unittest.TestCase):
         cases = {
             "linux-mingw-x64": ("windows", "x86_64", "x86_64-w64-mingw32"),
             "linux-aarch64": ("linux", "aarch64", "aarch64-linux-gnu"),
-            "linux-x64-v4": ("linux", "x86_64", "x86_64-unknown-linux-gnu"),
         }
         for target, (os_name, arch, triple) in cases.items():
             with self.subTest(target=target):
@@ -71,6 +70,24 @@ class CrossToolchains(unittest.TestCase):
                     b.tc.native_pkg_config.read_text(encoding="utf-8"),
                 )
                 self.assertTrue(b.tc.cmake_toolchain and b.tc.cmake_toolchain.exists())
+
+        # v4 不再是专用 toolchain：由 linux-native --force-cross 合成（与
+        # Windows v4 同一机制，见 test_windows_force_cross_keeps_generators_
+        # baseline）。测试也会在 aarch64 runner 上跑，先钉死 host_arch 才能
+        # 断言合成的 arch/triple。
+        with mock.patch(
+            "gtkcross.toolchain.host_arch", return_value="x86_64"
+        ):
+            v4 = Builder(self.project, "linux-native", jobs=1, force_cross=True)
+        self.assertTrue(v4.cross)
+        self.assertEqual(v4.tc.target_os, "linux")
+        self.assertEqual(v4.tc.target_arch, "x86_64")
+        self.assertEqual(v4.tc.host_triple, "x86_64-unknown-linux-gnu")
+        # native 工具前缀来自 native_target: linux-tools，与原专用 target 一致。
+        self.assertEqual(v4.native_sysroot, ROOT / "out/linux-tools")
+        self.assertTrue(v4.tc.cross_file and v4.tc.cross_file.exists())
+        self.assertTrue(v4.tc.native_file and v4.tc.native_file.exists())
+        self.assertTrue(v4.tc.cmake_toolchain and v4.tc.cmake_toolchain.exists())
 
     def test_meson_cross_file(self):
         b = Builder(self.project, "linux-mingw-x64", jobs=1)
@@ -103,7 +120,16 @@ class CrossToolchains(unittest.TestCase):
             cfg["built-in options"]["c_args"],
         )
 
-        v4 = Builder(self.project, "linux-x64-v4", jobs=1)
+        # v4 的 -march 现在只来自调用方 CFLAGS（同 Windows），cross file 的
+        # c_args 经 _target_cflags() 收编。
+        with mock.patch(
+            "gtkcross.toolchain.host_arch", return_value="x86_64"
+        ), mock.patch.dict(
+            os.environ,
+            {"CFLAGS": "-march=x86-64-v4", "CXXFLAGS": "-march=x86-64-v4"},
+            clear=False,
+        ):
+            v4 = Builder(self.project, "linux-native", jobs=1, force_cross=True)
         cfg = configparser.ConfigParser(interpolation=None)
         cfg.read(v4.tc.cross_file)
         self.assertEqual(_unquote(cfg["host_machine"]["cpu_family"]), "x86_64")
@@ -160,11 +186,12 @@ class CrossToolchains(unittest.TestCase):
         """tools 里的 as 只能在 binutils 架构与宿主不同时导出。
 
         libvpx 的 configure 只在 AS 为空/auto 时探测 nasm/yasm；同架构
-        cross（linux-x64-v4）若预设 AS=as 会静默跳过探测，GNU as 拿 yasm 的
-        `-f elf64` 去编 nasm 语法的 .asm 直接失败。同架构不得导出，异架构
-        （linux-aarch64）必须导出 target binutils——两头都钉死。
+        cross（linux-native --force-cross）若预设 AS=as 会静默跳过探测，
+        GNU as 拿 yasm 的 `-f elf64` 去编 nasm 语法的 .asm 直接失败
+        （2026-10-31 的 linux-x64-v4 libvpx 构建事故）。同架构不得导出，
+        异架构（linux-aarch64）必须导出 target binutils——两头都钉死。
         """
-        v4 = Builder(self.project, "linux-x64-v4", jobs=1)
+        v4 = Builder(self.project, "linux-native", jobs=1, force_cross=True)
         self.assertNotIn("export AS=", "\n".join(v4.tc.prelude()))
 
         a = Builder(self.project, "linux-aarch64", jobs=1)
@@ -192,7 +219,12 @@ class CrossEngines(unittest.TestCase):
         self.assertNotIn("-fPIC", cmd)
 
     def test_meson_cross_file_is_passed(self):
-        b = Builder(self.project, "linux-x64-v4", jobs=1)
+        with mock.patch.dict(
+            os.environ,
+            {"CFLAGS": "-march=x86-64-v4", "CXXFLAGS": "-march=x86-64-v4"},
+            clear=False,
+        ):
+            b = Builder(self.project, "linux-native", jobs=1, force_cross=True)
         cmd = capture_configure(b, "glib-base")
         self.assertIn("--cross-file=", cmd)
         self.assertIn("--native-file=", cmd)

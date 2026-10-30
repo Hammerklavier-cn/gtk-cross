@@ -68,11 +68,8 @@ targets:
     toolchain: linux-aarch64
     prefix: out/linux-aarch64
     native_target: linux-tools
-  # 同架构 force-cross 的正式 target：用宿主 gcc + x86-64-v4 target flags，
-  # 构建期不执行 AVX-512 目标码。
-  linux-x64-v4:
-    toolchain: linux-x64-v4
-    prefix: out/linux-x64-v4
-    native_target: linux-tools
+  # x86-64-v4 等 ISA 变体不再注册独立 target：CI 用 linux-native +
+  # --force-cross + CFLAGS=-march=… 产出（与 Windows 的 msys2-ucrt64 v4
+  # 同一机制），产物/中间态落在 cross_prefix，native 工具来自 linux-tools。
 downloads_dir: downloads
 build_dir: build
