@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import os
 import re
 import shutil
@@ -32,6 +34,93 @@ _ENGINE_CLS = {
     "data": DataEngine,
 }
 _LOCKFILE = "versions.lock.yaml"
+
+# 参与构建参数的用户环境变量（prelude 加性保留它们，见 toolchain.py）。
+# 任一变量值变化 ⇒ 已配置的 build 目录（meson 的 coredata / cmake 的
+# CMakeCache）里固化的参数过期，必须删目录重配。只跟踪"用户可配置"维度；
+# 框架自身注入的 sysroot 参数属 toolchain 配置，其变更走既有"删 build 目录"
+# 约定，不在此列。
+_ENV_TRACKED = (
+    "CC", "CXX", "AR", "RANLIB", "NM", "STRIP",
+    "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LIBRARY_PATH",
+)
+
+# Cross 构建默认不构建测试程序：测试二进制是目标架构，构建机跑不了；而
+# 某些测试资源在 build 阶段会调用目标工具。基线/v3 原生 job 仍在跑完整测试，
+# cross job 只验证“库能编出来”。显式 --test-build 可恢复。
+_CROSS_TEST_BUILD_OPTIONS = {
+    "gobject-introspection": ["-Dtests=false"],
+    "glib": ["-Dtests=false"],
+    "gdk-pixbuf": ["-Dtests=false"],
+    "gtk": ["-Dbuild-tests=false"],
+    "libadwaita": ["-Dtests=false"],
+    "shared-mime-info": ["-Dbuild-tests=false"],
+}
+
+# Cross 目标不需要 target 侧的 g-i：本轮 cross 资产本来就不含 GIR/typelib，
+# 而上游 gobject-introspection 会无条件用目标编译器编 _giscanner Python
+# 扩展（却拿宿主 Python.h），跨架构/跨 OS 必然失败。native 工具前缀
+# （linux-tools）仍包含原生 g-i；target 侧库消费者不需要 libgirepository。
+# appstream 是 Linux 全量构建里的独立包（libadwaita 1.10 已改用 vendored
+# ministream，不再依赖它）；它 cross setup 要求 native appstream，但 cross
+# 资产没有消费者，直接跳过。
+_CROSS_SKIP_RECIPES = {"gobject-introspection", "appstream"}
+
+
+def _apply_cross_options(
+    recipe: Recipe, *, cross: bool, skip_introspection: bool,
+    skip_test_build: bool
+) -> Recipe:
+    """Append cross overrides without mutating the shared recipe object.
+
+    Meson 对重复 -D 取最后一次，所以追加覆盖即可；只对确实声明了该 option
+    的 recipe 追加，避免 "Unknown option"。
+    """
+    if recipe.build != "meson":
+        return recipe
+    opts = list(recipe.meson.get("options") or [])
+    before = list(opts)
+    if skip_introspection:
+        if recipe.name == "gobject-introspection":
+            opts.append("-Dbuild_introspection_data=false")
+        intro = [o for o in opts if o.startswith("-Dintrospection=")]
+        if intro:
+            value = intro[-1].split("=", 1)[1]
+            # feature 选项用 disabled；boolean 选项（libxmlb）只能 false。
+            opts.append(
+                "-Dintrospection=false"
+                if value in ("true", "false")
+                else "-Dintrospection=disabled"
+            )
+        gir = [o for o in opts if o.startswith("-Dgir=")]
+        if gir:
+            value = gir[-1].split("=", 1)[1]
+            opts.append(
+                "-Dgir=false"
+                if value in ("true", "false")
+                else "-Dgir=disabled"
+            )
+    if cross or skip_introspection:
+        # shared-mime-info 的 -Dupdate-mimedb=true 会执行**目标**的
+        # update-mime-database；cross 或 v4 降级时不能跑。改由 Builder 在
+        # install 后用 native tools sysroot 里的同名工具生成 mime.cache。
+        if recipe.name == "shared-mime-info":
+            opts.append("-Dupdate-mimedb=false")
+    if skip_test_build:
+        opts.extend(_CROSS_TEST_BUILD_OPTIONS.get(recipe.name, []))
+    if opts == before:
+        return recipe
+    return dataclasses.replace(
+        recipe, meson={**recipe.meson, "options": opts}
+    )
+
+
+def env_fingerprint() -> str:
+    """当前环境下的编译参数指纹（sha256，固定变量顺序）。"""
+    h = hashlib.sha256()
+    for k in _ENV_TRACKED:
+        h.update(f"{k}={os.environ.get(k, '')}\0".encode("utf-8"))
+    return h.hexdigest()
 
 # .pc 的字段：Requires.private / Libs.private / Cflags.private 需提升为公开字段
 _PC_KEY_RE = re.compile(r"^([A-Za-z0-9_.]+)\s*:\s*(.*)$")
@@ -88,7 +177,11 @@ class Builder:
     """Fetches and builds recipes in dependency order into a sysroot."""
 
     def __init__(self, project: ProjectConfig, target: str, jobs: int = 0,
-                 ignore_test_failures: bool = False):
+                 ignore_test_failures: bool = False, skip_tests: bool = False,
+                 force_cross: bool = False,
+                 native_sysroot: Path | str | None = None,
+                 skip_introspection: Optional[bool] = None,
+                 skip_test_build: Optional[bool] = None):
         self.project = project
         self.target = target
         # True 时测试失败（unexpected / 退出码异常）只告警不中断构建。与
@@ -96,13 +189,113 @@ class Builder:
         # test-failure.log、记入事件日志，只是不 raise。用于一次性诊断。
         self.ignore_test_failures = ignore_test_failures
         self.recipes = load_recipes(project.root / "recipes")
-        self.sysroot = project.sysroot(target)
         self.jobs = jobs or (min(32, int(__import__("os").cpu_count() or 4)))
         tconf = project.target(target)
+        self.sysroot = project.sysroot(target)
+        self.build_key = target
         tc_path = project.root / "toolchains" / f"{tconf['toolchain']}.yaml"
         self.tc = Toolchain.load(tc_path, self.sysroot)
+
+        # --force-cross：目标与本机同 arch 时把 native toolchain 临时提升为
+        # cross 模式。产物与 build 中间态必须换目录，否则会和 native 构建互相
+        # 污染；target 选择器仍用原名（recipe 的平台块不变）。
+        #
+        # Windows 原生工具链也能这样用：宿主与目标都是 win64/x86_64，只是
+        # build machine 的生成器必须用 baseline 编译（MSYS2 没有 cc 别名，
+        # 故 native file 显式写 gcc）。这样 CFLAGS=-march=x86-64-v4 只进
+        # target 编译，不会再把 fribidi gen-tab 这类 native: true 工具编成
+        # AVX-512。
+        if force_cross and not self.tc.cross:
+            if self.tc.host not in ("linux", "windows"):
+                raise ValueError(
+                    "--force-cross supports Linux and Windows hosts only"
+                )
+            if self.tc.target_arch != self.tc.build_arch:
+                raise ValueError(
+                    "--force-cross is for same-arch targets; use a real cross "
+                    "toolchain for a different target architecture"
+                )
+            cross_prefix = tconf.get("cross_prefix")
+            if not cross_prefix:
+                prefix = tconf.get("prefix") or f"out/{target}"
+                cross_prefix = f"{prefix}-cross"
+            self.sysroot = project.root / cross_prefix
+            self.build_key = f"{target}-cross"
+            # 同架构 --force-cross 的 build machine 工具默认就是该 target
+            # 的 native sysroot（Windows v4 的 baseline out/msys2-ucrt64）。
+            # 有 native_target 的 target（如 linux-native -> linux-tools）
+            # 仍由它决定；--native-sysroot 可显式覆盖。
+            if native_sysroot is None and not tconf.get("native_target"):
+                native_sysroot = tconf.get("prefix") or f"out/{target}"
+            cfg = dict(self.tc.cfg)
+            cfg["cross"] = True
+            cfg["target_os"] = cfg.get("target_os") or self.tc.host
+            cfg["target_arch"] = cfg.get("target_arch") or self.tc.target_arch
+            cfg["build_arch"] = cfg.get("build_arch") or self.tc.build_arch
+            if self.tc.host == "windows":
+                cfg["host_triple"] = cfg.get("host_triple") or (
+                    f"{self.tc.target_arch}-w64-mingw32"
+                )
+                cfg["build_triple"] = cfg.get("build_triple") or (
+                    f"{self.tc.build_arch}-pc-msys"
+                )
+                tools = cfg.get("tools") or {}
+                # Meson 的 build machine 默认编译器是 cc；MSYS2 UCRT64 只有
+                # gcc。显式写上，避免 --force-cross 在 Windows 上 setup 就
+                # 找不到 native compiler。
+                cfg["build_cc"] = cfg.get("build_cc") or tools.get("cc") or "gcc"
+                cfg["build_cxx"] = cfg.get("build_cxx") or tools.get("cxx") or "g++"
+            else:
+                cfg["host_triple"] = cfg.get("host_triple") or (
+                    f"{self.tc.target_arch}-unknown-linux-gnu"
+                )
+                cfg["build_triple"] = cfg.get("build_triple") or (
+                    f"{self.tc.build_arch}-pc-linux-gnu"
+                )
+            self.tc = Toolchain(cfg, self.tc.name, self.sysroot)
+
         # recipe 的 targets: 家族选择器按它匹配（windows | linux）
         self.target_os = self.tc.target_os
+        self.cross = self.tc.cross
+
+        native_target = tconf.get("native_target")
+        self.native_target = native_target
+        native_path = native_sysroot
+        if native_path is None and native_target:
+            native_path = project.sysroot(str(native_target))
+        if native_path is not None:
+            native_path = Path(native_path)
+            # CLI 习惯写相对项目根的路径；构建命令的 cwd 是
+            # build/<target>/<recipe>，相对路径必须在入口处解析掉。
+            if not native_path.is_absolute():
+                native_path = project.root / native_path
+        self.native_sysroot: Path | None = native_path
+        if self.cross:
+            if self.native_sysroot is None:
+                raise ValueError(
+                    f"{target}: cross build requires a native tools sysroot; "
+                    "set native_target on the target or pass --native-sysroot"
+                )
+            self.tc.native_sysroot = self.native_sysroot
+            self.tc.write_cross_files(project.build_dir / self.build_key)
+
+        # 交叉构建没有 exe_wrapper 时，Meson 会拒绝跑测试；默认跳过执行。
+        # 仍然可以显式 --no-test；两者都只影响 test 阶段。
+        self.skip_tests = skip_tests or (self.cross and not self.tc.exe_wrapper)
+        # 目标代码不能在构建机执行：默认不生成 GIR，也不构建测试程序。
+        # 需要保留测试编译/执行时显式传 False / 提供 exe_wrapper。
+        self.skip_introspection = (
+            self.cross if skip_introspection is None else skip_introspection
+        )
+        self.skip_test_build = (
+            self.cross if skip_test_build is None else skip_test_build
+        )
+        # post_install 里的 gtk4-update-icon-cache 等是目标二进制；cross 下
+        # 由 native 工具前置 PATH，但 recipe 里写的是 $SYSROOT/bin。先跳过，
+        # 图标缓存不是链接产物的一部分，发布侧可从 baseline 覆盖。
+        # 显式 --no-introspection 的 native 构建（例如无 AVX-512 的 Windows
+        # v4 降级）同样跳过，避免执行目标工具。
+        self.skip_post_install = self.cross or bool(self.skip_introspection)
         # 追加式事件日志：记录构建起止与测试异常事件（known 失败出现/缺席等）
         self.events = EventLog(project.root / "gtkcross-events.log", target)
 
@@ -129,10 +322,15 @@ class Builder:
         # deps（例如 directx-headers/directxmath 只属于 Windows）。用未解析的 base
         # deps 建图的话，被裁掉的依赖仍会进入 build plan，而按名字预置依赖时又
         # 会在 Linux 计划里带上 Windows 专属包。
+        skip = _CROSS_SKIP_RECIPES if self.cross else set()
         graph = {
-            n: list(r.for_target(self.target, self.target_os).deps)
+            n: [d for d in r.for_target(
+                    self.target, self.target_os, cross=self.cross
+                ).deps if d not in skip]
             for n, r in self.recipes.items()
+            if n not in skip
         }
+        names = [n for n in names if n not in skip]
         # 平台归属的一致性检查：把"某平台的包依赖了不属于该平台的包"当作配置错误
         # 直接报出，而不是让它在 build plan 里冒出来（那会产出一个本平台不该有
         # 的 sysroot 条目，例如 Linux 侧混进 egl-headers 与 Mesa 争抢 EGL 头）。
@@ -159,9 +357,21 @@ class Builder:
 
     # -- per-recipe build ---------------------------------------------------
 
+    def resolved_recipe(self, name: str) -> Recipe:
+        """Recipe with target overrides and cross-specific option overrides."""
+        recipe = self.recipes[name].for_target(
+            self.target, self.target_os, cross=self.cross
+        )
+        return _apply_cross_options(
+            recipe,
+            cross=self.cross,
+            skip_introspection=self.skip_introspection,
+            skip_test_build=self.skip_test_build,
+        )
+
     def build_recipe(self, name: str) -> None:
-        recipe = self.recipes[name].for_target(self.target, self.target_os)
-        ws = self.project.build_dir / self.target / name
+        recipe = self.resolved_recipe(name)
+        ws = self.project.build_dir / self.build_key / name
         src = ws / "src"
         ok_marker = ws / "src" / ".gtkcross-extract-ok"
 
@@ -204,6 +414,10 @@ class Builder:
             default_library=self.project.default_library,
             prefer_static=self.project.prefer_static,
         )
+        # 编译参数环境（调用方 CC/CFLAGS/...）与上次配置时不同 ⇒ 删掉整个
+        # build 目录与阶段 stamp 强制重配。光删 stamp 不够：meson 的 coredata
+        # 与 cmake 的 CMakeCache.txt 固化着旧参数（框架既有坑，见 NOTES）。
+        self._invalidate_on_env_change(name, recipe, ws)
         engine.apply("configure", engine.configure)
         engine.apply("compile", engine.compile)
         print(f"  [install] {name} -> {self.sysroot}")
@@ -211,8 +425,63 @@ class Builder:
         published = self._publish_static_pc()
         if published:
             print(f"  [pc] {name}: 提升静态 .pc 私有字段 -> {', '.join(published)}")
-        self._apply_post_install(name, recipe)
+        if self.cross and name == "shared-mime-info":
+            # 数据与架构无关；用 native tools sysroot 里的 update-mime-database
+            # 生成 mime.cache，避免执行 target 的 .exe/.so。
+            self.tc.expect(
+                f'"$NATIVE_SYSROOT/bin/update-mime-database" "$SYSROOT/share/mime"'
+            )
+        if self.skip_post_install:
+            print("  [skip] post_install（cross：目标二进制不在构建机运行）")
+        else:
+            self._apply_post_install(name, recipe)
         self._apply_test(name, engine)
+
+    def _invalidate_on_env_change(self, name: str, recipe: Recipe, ws: Path) -> None:
+        """调用方编译参数环境（CC/CFLAGS/...）变化时，废弃本 recipe 的缓存。
+
+        prelude 把这些变量加性透传给 configure（见 toolchain.py），而
+        meson/cmake 只在 setup/configure 时把它们固化进 build 目录（meson 的
+        coredata、cmake 的 CMakeCache.txt），之后环境再变也不会被重读——光删
+        stamp 重跑 compile 换不了参数（NOTES 里反复踩过的坑：改构建选项后要
+        连 build 目录一起删）。故指纹不匹配时连 build 目录与全部阶段 stamp
+        一起删，强制重新 configure；随后写入新指纹。
+
+        data 引擎没有编译参数（纯文件拷贝），跳过；否则 install stamp 每次
+        环境变化都被失效，白做重装。
+        """
+        if recipe.build == "data":
+            return
+        fp = env_fingerprint()
+        done = ws / "done"
+        fp_path = done / "env-fp.stamp"
+        prev = fp_path.read_text(encoding="utf-8") if fp_path.exists() else None
+        if prev == fp:
+            return
+        # 环境与上次配置不同，或旧 workspace 有 stamp 但没记指纹（框架升级前
+        # 构建的，coredata/CMakeCache 里的参数未知）——都按"缓存参数过期"处理，
+        # 强制重配。完全没有配置痕迹（全新 workspace）时无可废弃，直接记指纹。
+        if prev is not None or any(done.glob("*.stamp")):
+            print(
+                f"  [env] {name}: 编译参数环境变化，废弃缓存重新 configure"
+            )
+            # meson/cmake 的 build 目录（ninja/meson-private/CMakeCache.txt）
+            shutil.rmtree(ws / "build", ignore_errors=True)
+            if recipe.build == "autotools":
+                # autotools 是 in-source 构建且 configure 带 -C（config cache）：
+                # config.cache 会按变量缓存探测结果，CFLAGS 变了旧结论未必成立。
+                # 产物在 source_dir（默认 src 根）里。
+                sub = recipe.autotools.get("source_dir", "")
+                root = ws / "src" / sub if sub else ws / "src"
+                for f in ("config.cache", "config.status", "config.log"):
+                    p = root / f
+                    if p.is_file():
+                        p.unlink()
+            for s in done.glob("*.stamp"):
+                if s.name != "env-fp.stamp":
+                    s.unlink()
+        done.mkdir(parents=True, exist_ok=True)
+        fp_path.write_text(fp, encoding="utf-8")
 
     def _apply_post_source(self, name: str, recipe: Recipe, ws: Path, src: Path) -> None:
         """Apply recipe patches to the extracted source tree.
@@ -243,7 +512,7 @@ class Builder:
         copy the dep's extracted source tree in place before configure.
         """
         for rel, dep in recipe.submodules.items():
-            dep_src = self.project.build_dir / self.target / dep / "src"
+            dep_src = self.project.build_dir / self.build_key / dep / "src"
             target = src / rel
             if not dep_src.exists():
                 raise BuildError(
@@ -321,10 +590,11 @@ class Builder:
     # ctest 输出行示例:
     #   1/1 Test #1: pngtest .....................   Passed    0.00 sec
     _TEST_LINE = re.compile(
-        r"^\s*(\d+)/(\d+)\s+(?P<name>.+?)\s+(?P<status>OK|FAIL|ERROR|SKIP)\s"
+        r"^\s*(\d+)/(\d+)\s+(?P<name>.+?)\s+"
+        r"(?P<status>OK|FAIL|ERROR|SKIP|TIMEOUT)\s"
     )
     _CTEST_LINE = re.compile(
-        r"^\s*\d+/\d+\s+Test\s+#\d+:\s+(?P<name>[^:]+?)\s+"
+        r"^\s*\d+/\d+\s+Test\s+#\d+:\s+(?P<name>[^:]+?)\s+\.*\s*"
         r"(?P<status>Passed|Failed|\*\*\*Failed|\*\*\*Timeout)"
     )
 
@@ -345,7 +615,7 @@ class Builder:
             # ctest 的状态名归一化到 meson 词汇
             if status == "Passed":
                 status = "OK"
-            elif status in ("Failed", "***Failed", "***Timeout"):
+            elif status in ("Failed", "***Failed", "***Timeout", "TIMEOUT"):
                 status = "ERROR"
             seen = res.setdefault(status, [])
             if short not in seen:
@@ -353,6 +623,9 @@ class Builder:
         return res
 
     def _apply_test(self, name: str, engine: Engine) -> None:
+        if self.skip_tests:
+            print(f"  [skip] test（--no-test）")
+            return
         t = engine.recipe.test or {}
         if not t.get("enabled", False):
             return
@@ -450,7 +723,32 @@ class Builder:
 
     # -- entry point ---------------------------------------------------------
 
+    def _check_native_sysroot(self) -> None:
+        if not self.cross:
+            return
+        if self.native_sysroot is None:
+            raise BuildError(
+                f"{self.target}: cross build requires a native tools sysroot"
+            )
+        if not (self.native_sysroot / "bin").is_dir():
+            hint = (
+                f"python -m gtkcross build glib-base gdk-pixbuf "
+                f"shared-mime-info shaderc -t {self.native_target}"
+                if self.native_target
+                else "build the native tools target first"
+            )
+            raise BuildError(
+                f"{self.target}: native tools sysroot incomplete: "
+                f"{self.native_sysroot}/bin\n  {hint}"
+            )
+
     def build(self, names: List[str]) -> None:
+        self._check_native_sysroot()
+        if self.cross:
+            print(
+                "  [cross] skip target gobject-introspection "
+                "(native tools 前缀/基线资产提供 GIR 工具)"
+            )
         skipped = self.not_applicable(names)
         if skipped:
             print(

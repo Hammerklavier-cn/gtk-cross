@@ -4,9 +4,10 @@ A recipe is a declarative description of one dependency:
 source (url + sha256), build system, options, and per-target overrides.
 
 `targets:` is how a recipe says "this patch / option / dependency belongs only
-to one platform".  A selector is either an exact target name (`msys2-ucrt64`)
-or a toolchain OS family (`windows` — every target whose toolchain declares
-`target_os: windows`), and one block may list several selectors at once so
+to one platform".  A selector is either an exact target name (`msys2-ucrt64`),
+a toolchain OS family (`windows` — every target whose toolchain declares
+`target_os: windows`), or the special `cross` selector (any cross build,
+including `--force-cross`).  One block may list several selectors at once so
 that shared items are written once:
 
     targets:
@@ -231,18 +232,24 @@ class Recipe:
             "default_library": self.default_library,
         }
 
-    def for_target(self, target: str, target_os: str = "") -> "Recipe":
+    def for_target(
+        self, target: str, target_os: str = "", cross: bool = False
+    ) -> "Recipe":
         """Return a copy with every matching override block applied.
 
         `target_os` is the toolchain's OS family (toolchains/*.yaml `target_os`);
         blocks whose selector is that family apply here as well, so Windows-only
-        patches/options are written once for all Windows targets.
+        patches/options are written once for all Windows targets.  The special
+        `cross` selector matches whenever the build is cross (including
+        `--force-cross` on a native target).
         """
         blocks = _normalize_targets(self.name, self.targets)
         matched = [
             (spec, body)
             for spec, sels, body in blocks
-            if target in sels or (target_os and target_os in sels)
+            if target in sels
+            or (target_os and target_os in sels)
+            or (cross and "cross" in sels)
         ]
         if not matched:
             return self

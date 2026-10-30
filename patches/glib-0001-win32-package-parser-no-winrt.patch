@@ -1,0 +1,62 @@
+From: gtk-cross <noreply@example.invalid>
+Subject: [PATCH] gio: fall back to a stub when WinRT headers are unavailable
+
+Ubuntu 24.04's mingw-w64 11 headers do not ship the WinRT generated headers
+(windows.applicationmodel.core.h and friends).  GLib unconditionally compiles
+gwin32packageparser.c for Windows, so a Linux -> Windows cross build against
+those headers dies at:
+
+  gio/gwin32packageparser.c:39:10: fatal error:
+    windows.applicationmodel.core.h: No such file or directory
+
+Probe the header in Meson.  Keep the real UWP package parser when it exists;
+otherwise compile a stub that reports G_IO_ERROR_NOT_SUPPORTED.  gwin32appinfo.c
+already treats a FALSE return as "no UWP apps" and only logs at debug level, so
+normal Win32 application lookup is unaffected.
+
+This is deliberately applied only to the linux-mingw-x64 cross target; native
+MSYS2 builds have WinRT headers and keep the real parser.
+
+--- a/gio/meson.build
++++ b/gio/meson.build
+@@ -468,7 +468,6 @@
+     'gwin32inputstream.c',
+     'gwin32outputstream.c',
+     'gwin32file-sync-stream.c',
+-    'gwin32packageparser.c',
+     'gwin32networkmonitor.c',
+     'gwin32networkmonitor.h',
+     'gwin32notificationbackend.c',
+@@ -479,6 +478,12 @@
+     'gwin32sid.h',
+   )
+ 
++  if cc.has_header('windows.applicationmodel.core.h')
++    win32_sources += files('gwin32packageparser.c')
++  else
++    win32_sources += files('gwin32packageparser-stub.c')
++  endif
++
+   if glib_build_shared
+     gio_rc_conf = configuration_data({
+       'NAME': 'GIO',
+--- /dev/null
++++ b/gio/gwin32packageparser-stub.c
+@@ -0,0 +1,17 @@
++#include "config.h"
++
++#include "gwin32packageparser.h"
++
++#ifdef G_PLATFORM_WIN32
++
++gboolean
++g_win32_package_parser_enum_packages (GWin32PackageParserCallback   callback,
++                                      gpointer                      user_data,
++                                      GError                      **error)
++{
++  g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
++                       "WinRT package enumeration is not available in this build");
++  return FALSE;
++}
++
++#endif

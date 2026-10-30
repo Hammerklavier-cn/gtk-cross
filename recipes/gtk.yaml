@@ -115,7 +115,7 @@ targets:
   # -Dbuild-tests=false 从不跑这些测试，故没有现成修复可抄。
   # 补丁让失败时回退到 Windows 区域名，从而不再产生致命 warning。
   # 精确 target 块（排在家族块之后，patches 按替换语义合并）。
-  - for: [msys2-mingw64]
+  - for: [msys2-mingw64, linux-mingw-x64]
     patches:
       - gtk-0001-fallback-to-windows-locale.patch
   - for: [linux]

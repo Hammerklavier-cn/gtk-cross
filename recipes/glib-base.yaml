@@ -39,4 +39,10 @@ targets:
         # 才生成 PE TLS directory 并收集 .CRT$XL* 回调。引导阶段的 DLL 即需生效
         # （gobject-introspection 的测试要加载它）。
         - -Dc_link_args=-Wl,--undefined=_tls_used
+  # Ubuntu 24.04 的 mingw-w64 11 头文件没有 WinRT generated headers；
+  # linux-mingw-x64 用 stub 顶替 UWP package parser（只影响 UWP 应用枚举，
+  # 普通 Win32 应用查找不变）。原生 MSYS2 有头文件，不应用此补丁。
+  - for: [linux-mingw-x64]
+    patches:
+      - glib-0001-win32-package-parser-no-winrt.patch
 

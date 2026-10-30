@@ -1,15 +1,15 @@
 name: openssl
-version: 3.5.8
+version: 3.5.9
 source:
-  # 只有 GitHub 的 release 资产是真身（实测 53,213,818 字节，sha256 见
+  # 只有 GitHub 的 release 资产是真身（实测 53,279,637 字节，sha256 见
   # versions.lock.yaml）。两条看着像候选源的路都验证过、都不采用：
-  #   https://openssl-library.org/source/binaries/openssl-3.5.8.tar.gz
+  #   https://openssl-library.org/source/binaries/openssl-3.5.9.tar.gz
   #     → 31,669 字节的 HTML 错误页（HEAD 返 200、Range GET 返 206，只有真下下来
   #       才看得出是 404 页；`file` 判为 HTML document）。
-  #   https://www.openssl.org/source/openssl-3.5.8.tar.gz
+  #   https://www.openssl.org/source/openssl-3.5.9.tar.gz
   #     → 301 之后续连 github.com，最终就是上面那个 release 资产（curl -L 实测），
   #       列为镜像不增加任何独立冗余。
-  url: https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz
+  url: https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz
 build: autotools
 # 只属于 Linux 侧：Windows 的 TLS 后端是 schannel（见 recipes/curl.yaml 的 windows
 # 块），在那里自建 OpenSSL 既无必要，又会把 -lcrypto 与系统实现摆在一起。
@@ -17,8 +17,8 @@ platforms: [linux]
 # curl 的 TLS 后端。选 OpenSSL 而不是 mbedTLS/GnuTLS 的理由（以及被否掉的方案）
 # 记在 recipes/platform-notes.md 的 OpenSSL 一节。
 #
-# 上游不用 autoconf 也不用 CMake：顶层没有 CMakeLists.txt（实测 openssl-3.5.8
-# 归档），入口是 perl 的 ./Configure，而 ./config 在 3.5.8 里只是
+# 上游不用 autoconf 也不用 CMake：顶层没有 CMakeLists.txt（实测 openssl-3.5.9
+# 归档），入口是 perl 的 ./Configure，而 ./config 在 3.5.9 里只是
 # `THERE=`dirname $0`; exec "$THERE/Configure" "$@"` 的三行包装 —— 给它平台名
 # 或不给都一样，不给时 Configure 自己探测宿主（Configure:1271-1285
 # "If no target was given, try guessing"）。arch 由宿主决定，与 recipes/libvpx.yaml
@@ -87,3 +87,11 @@ autotools:
 test:
   # 见上面 no-tests 的注释。
   enabled: false
+# Linux x86_64 -> aarch64 cross：Configure 的缺省分支靠构建机 `cc` 猜目标，
+# 会猜成 linux-x86_64。显式给 linux-aarch64；只写精确 cross target，保持
+# linux-native 的架构中立。
+targets:
+  - for: [linux-aarch64]
+    autotools:
+      configure:
+        - linux-aarch64

@@ -54,4 +54,15 @@ targets:
         # `${CROSS}as`（同文件 749 行）即 gas，硬塞 nasm 会把 ARM 的 .s 语法交给
         # 错误的汇编器；x86_64 上 auto 同样会选到 nasm，与 Windows 取值一致，
         # 而缺 nasm/yasm 时是响亮失败而非静默降级。
+        # 该假设的前提是环境里**没有**预设 AS——libvpx 只在 AS 为空/auto 时
+        # 才探测，cross 工具链若在 tools: 里声明 as 会静默跳过探测（2026-10-31
+        # 的事故根源）。护栏见 tests/test_cross.py 的
+        # test_prelude_as_export_follows_arch_relation。
         - --as=nasm
+  # Linux x86_64 -> aarch64 cross：上游缺省用 `gcc -dumpmachine` 推测目标，
+  # 交叉构建里那会是构建机 gcc（x86_64），必须显式给它们自己的命名。
+  # 只写精确 cross target，不写 linux 家族——linux-native 仍保持架构中立。
+  - for: [linux-aarch64]
+    autotools:
+      configure:
+        - --target=arm64-linux-gcc

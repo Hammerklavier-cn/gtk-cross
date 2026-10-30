@@ -8,6 +8,9 @@
 约定：**base 只放平台中立项**，平台专属内容一律进 `for: [windows]` /
 `for: [linux]` 家族块；只有"某个 target 与其他同族 target 不同"时才用精确
 target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw64）。
+跨构建专属内容用 `for: [cross]`：它匹配所有 cross（含同架构的
+`--force-cross`），原生构建不匹配；本文件里的 adwaita icon cache 补丁与
+expat 的测试开关都走这条。
 
 与 `targets:` 正交的另一件事是**包本身的归属**：`platforms:`（选择器语法同
 `for:`，不写 = 全平台）。当前有 24 个包带这条声明——21 个 X/GL 包
@@ -163,6 +166,12 @@ sysroot 里的 `include/EGL` 与 `egl.pc`）。集合由
    **通用做法**：给这类探测显式定义结论（本项目用 `Iconv_IS_BUILT_IN=OFF`，
    条件正是 FindIconv 自己的 `if(NOT DEFINED …)`），而不是去放宽 find-root 模式。
    同类坑还要留意别的 CMake 工程的 `check_symbol_exists`/`find_library` 组合。
+   **2026-10-28 补充**：CmakeEngine 现在会在**调用方显式设置了**
+   `CFLAGS`/`CXXFLAGS`/`CPPFLAGS`/`LDFLAGS` 时把完整参数注入 configure 命令
+   （`-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS"` 等，bash 内展开，见 README「自定义
+   编译参数」一节）——此时探测/编译/链接三处看到同一份参数。libxml2 的
+   `Iconv_IS_BUILT_IN=OFF` 是显式结论定义（`NOT DEFINED` 条件为假），依然优先，
+   两条路径都正确；未设置任何变量时命令与过去逐字节相同，本条的默认情形不变。
 10. **上游会按 `host_machine.system()` 分叉"必需依赖"**，这是最容易漏的一类
     Linux-only 阻塞（实测两处，都在 gdk-pixbuf）：
     - 直接写死分支：`if host_system not in ['windows','darwin','android']`
@@ -660,4 +669,37 @@ configure 期那几处 `run_command`**（那些是构建期硬门，探得到；
   栈（OpenSSL 体量最大、依赖最少；mbedTLS 小但要额外接 entropy 来源；GnuTLS 会
   牵进 libgcrypt/nettle/p11-kit 一串）——与"Mesa 要不要自建"同类，留给用户裁决。
   注意 appstream 依赖 curl 取远端数据，这条缺口会传导到它。
+
+## 交叉构建（Linux 宿主）
+
+`toolchains/linux-*.yaml` 里的 cross 目标不是"native + `-march`"：Builder 会生成
+Meson cross-file / CMake toolchain file，autotools 收到不同的 `--host/--build`。
+三个引擎的 target flags 都只注入 target 编译，native 构建工具来自
+`out/linux-tools`（`glib-base` / `gdk-pixbuf` / `shared-mime-info` / `shaderc`
+的产物），不会用目标 ISA flags 重编。
+
+两条已经踩过的机制：
+
+1. **Meson cross 不读环境 `CPPFLAGS`**：glib 的 iconv 探测会因此命中宿主
+   `/usr/include/iconv.h`，链接期缺 `-liconv`。修复是把
+   `-I<target-sysroot>/include` 显式写进 cross-file 的 `c_args/cpp_args` 和
+   CMake toolchain 的 `CMAKE_*_FLAGS_INIT`；`LDFLAGS` 则由 cross prelude 提供。
+2. **目标侧代码执行默认全部关闭**：cross 下 `g-ir-scanner` 的 dumper、测试程序、
+   `gtk4-update-icon-cache` 等 post_install 都不执行；`glib` 的
+   `-Dintrospection=enabled` 必须覆盖成 `disabled`，g-i 加
+   `-Dbuild_introspection_data=false`。需要 GIR/typelib 的消费者用同 OS/ABI 的
+   基线资产覆盖。要真正在 cross 里生成 GIR，需要能执行目标二进制的
+   `exe_wrapper`（ARM 的 qemu、Windows 的 Wine 环境，或 Intel SDE）；当前
+   未启用。
+
+`libvpx` 和 `openssl` 的 target 名不能靠构建机 `gcc -dumpmachine` 猜：
+`recipes/libvpx.yaml` 对 `linux-aarch64` 显式 `--target=arm64-linux-gcc`，
+`recipes/openssl.yaml` 对 `linux-aarch64` 显式 `linux-aarch64`。Windows 侧
+libvpx 继续用 `for: [windows]` 的 `--target=x86_64-win64-gcc --as=nasm`。
+
+宿主工具：Ubuntu 用发行版交叉包即可；Fedora 的官方 `gcc-aarch64-linux-gnu`
+只覆盖内核构建、不带用户态 glibc，做用户态 aarch64 交叉需要 COPR
+`lantw44/aarch64-linux-gnu-toolchain` 或 Ubuntu 容器。`linux-mingw-x64` 用
+发行版 mingw-w64 交叉 GCC，CRT 是 msvcrt；UCRT 仍走 Windows 原生
+`msys2-ucrt64`。
 

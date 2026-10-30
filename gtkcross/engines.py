@@ -61,6 +61,11 @@ class Engine:
     def static(self) -> bool:
         return self.libtype != "shared"
 
+    def test_jobs(self) -> int:
+        """测试并行度：recipe 的 test.jobs 是上限，且不超过全局 -j。"""
+        cap = (self.recipe.test or {}).get("jobs")
+        return min(self.jobs, int(cap)) if cap else self.jobs
+
     # -- stamp helpers (idempotent, resumable) ----------------------------
 
     def stamp(self, key: str) -> Path:
@@ -136,9 +141,18 @@ class MesonEngine(Engine):
         # prefer_static：dependency() 优先选 .a，并以 pkg-config --static 查询，
         # 从而带出 .pc 的 Cflags.private（XML_STATIC / PCRE2_STATIC 等静态消费宏）
         prefer = "true" if self.prefer_static else "false"
+        cross_file = ""
+        if self.tc.cross:
+            if not self.tc.cross_file:
+                raise BuildError(
+                    f"{self.recipe.name}: cross toolchain has no Meson cross file"
+                )
+            cross_file = f"--cross-file={posix(self.tc.cross_file)} "
+            if self.tc.native_file:
+                cross_file += f"--native-file={posix(self.tc.native_file)} "
         return (
             f"{self.env_prefix()}"
-            f"meson setup {posix(self.build_dir)} {posix(self.src_dir)} "
+            f"meson setup {cross_file}{posix(self.build_dir)} {posix(self.src_dir)} "
             f"--prefix={posix(self.sysroot)} --libdir=lib -Dbuildtype=release "
             f"-Ddefault_library={libtype} -Dprefer_static={prefer} {opt_str} {cross}"
         )
@@ -163,12 +177,18 @@ class MesonEngine(Engine):
     def test_command(self) -> str | None:
         # recipe test.env: 以 `env K=V` 前缀注入测试进程环境（shell 层继承，
         # 不覆盖 meson.build 里 test_env 显式设置的变量）
-        env = self.recipe.test.get("env") or {}
+        t = self.recipe.test or {}
+        env = t.get("env") or {}
         prefix = " ".join(f"{k}={v}" for k, v in env.items())
         prefix = f"env {prefix} " if prefix else ""
+        args = f"-j {self.test_jobs()}"
+        # meson 的 --timeout-multiplier 会覆盖 setup 里的值（glib 默认 2），
+        # 不是在其之上再乘一次。
+        if t.get("timeout_multiplier"):
+            args += f" --timeout-multiplier {t['timeout_multiplier']}"
         return (
             f"{test_wrapper()}{prefix}meson test -C {posix(self.build_dir)} "
-            f"--print-errorlogs -j {self.jobs}"
+            f"--print-errorlogs {args}"
         )
 
 
@@ -182,6 +202,34 @@ class CmakeEngine(Engine):
         defines.setdefault("BUILD_SHARED_LIBS", "OFF" if self.static else "ON")
         def_str = " ".join(f"-D{k}={v}" for k, v in defines.items())
         sr = posix(self.sysroot)
+        if self.tc.cross:
+            if not self.tc.cmake_toolchain:
+                raise BuildError(
+                    f"{self.recipe.name}: cross toolchain has no CMake toolchain file"
+                )
+            # cross 分支的 compiler、sysroot find-root 与 target flags 都在
+            # toolchain file 里；这里只保留安装前缀与 recipe defines。
+            return (
+                f"cmake -S {posix(self.src_dir)} -B {posix(self.build_dir)} "
+                f"-G Ninja -DCMAKE_INSTALL_PREFIX={sr} "
+                f"-DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release "
+                f"-DCMAKE_TOOLCHAIN_FILE={posix(self.tc.cmake_toolchain)} "
+                f"{def_str}"
+            )
+        # 调用方显式设置了 CFLAGS/CXXFLAGS/CPPFLAGS/LDFLAGS 时，把完整
+        # 参数经 -D 注入配置命令（值在 bash 内展开，含 prelude 合并进来的
+        # sysroot -I/-L 与 Linux 的 -fPIC）。CMake 自身只从环境读
+        # CFLAGS/CXXFLAGS/LDFLAGS、且仅在首次 configure 落缓存，**不读
+        # CPPFLAGS**（libxml2 FindIconv 探测不对称的根因）——显式传参让
+        # 探测/编译/链接三处看到同一份参数，且不受"缓存已存在"影响。
+        # 仅在调用方设置有变量时注入（os.environ 即调用方环境：prelude 的
+        # export 发生在 bash 子进程内，不回写 Python 进程），未设置时命令
+        # 与旧行为逐字节一致。值含空格故整体加引号；注意 CMake 的 -D 值
+        # 中分号是列表分隔符，参数里不要使用。
+        flags_str = ""
+        flags = self._env_flag_defines()
+        if flags:
+            flags_str = " ".join(flags) + " "
         # Hermetic sysroot: never pick up libs/headers/CMake packages outside
         # our prefix; only programs (compilers/tools) may come from the
         # toolchain PATH (CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH).
@@ -196,8 +244,22 @@ class CmakeEngine(Engine):
             f"-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY "
             f"-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH "
             f"-DCMAKE_PREFIX_PATH={sr} "
-            f"{def_str}"
+            f"{flags_str}{def_str}"
         )
+
+    def _env_flag_defines(self) -> List[str]:
+        """调用方设置的编译/链接参数 -> 注入的 -D 列表（未设置则空）。"""
+        if not any(
+            os.environ.get(k) for k in ("CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS")
+        ):
+            return []
+        return [
+            '-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS"',
+            '-DCMAKE_CXX_FLAGS="$CXXFLAGS $CPPFLAGS"',
+            '-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS"',
+            '-DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS"',
+            '-DCMAKE_MODULE_LINKER_FLAGS="$LDFLAGS"',
+        ]
 
     def configure(self) -> None:
         print(f"  [cmake configure] {self.recipe.name}")
@@ -214,7 +276,7 @@ class CmakeEngine(Engine):
     def test_command(self) -> str | None:
         return (
             f"{test_wrapper()}ctest --test-dir {posix(self.build_dir)} "
-            f"--output-on-failure -j {self.jobs}"
+            f"--output-on-failure -j {self.test_jobs()}"
         )
 
 
@@ -309,6 +371,7 @@ class AutotoolsEngine(Engine):
         opts = list(self.recipe.autotools.get("configure", []))
         envs = self.recipe.autotools.get("env", {})
         env_str = " ".join(f"{k}={v}" for k, v in envs.items())
+        target_env = self.tc.autotools_target_env()
         # 配置入口脚本名：绝大多数上游是 autoconf 生成的 ./configure，少数手写入口
         # 各有自己的名字（OpenSSL 的 ./config 在 3.5.8 里就是
         # `exec "$THERE/Configure" "$@"` 三行包装）。默认值保持与旧行为逐字节一致。
@@ -326,7 +389,7 @@ class AutotoolsEngine(Engine):
             # 仍有 236 处 libcrypto.so；只有上游关键字 no-shared 才是 0）。
             print(f"  [autotools configure/raw] {self.recipe.name}")
             self.tc.expect(
-                f"cd {self.source_posix()} && {env_str} {script} "
+                f"cd {self.source_posix()} && {target_env}{env_str} {script} "
                 f"--prefix={posix(self.sysroot)} {' '.join(opts)}",
                 cwd=self.ws,
             )
@@ -337,10 +400,11 @@ class AutotoolsEngine(Engine):
         if not any("--enable-static" in o or "--disable-static" in o for o in opts):
             opts.append("--enable-static" if self.static else "--disable-static")
         opt_str = " ".join(opts)
-        host = self.tc.cfg.get("host_triple")
-        host_str = f"--host={host} --build={host}" if host else ""
+        host = self.tc.host_triple
+        build = self.tc.build_triple or host
+        host_str = f"--host={host} --build={build}" if host else ""
         cmd = (
-            f"cd {self.source_posix()} && {env_str} {script} -C "
+            f"cd {self.source_posix()} && {target_env}{env_str} {script} -C "
             f"--prefix={posix(self.sysroot)} {host_str} {opt_str}"
         )
         print(f"  [autotools configure] {self.recipe.name}")
