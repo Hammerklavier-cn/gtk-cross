@@ -13,7 +13,12 @@ from .recipe import load_recipes
 
 def _builder(args) -> Builder:
     project = ProjectConfig.load()
-    return Builder(project, args.target)
+    return Builder(
+        project,
+        args.target,
+        force_cross=getattr(args, "force_cross", False),
+        native_sysroot=getattr(args, "native_sysroot", None),
+    )
 
 
 def cmd_list(args) -> int:
@@ -59,7 +64,7 @@ def cmd_graph(args) -> int:
     # 依赖树按目标解析：家族块可以增删 deps（Windows 专属依赖不该出现在 Linux
     # 的图里），所以这里必须用 resolved recipe，而不是 base 形态。
     recipes = {
-        name: r.for_target(args.target, b.tc.target_os)
+        name: r.for_target(args.target, b.tc.target_os, cross=b.cross)
         for name, r in b.recipes.items()
     }
     visited = set()
@@ -151,7 +156,9 @@ def cmd_lock(args) -> int:
     b = _builder(args)
     order = b.order(args.names)
     for name in order:
-        recipe = b.recipes[name].for_target(args.target, b.tc.target_os)
+        recipe = b.recipes[name].for_target(
+            args.target, b.tc.target_os, cross=b.cross
+        )
         locked = b.lock().get(name) or {}
         want = recipe.source.get("sha256") or locked.get("sha256", "")
         from .download import fetch
@@ -210,6 +217,19 @@ def main(argv=None) -> int:
         # 默认值回退到 gtk-cross.yaml 的 default_target（main 中统一解析）
         sp.add_argument("-t", "--target", default=None)
 
+    def add_cross_options(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument(
+            "--force-cross", "--cross", action="store_true", dest="force_cross",
+            help="目标与本机同架构时也走 cross 语义（Windows 上用 baseline "
+                 "native sysroot 编译生成器；参数仍由 CFLAGS/CXXFLAGS 指定）",
+        )
+        sp.add_argument(
+            "--native-sysroot", default=None,
+            help="cross 构建的 build machine 工具 sysroot（默认取 target 的 "
+                 "native_target；同架构 --force-cross 没有 native_target "
+                 "时取 target 的 prefix）",
+        )
+
     sp = sub.add_parser("list", help="列出全部 recipe")
     sp.set_defaults(fn=cmd_list)
 
@@ -219,16 +239,19 @@ def main(argv=None) -> int:
 
     sp = sub.add_parser("graph", help="打印依赖树")
     add_target(sp)
+    add_cross_options(sp)
     sp.add_argument("recipe")
     sp.set_defaults(fn=cmd_graph)
 
     sp = sub.add_parser("env", help="导出构建环境（供外部编译使用）")
     add_target(sp)
+    add_cross_options(sp)
     sp.add_argument("--script", action="store_true", help="输出可 source 的脚本头")
     sp.set_defaults(fn=cmd_env)
 
     sp = sub.add_parser("doctor", help="检查工具链")
     add_target(sp)
+    add_cross_options(sp)
     sp.set_defaults(fn=cmd_doctor)
 
     sp = sub.add_parser("export", help="把 sysroot 导出为可重定位归档")
@@ -237,7 +260,8 @@ def main(argv=None) -> int:
                     help="输出文件（.tar 或 .tar.zst）")
     sp.add_argument("--archive-root", default=None,
                     help="归档顶层目录（默认 gtk-cross-<target>）")
-    sp.add_argument("--force-cross", action="store_true",
+    sp.add_argument("--force-cross", "--cross", action="store_true",
+                    dest="force_cross",
                     help="导出 --force-cross 构建的同架构 cross sysroot "
                          "（out/<target>-cross）")
     sp.add_argument("--zstd-level", type=int, default=15,
@@ -260,12 +284,14 @@ def main(argv=None) -> int:
     sp.add_argument("--no-test", action="store_true",
                     help="完全不运行自带测试（configure/compile/install 照常；"
                          "cross 构建默认在无 exe_wrapper 时跳过）")
-    sp.add_argument("--force-cross", action="store_true",
+    sp.add_argument("--force-cross", "--cross", action="store_true",
+                    dest="force_cross",
                     help="目标与本机同架构时也走交叉构建语义（needs_exe_wrapper、"
                          "cross-file、autotools --host/--build）；产物目录加 -cross 后缀")
     sp.add_argument("--native-sysroot", default=None,
-                    help="cross 构建的 native 构建工具 sysroot（默认取 target 的 "
-                         "native_target）")
+                    help="cross 构建的 build machine 工具 sysroot（默认取 target 的 "
+                         "native_target；同架构 --force-cross 没有 native_target "
+                         "时取 target 的 prefix）")
     intro = sp.add_mutually_exclusive_group()
     intro.add_argument("--no-introspection", action="store_true", default=None,
                        help="禁用 GIR/typelib 生成（cross 默认开启）")

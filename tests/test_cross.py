@@ -7,12 +7,15 @@ cross job 与本地 `gtkcross doctor`/smoke build 里。
 from __future__ import annotations
 
 import configparser
+import os
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from gtkcross.builder import Builder, _ENGINE_CLS
 from gtkcross.config import ProjectConfig
-from gtkcross.toolchain import posix
+from gtkcross.toolchain import Toolchain, posix
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -64,7 +67,7 @@ class CrossToolchains(unittest.TestCase):
                     b.tc.native_pkg_config and b.tc.native_pkg_config.exists()
                 )
                 self.assertIn(
-                    f"{posix(b.native_sysroot)}/lib/pkgconfig",
+                    f"{b.tc._machine_path(b.native_sysroot)}/lib/pkgconfig",
                     b.tc.native_pkg_config.read_text(encoding="utf-8"),
                 )
                 self.assertTrue(b.tc.cmake_toolchain and b.tc.cmake_toolchain.exists())
@@ -110,6 +113,28 @@ class CrossToolchains(unittest.TestCase):
         self.assertIn("CMAKE_EXE_LINKER_FLAGS_INIT", cmake)
         self.assertIn("cross-no-run.sh", cmake)
 
+    def test_windows_machine_files_keep_drive_letter_paths(self):
+        """Meson/CMake 是原生 Windows 程序，machine file 里不能用 /c/...。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            tc = Toolchain(
+                {"host": "windows", "cross": True, "target_os": "windows"},
+                "probe",
+                Path("C:/msys64/out/sysroot"),
+            )
+            tc.native_sysroot = Path("C:/msys64/out/tools")
+            tc.write_cross_files(Path(tmp))
+            cross = tc.cross_file.read_text(encoding="utf-8")
+            self.assertIn("-IC:/msys64/out/sysroot/include", cross)
+            self.assertIn("-LC:/msys64/out/sysroot/lib", cross)
+            wrapper = tc.native_pkg_config.read_text(encoding="utf-8")
+            self.assertIn(
+                "PKG_CONFIG_LIBDIR=\"C:/msys64/out/tools/lib/pkgconfig;"
+                "C:/msys64/out/tools/share/pkgconfig\"",
+                wrapper,
+            )
+            self.assertNotIn("/c/msys64", cross)
+            self.assertNotIn("/c/msys64", wrapper)
+
     def test_cross_prelude_separates_native_and_target(self):
         b = Builder(self.project, "linux-aarch64", jobs=1)
         prelude = "\n".join(b.tc.prelude())
@@ -121,6 +146,15 @@ class CrossToolchains(unittest.TestCase):
         self.assertIn('export CFLAGS="${CFLAGS:-}"', prelude)
         self.assertNotIn("-march=x86-64-v4", prelude)
         self.assertNotIn(" -fPIC", prelude)
+
+        w = Builder(
+            self.project, "msys2-ucrt64", jobs=1, force_cross=True,
+            native_sysroot=ROOT / "out/msys2-ucrt64",
+        )
+        prelude = "\n".join(w.tc.prelude())
+        self.assertIn('export CFLAGS="${CFLAGS:-}"', prelude)
+        self.assertNotIn("-march=x86-64-v4", prelude)
+        self.assertIn("export PATH=$NATIVE_SYSROOT/bin:$SYSROOT/bin:", prelude)
 
 
 class CrossEngines(unittest.TestCase):
@@ -230,6 +264,59 @@ class ForceCross(unittest.TestCase):
         self.assertIn(
             "needs_exe_wrapper = true",
             forced.tc.cross_file.read_text(encoding="utf-8"),
+        )
+
+    def test_windows_force_cross_keeps_generators_baseline(self):
+        project = ProjectConfig.load(ROOT)
+        with mock.patch.dict(
+            os.environ,
+            {"CFLAGS": "-march=x86-64-v4", "CXXFLAGS": "-march=x86-64-v4"},
+            clear=False,
+        ):
+            b = Builder(
+                project, "msys2-ucrt64", jobs=1, force_cross=True,
+            )
+            self.assertTrue(b.cross)
+            # 未显式传 --native-sysroot 时，同架构 force-cross 默认用该
+            # target 的 baseline 前缀作为 build machine 工具 sysroot。
+            self.assertEqual(b.native_sysroot, ROOT / "out/msys2-ucrt64")
+            self.assertEqual(b.sysroot.name, "msys2-ucrt64-cross")
+            self.assertEqual(b.build_key, "msys2-ucrt64-cross")
+            self.assertEqual(b.tc.build_triple, "x86_64-pc-msys")
+            self.assertEqual(b.tc.build_cc, "gcc")
+            cross = b.tc.cross_file.read_text(encoding="utf-8")
+            self.assertIn("-march=x86-64-v4", cross)
+            native = b.tc.native_file.read_text(encoding="utf-8")
+            self.assertIn("c = 'gcc'", native)
+            self.assertNotIn("-march=x86-64-v4", native)
+            wrapper = b.tc.native_pkg_config.read_text(encoding="utf-8")
+            self.assertIn(
+                f"{b.native_sysroot.as_posix()}/lib/pkgconfig;", wrapper
+            )
+
+    def test_cross_selector_applies_only_to_cross(self):
+        project = ProjectConfig.load(ROOT)
+        native = Builder(project, "msys2-ucrt64", jobs=1)
+        forced = Builder(
+            project, "msys2-ucrt64", jobs=1, force_cross=True,
+            native_sysroot=ROOT / "out/msys2-ucrt64",
+        )
+        patch = "adwaita-icon-theme-0001-skip-icon-cache-in-cross.patch"
+        self.assertNotIn(
+            patch, native.resolved_recipe("adwaita-icon-theme").patches
+        )
+        self.assertIn(
+            patch, forced.resolved_recipe("adwaita-icon-theme").patches
+        )
+        self.assertNotIn(
+            "EXPAT_BUILD_TESTS",
+            native.resolved_recipe("expat").cmake["defines"],
+        )
+        self.assertEqual(
+            forced.resolved_recipe("expat").cmake["defines"][
+                "EXPAT_BUILD_TESTS"
+            ],
+            "OFF",
         )
 
 

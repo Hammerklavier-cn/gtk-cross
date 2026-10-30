@@ -14,7 +14,7 @@ The cache is optional (GtkIconTheme scans the directory when it is absent),
 and cross assets already skip the framework's post_install step.  Only register
 the install script when not cross-compiling; native builds are unchanged.
 
-This patch is applied only to the Linux-host cross targets.
+Applied to all cross builds via the recipe's `for: [cross]` selector.
 
 --- a/meson.build
 +++ b/meson.build

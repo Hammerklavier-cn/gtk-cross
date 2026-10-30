@@ -199,10 +199,16 @@ class Builder:
         # --force-cross：目标与本机同 arch 时把 native toolchain 临时提升为
         # cross 模式。产物与 build 中间态必须换目录，否则会和 native 构建互相
         # 污染；target 选择器仍用原名（recipe 的平台块不变）。
+        #
+        # Windows 原生工具链也能这样用：宿主与目标都是 win64/x86_64，只是
+        # build machine 的生成器必须用 baseline 编译（MSYS2 没有 cc 别名，
+        # 故 native file 显式写 gcc）。这样 CFLAGS=-march=x86-64-v4 只进
+        # target 编译，不会再把 fribidi gen-tab 这类 native: true 工具编成
+        # AVX-512。
         if force_cross and not self.tc.cross:
-            if self.tc.host != "linux":
+            if self.tc.host not in ("linux", "windows"):
                 raise ValueError(
-                    "--force-cross currently supports Linux hosts only"
+                    "--force-cross supports Linux and Windows hosts only"
                 )
             if self.tc.target_arch != self.tc.build_arch:
                 raise ValueError(
@@ -215,17 +221,37 @@ class Builder:
                 cross_prefix = f"{prefix}-cross"
             self.sysroot = project.root / cross_prefix
             self.build_key = f"{target}-cross"
+            # 同架构 --force-cross 的 build machine 工具默认就是该 target
+            # 的 native sysroot（Windows v4 的 baseline out/msys2-ucrt64）。
+            # 有 native_target 的 target（如 linux-native -> linux-tools）
+            # 仍由它决定；--native-sysroot 可显式覆盖。
+            if native_sysroot is None and not tconf.get("native_target"):
+                native_sysroot = tconf.get("prefix") or f"out/{target}"
             cfg = dict(self.tc.cfg)
             cfg["cross"] = True
             cfg["target_os"] = cfg.get("target_os") or self.tc.host
             cfg["target_arch"] = cfg.get("target_arch") or self.tc.target_arch
             cfg["build_arch"] = cfg.get("build_arch") or self.tc.build_arch
-            cfg["host_triple"] = cfg.get("host_triple") or (
-                f"{self.tc.target_arch}-unknown-linux-gnu"
-            )
-            cfg["build_triple"] = cfg.get("build_triple") or (
-                f"{self.tc.build_arch}-pc-linux-gnu"
-            )
+            if self.tc.host == "windows":
+                cfg["host_triple"] = cfg.get("host_triple") or (
+                    f"{self.tc.target_arch}-w64-mingw32"
+                )
+                cfg["build_triple"] = cfg.get("build_triple") or (
+                    f"{self.tc.build_arch}-pc-msys"
+                )
+                tools = cfg.get("tools") or {}
+                # Meson 的 build machine 默认编译器是 cc；MSYS2 UCRT64 只有
+                # gcc。显式写上，避免 --force-cross 在 Windows 上 setup 就
+                # 找不到 native compiler。
+                cfg["build_cc"] = cfg.get("build_cc") or tools.get("cc") or "gcc"
+                cfg["build_cxx"] = cfg.get("build_cxx") or tools.get("cxx") or "g++"
+            else:
+                cfg["host_triple"] = cfg.get("host_triple") or (
+                    f"{self.tc.target_arch}-unknown-linux-gnu"
+                )
+                cfg["build_triple"] = cfg.get("build_triple") or (
+                    f"{self.tc.build_arch}-pc-linux-gnu"
+                )
             self.tc = Toolchain(cfg, self.tc.name, self.sysroot)
 
         # recipe 的 targets: 家族选择器按它匹配（windows | linux）
@@ -237,9 +263,13 @@ class Builder:
         native_path = native_sysroot
         if native_path is None and native_target:
             native_path = project.sysroot(str(native_target))
-        self.native_sysroot: Path | None = (
-            Path(native_path) if native_path is not None else None
-        )
+        if native_path is not None:
+            native_path = Path(native_path)
+            # CLI 习惯写相对项目根的路径；构建命令的 cwd 是
+            # build/<target>/<recipe>，相对路径必须在入口处解析掉。
+            if not native_path.is_absolute():
+                native_path = project.root / native_path
+        self.native_sysroot: Path | None = native_path
         if self.cross:
             if self.native_sysroot is None:
                 raise ValueError(
@@ -294,8 +324,9 @@ class Builder:
         # 会在 Linux 计划里带上 Windows 专属包。
         skip = _CROSS_SKIP_RECIPES if self.cross else set()
         graph = {
-            n: [d for d in r.for_target(self.target, self.target_os).deps
-                if d not in skip]
+            n: [d for d in r.for_target(
+                    self.target, self.target_os, cross=self.cross
+                ).deps if d not in skip]
             for n, r in self.recipes.items()
             if n not in skip
         }
@@ -328,7 +359,9 @@ class Builder:
 
     def resolved_recipe(self, name: str) -> Recipe:
         """Recipe with target overrides and cross-specific option overrides."""
-        recipe = self.recipes[name].for_target(self.target, self.target_os)
+        recipe = self.recipes[name].for_target(
+            self.target, self.target_os, cross=self.cross
+        )
         return _apply_cross_options(
             recipe,
             cross=self.cross,

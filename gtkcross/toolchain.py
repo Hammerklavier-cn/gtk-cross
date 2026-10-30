@@ -83,6 +83,11 @@ class Toolchain:
         self.target_cxxflags = shlex.split(
             str(cfg.get("target_cxxflags") or "")
         ) or list(self.target_cflags)
+        # Build-machine compiler for Meson native: true targets.  Linux leaves
+        # this unset (Meson's default `cc` is the host compiler); Windows
+        # MSYS2 has no `cc` alias, so the ucrt64 toolchain names gcc explicitly.
+        self.build_cc = cfg.get("build_cc")
+        self.build_cxx = cfg.get("build_cxx")
         self.exe_wrapper = self._parse_wrapper(cfg.get("exe_wrapper"))
         # Builder 在初始化时补齐：native tools sysroot 与生成的 cross 文件。
         self.native_sysroot: Path | None = None
@@ -118,6 +123,17 @@ class Toolchain:
 
     # -- cross flags / generated toolchain files --------------------------
 
+    def _machine_path(self, path: Path | str) -> str:
+        """Path as written into Meson/CMake machine files.
+
+        Machine files are consumed by Meson/CMake themselves, not by the bash
+        wrapper.  On Windows those are native programs, so they need `C:/...`
+        rather than the MSYS `/c/...` form produced by posix().  On Linux the
+        two are identical.
+        """
+        p = str(path).replace("\\", "/")
+        return p if self.host == "windows" else posix(p)
+
     def _target_include_flags(self) -> List[str]:
         """Target headers for Meson/CMake cross files.
 
@@ -126,7 +142,7 @@ class Toolchain:
         的 -I 必须显式写进 cross file / CMAKE_*_FLAGS_INIT，否则 glib 的
         iconv 探测会命中宿主 /usr/include/iconv.h，链接期缺 -liconv。
         """
-        return [f"-I{posix(self.sysroot)}/include"]
+        return [f"-I{self._machine_path(self.sysroot)}/include"]
 
     def _target_cflags(self) -> List[str]:
         """Target compiler flags: 工具链声明的 arch flags + 用户 CFLAGS。
@@ -157,7 +173,7 @@ class Toolchain:
         return shlex.split(os.environ.get("CPPFLAGS", ""))
 
     def _target_ldflags(self) -> List[str]:
-        root = posix(self.sysroot)
+        root = self._machine_path(self.sysroot)
         flags = [f"-L{root}/lib"]
         if self.target_os != "windows":
             flags += [
@@ -179,10 +195,17 @@ class Toolchain:
         """
         if not self.native_pkg_config:
             raise ValueError("native pkg-config wrapper is not generated")
-        return (
-            "[binaries]\n"
-            f"pkg-config = {_ini_str(posix(self.native_pkg_config))}\n"
+        lines = ["[binaries]"]
+        # Windows MSYS2 没有 cc/c++ 别名；显式指定 build machine 编译器，
+        # 否则 Meson 会在 setup 阶段找不到 native compiler。
+        if self.build_cc:
+            lines.append(f"c = {_ini_str(self.build_cc)}")
+        if self.build_cxx:
+            lines.append(f"cpp = {_ini_str(self.build_cxx)}")
+        lines.append(
+            f"pkg-config = {_ini_str(self._machine_path(self.native_pkg_config))}"
         )
+        return "\n".join(lines) + "\n"
 
     def meson_cross_file_text(self) -> str:
         """Generate a Meson cross file for this toolchain.
@@ -192,7 +215,8 @@ class Toolchain:
         Meson 会按 system/cpu_family 相同推断"可以跑"，又回到 SIGILL。
         """
         tools = self.cfg.get("tools") or {}
-        link_search = f"-L{posix(self.sysroot)}/lib"
+        sysroot = self._machine_path(self.sysroot)
+        link_search = f"-L{sysroot}/lib"
         out: List[str] = ["[binaries]"]
         for key, tool_key in (
             ("c", "cc"),
@@ -224,7 +248,7 @@ class Toolchain:
         if self.exe_wrapper:
             out.append(f"exe_wrapper = {_ini_list(self.exe_wrapper)}")
 
-        link_search = [f"-L{posix(self.sysroot)}/lib"]
+        link_search = [f"-L{sysroot}/lib"]
         cflags = (
             self._target_include_flags()
             + self._target_cppflags()
@@ -308,7 +332,7 @@ class Toolchain:
             ):
                 out.append(f'set({var} "{ldflags}")')
 
-        root = posix(self.sysroot)
+        root = self._machine_path(self.sysroot)
         out += [
             f'set(CMAKE_FIND_ROOT_PATH "{root}")',
             "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM BOTH)",
@@ -336,12 +360,15 @@ class Toolchain:
         if not self.cross:
             return
         build_dir.mkdir(parents=True, exist_ok=True)
-        if self.host == "linux" and self.native_sysroot:
-            root = posix(self.native_sysroot)
+        if self.native_sysroot:
+            root = self._machine_path(self.native_sysroot)
+            # Windows 的 pkgconf 是原生程序，多目录必须用分号；POSIX 宿主用冒号。
+            sep = ";" if self.host == "windows" else ":"
             self.native_pkg_config = build_dir / "native-pkg-config.sh"
             self.native_pkg_config.write_text(
                 "#!/bin/sh\n"
-                f'export PKG_CONFIG_LIBDIR="{root}/lib/pkgconfig:{root}/share/pkgconfig"\n'
+                f'export PKG_CONFIG_LIBDIR="{root}/lib/pkgconfig{sep}'
+                f'{root}/share/pkgconfig"\n'
                 "export PKG_CONFIG_PATH=\n"
                 'exec pkg-config "$@"\n',
                 encoding="utf-8",
@@ -673,7 +700,7 @@ class Toolchain:
                 problems.append(
                     f"native tools sysroot missing or incomplete: "
                     f"{self.native_sysroot}/bin "
-                    f"(build the linux-tools target first)"
+                    f"(build the target's native_target sysroot first)"
                 )
             cc = (self.cfg.get("tools") or {}).get("cc")
             if cc:

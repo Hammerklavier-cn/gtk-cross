@@ -30,6 +30,8 @@ post_install:
 # 可执行的 target 二进制，补丁在 meson.is_cross_build() 时跳过。框架的
 # post_install 已由 Builder 在 cross 下跳过，这里补上上游这一步。
 targets:
-  - for: [linux-mingw-x64, linux-aarch64, linux-x64-v4]
+  # cross 选择器匹配所有 cross 构建（含 Windows 的 --force-cross）；
+  # 补丁自身用 meson.is_cross_build() 门控，原生构建行为不变。
+  - for: [cross]
     patches:
       - adwaita-icon-theme-0001-skip-icon-cache-in-cross.patch
