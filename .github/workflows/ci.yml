@@ -2,7 +2,9 @@
 # 的完整编译检查。
 #
 # 范围：msys2-ucrt64 / msys2-mingw64 在 windows-latest 上；linux-native 在
-# ubuntu-latest（x86_64）与 ubuntu-26.04-arm（aarch64）两个容器上。linux-native
+# ubuntu-24.04（x86_64）与 ubuntu-24.04-arm（aarch64）两个 runner 上。选固定
+# 版本而非 ubuntu-latest：lts 镜像内容可预期，避免 latest 滚动升级悄悄改变
+# 产物基线。linux-native
 # 的名字里不带 arch——同一份 recipe/toolchain 定义服务两种架构，arch 由宿主
 # 编译器决定（toolchains/linux-native.yaml 与 recipes/libvpx.yaml 里记了依据）。
 #
@@ -446,14 +448,14 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
           - arch: aarch64
-            runs_on: ubuntu-26.04-arm
+            runs_on: ubuntu-24.04-arm
           # 编译参数变体（见文件头注释）。只挂 x86_64：x86-64-vN 是 x86
           # 指令级别，aarch64 的 gcc 不认这个 -march；aarch64 分支保持基线。
           # Linux 宿主有 cc，探针编译不依赖 MSYS2。
           - arch: x86_64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
             variant: " [x86-64-v3]"
             cflags: "-march=x86-64-v3"
             asset_suffix: "-x86-64-v3"
@@ -555,12 +557,10 @@ jobs:
             xvfb \
             fonts-cantarell \
             fonts-noto-core
-          # apt 的 meson 在 ubuntu-latest 上是 1.3.2，而 glib 2.90.0 要求
+          # apt 的 meson 在 ubuntu-24.04 上是 1.3.2，而 glib 2.90.0 要求
           # meson_version >= 1.4.0（glib-base 的 meson setup 直接 ERROR）。pipx
           # 装的是 PyPI 最新版；~/.local/bin 在 runner 的默认 PATH 里。
           # 注意不能与 apt 共装 meson：apt 的同版本号包会遮蔽 pipx 的入口。
-          #
-          # ubuntu-26.04 上是 1.10，fontconfig 要求 >= 1.11
           pipx install meson
           echo "meson       : $(meson --version)"
           echo "uname -m    : $(uname -m)"
