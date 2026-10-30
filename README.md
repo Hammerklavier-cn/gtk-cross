@@ -74,6 +74,7 @@ aarch64 上都成立。真出现交叉工具链时（下表 `linux-mingw-x64` �
 | ---------------------------------------- | ------- | -------------------------------------------------------------------------- |
 | msys2-mingw64（MSYS2 MINGW64 原生）      | ✅ 完成 | 39 个 recipe 全链构建 + 自带测试                                           |
 | msys2-ucrt64（MSYS2 UCRT64 原生）        | ✅ 完成 | 同 recipe 复用；UCRT 运行时，独立 sysroot（全链 39 recipe + 测试已复验）   |
+| msys2-ucrt64 + `--force-cross`（Windows x64 内部 cross） | 🧪 待 CI | 复用 `msys2-ucrt64` 工具链；baseline `out/msys2-ucrt64` 作为 build machine 工具前缀，target 产物落 `out/msys2-ucrt64-cross`。`CFLAGS=-march=x86-64-v4` 只进 target 编译（Meson cross file / CMake toolchain / autotools 前缀），`native: true` 生成器仍用 baseline，构建期不执行 AVX-512 目标码 |
 | linux-native（Linux 原生，x86_64 + aarch64） | ✅ 全链完成 | 同 recipe 复用，工具链 `target_os: linux`；Windows 专属补丁/选项/依赖已门控出本目标，Linux 侧的必需依赖、X11 客户端栈与 Mesa（GL/EGL 实现）**反向**门控/新增。`build libadwaita` 闭包 62 recipe 全绿，含 libadwaita 430 个子用例。CI 在 `ubuntu-latest` 与 `ubuntu-26.04-arm` 两个容器上全量构建 |
 | linux-tools（native 工具前缀） | ✅ 交叉前置 | 以 `glib-base` / `gdk-pixbuf` / `shared-mime-info` / `shaderc` 为入口的工具链闭包（实际 33 recipe，含 g-i/cairo/X11 依赖），给 cross 目标提供构建机可执行的 `glib-compile-resources`、`gdk-pixbuf-query-loaders`、`update-mime-database`、`glslc`。不是发布资产 |
 | linux-mingw-x64（Linux → Windows x64） | 🧪 本地到 gst；待 CI | mingw-w64 交叉 GCC，msvcrt CRT；目标侧依赖自建到 `out/linux-mingw-x64`。本地 Ubuntu 24.04 的 mingw-w64 11 头文件只能跑到 gst-plugins-bad；GTK 需 13+，CI 固定 `ubuntu-26.04`。UCRT 仍由 Windows 原生 `msys2-ucrt64` 提供 |
@@ -91,17 +92,28 @@ aarch64 上都成立。真出现交叉工具链时（下表 `linux-mingw-x64` �
 > 最典型的是 msvcrt 没有 `en_US.UTF-8` 这个 POSIX 区域名（见 [NOTES.md](NOTES.md)
 > 的 libadwaita mingw64 条目）。
 
-## 交叉编译（Linux 宿主）
+## 交叉编译（Linux 与 Windows 宿主）
 
 cross 构建把 **build machine 工具** 与 **target sysroot** 分开：
 
-- `out/linux-tools`：native 构建工具前缀（glib-compile-resources、glib-compile-schemas、
-  gdk-pixbuf-query-loaders、update-mime-database、glslc）。
+- `out/linux-tools` / baseline `out/msys2-ucrt64`：native 构建工具前缀
+  （glib-compile-resources、glib-compile-schemas、gdk-pixbuf-query-loaders、
+  update-mime-database、glslc）。Windows v4 复用 baseline 的
+  `out/msys2-ucrt64`，不额外定义 tools target。
 - `out/<cross-target>`：目标库/头文件/.pc；target 侧依赖仍全部从源码自建。
 - 三个引擎都走 cross 模式：Meson `--cross-file` + `--native-file`（native
-  pkg-config 指向 `linux-tools`，GTK 的 `dependency(..., native: true)` 不会
+  pkg-config 指向工具前缀，GTK 的 `dependency(..., native: true)` 不会
   误取 target 的 `glib-compile-resources`）、CMake `--toolchain-file`、
   autotools `--host/--build`。
+- Windows 的 x86-64-v4 用同一机制：`-t msys2-ucrt64 --force-cross`。它复用
+  现有 ucrt64 gcc 与 CRT，不新增 toolchain；baseline `out/msys2-ucrt64`
+  作为 build machine 工具前缀，target flags 只进 cross file，产物落
+  `out/msys2-ucrt64-cross`。原生 Windows 构建做不到这个分离——
+  `-march=x86-64-v4` 会同时落到 Meson `native: true` 的 fribidi gen-tab
+  等工具上，无 AVX-512 的 runner 一执行就
+  `STATUS_ILLEGAL_INSTRUCTION`（0xC000001D）。
+- recipe 的 `targets:` 支持 `for: [cross]`：只在该次构建为 cross 时应用
+  （包括 `--force-cross`），用于 cross 专属补丁/选项；原生构建不受影响。
 - cross 构建默认**不生成 GIR/typelib、不编译测试程序、不跑 post_install**：
   这些步骤要么需要执行目标二进制，要么会调用目标工具。上游 g-i 还会用目标
   编译器编 `_giscanner` Python 扩展（却拿宿主 `Python.h`），所以 cross 直接
@@ -189,7 +201,7 @@ Windows 两个 target 与 Linux 两个架构的 sysroot 都可以直接发布给
 | `gtk-cross-msys2-mingw64-<tag>.tar.zst` | Windows / msvcrt | `x86_64-pc-windows-gnu` |
 | `gtk-cross-msys2-ucrt64-<tag>.tar.zst` | Windows / UCRT | `x86_64-pc-windows-gnullvm` / llvm-mingw |
 | `gtk-cross-msys2-ucrt64-x86-64-v3-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v3`（AVX2/BMI/FMA，2013 年后的 x86-64 CPU 均可跑） |
-| `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v4`（AVX-512，需要 CPU 支持）；runner 无 AVX-512 时关闭 GIR/测试构建，产物为库/头文件 only |
+| `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst` | Windows / UCRT | 由 `msys2-ucrt64 --force-cross` 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 | `gtk-cross-linux-native-x86_64-<tag>.tar.zst` | Linux ELF x86_64 | 同架构原生链接/运行 |
 | `gtk-cross-linux-native-x86_64-x86-64-v3-<tag>.tar.zst` | Linux ELF x86_64 | 同上，`-march=x86-64-v3` |
 | `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64 | 由 `linux-x64-v4` **cross** 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
@@ -197,12 +209,13 @@ Windows 两个 target 与 Linux 两个架构的 sysroot 都可以直接发布给
 | `gtk-cross-linux-mingw-x64-<tag>.tar.zst` | Windows / msvcrt | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 | `gtk-cross-linux-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
 
-编译参数变体（基线 / x86-64-v3 / x86-64-v4）由 CI 矩阵产出；Linux 的
-x86-64-v4 现在由 `linux-x64-v4` cross job 产出（构建期不执行 AVX-512），
-不再依赖 runner CPU。Windows 的 UCRT v4 仍在 Windows 原生 job 上构建，并用
-AVX-512 探针决定是否跑测试。`x86-64-vN` 是 x86 指令级别，故 aarch64 不设
-变体。v3 与基线始终完整构建 + 测试；cross 资产只做库/头文件构建（见「交叉
-编译」一节的限制）。
+编译参数变体（基线 / x86-64-v3 / x86-64-v4）由 CI 矩阵产出。x86-64-v4
+在 Linux 用 `linux-x64-v4` 同架构 cross，在 Windows 用
+`msys2-ucrt64 --force-cross`；两者构建期都不执行 AVX-512 目标码，不再
+依赖 runner CPU。Windows v4 先用 baseline `out/msys2-ucrt64` 作为 build
+machine 工具前缀。
+`x86-64-vN` 是 x86 指令级别，故 aarch64 不设变体。v3 与基线始终完整构建 +
+测试；cross 资产只做库/头文件构建（见「交叉编译」一节的限制）。
 
 `linux-native` 这个 target 名不带架构（同一份定义在两种宿主上成立）；发布资产
 必须带架构，因为同一个 tag 会在两个 runner 上各产出一份，顶层目录也按
@@ -339,9 +352,11 @@ python -m gtkcross list -t msys2-ucrt64        # recipe 清单
 
 cross 构建中，`CFLAGS`/`CXXFLAGS` 只注入 **target** 编译（Meson cross file、
 CMake toolchain file、autotools configure 前缀）；native 构建工具来自
-`linux-tools`，不会用目标 ISA flags 重编。工具链自带的 `target_cflags`
-（例如 `linux-x64-v4` 的 `-march=x86-64-v4`）也走同一注入路径，不写进全局
-`CFLAGS`。
+target 的 `native_target`（Linux 是 `linux-tools`；Windows v4 用
+`--native-sysroot out/msys2-ucrt64`），不会用目标 ISA flags 重编。工具链
+自带的 `target_cflags`（例如 `linux-x64-v4` 的 `-march=x86-64-v4`）也走
+同一注入路径，不写进全局 `CFLAGS`；Windows v4 的 v4 flags 由
+`CFLAGS`/`CXXFLAGS` 传入，只在 `--force-cross` 下进 target 编译。
 
 各引擎的生效方式：
 
@@ -357,15 +372,33 @@ CMake toolchain file、autotools configure 前缀）；native 构建工具来自
 强制重新配置——改 `CFLAGS` 后重跑 `build` 即生效，无需手动删目录。旧版本框架
 构建过的 workspace 首次构建也会按"无指纹"强制重配。
 
-示例（Windows 目标）：
+示例（Windows 目标，普通优化参数）：
 
 ```bash
-CFLAGS="-march=x86-64-v4 -O3" CXXFLAGS="-march=x86-64-v4 -O3" \
+CFLAGS="-O2" CXXFLAGS="-O2" \
   python -m gtkcross build gtk -t msys2-ucrt64
 ```
 
+ISA 变体（x86-64-v4）必须走 `--force-cross`，让 build machine 的生成器
+用 baseline 编译。先编 baseline 工具前缀，再编 target：
+
+```bash
+python -m gtkcross build glib-base gdk-pixbuf shared-mime-info shaderc \
+  -t msys2-ucrt64 --no-test --no-test-build
+CFLAGS="-march=x86-64-v4" CXXFLAGS="-march=x86-64-v4" \
+  python -m gtkcross build gtk -t msys2-ucrt64 --force-cross
+```
+
+同架构 `--force-cross` 默认把该 target 的 baseline 前缀
+（`out/msys2-ucrt64`）当作 build machine 工具 sysroot；需要别的目录时用
+`--native-sysroot <dir>` 覆盖。
+
 注意：
 
+- **不要**用全局 CFLAGS 给 Windows 原生 target 加 ISA 级别（`-march=x86-64-v4`
+  这类）。它同样会作用于 Meson 的 `native: true` 构建期生成器，无 AVX-512 的
+  机器会在 fribidi gen-tab 等处直接 SIGILL；必须加 `--force-cross`，
+  让 Meson/CMake/autotools 把 target flags 与 build machine 工具分开；
 - meson 的 `-Dbuildtype=release` 已隐含 `-O3`，对 meson 工程再传 `-O3` 是冗余的；
 - cmake 的 `-D` 值以分号分隔列表，参数里不要用 `;`；
 - 环境变量是**全局**的：一次改动会作用于本次构建的全部依赖链

@@ -1036,6 +1036,10 @@ cmake 注入三态、指纹失效四态含 data 跳过与 autotools 缓存清理
   而 v4 测试程序在无 AVX-512 的 CPU 上必然 SIGILL——所以**测试**不能硬跑。
 
 **设计**（`.github/workflows/ci.yml`）：
+> 2026-10-30 更新：Windows 的 v4 已改为 `msys2-ucrt64 --force-cross`。
+> 探针方案只处理测试执行，管不到 Meson `native: true` 的构建期生成器；
+> 以下 Windows 原生 v4 部分保留为历史记录，现行设计见下一节。
+
 - 矩阵变体：基线（无 CFLAGS/CXXFLAGS）+ v3 + v4，只挂 x86_64 可跑的
   target（Windows 侧 msys2-ucrt64、Linux 侧 linux-native/x86_64；mingw64 与
   aarch64 保持基线——CRT 差异/架构与指令级别正交，避免 CI 时长翻倍）。
@@ -1107,8 +1111,9 @@ configure/compile/install 照常 `[skip]` + `[skip] test（--no-test）`。
 
 **Linux v4 资产改由 cross 产出**：native v4 的 `g-ir-scanner` dumper 会在
 无 AVX-512 的 runner 上 SIGILL；`linux-x64-v4` 用 `needs_exe_wrapper=true`
-的 cross 构建，构建期不执行 v4。Windows UCRT v4 仍走原生 job；探针 no 时
-追加 `--no-introspection --no-test-build --no-test` 降级。
+的 cross 构建，构建期不执行 v4。Windows UCRT v4 起初仍走原生 job；该路线
+在 fribidi 构建期生成器上失败，已于 2026-10-30 改为
+`msys2-ucrt64 --force-cross`（见下一节）。
 
 **宿主工具缺口**：`linux-tools` 的 native `gobject-introspection` 在容器里
 首次失败于 `Program 'flex win_flex' not found`；CI 的 Linux / linux-tools /
@@ -1127,3 +1132,39 @@ GTK 阶段被 mingw-w64 11 的 `rpcndr.h`/DirectX-Headers 版本不匹配挡住�
 不是代码问题：CI cross job 已固定 `ubuntu-26.04`（mingw-w64 13），并给
 `doctor` 加了 `d2d1_3.h` 预检，旧头文件会直接报可操作错误。
 
+
+## 2026-10-30 Windows x86-64-v4 用 `--force-cross`（修正 10-28 的设计）
+
+**失败现象**：CI `build (msys2-ucrt64 [x86-64-v4])` 在 fribidi 1.0.16 的
+`gen-bidi-type-tab.exe` / `gen-joining-type-tab.exe` 上 exit 3221225501
+（`0xC000001D` STATUS_ILLEGAL_INSTRUCTION）。`--no-test --no-introspection
+--no-test-build` 只关测试执行、测试程序构建与 GIR，管不到 Meson
+`native: true` 的构建期生成器；原生 Windows 构建的 CFLAGS 是全局的，
+`-march=x86-64-v4` 也编进了这些生成器，无 AVX-512 的 runner 一运行就 SIGILL。
+
+**修复**：复用 `msys2-ucrt64`，把 `--force-cross` 扩展到 Windows 宿主：
+
+- `Builder` 去掉 Linux-only 限制；Windows 上仍要求 target/build 同 arch；
+- `host_triple` 用工具链已有的 `x86_64-w64-mingw32`，`build_triple`
+  内部补 `x86_64-pc-msys`（不暴露 triple/arch 配置）；
+- Meson native file 显式写 `c = gcc` / `cpp = g++`（MSYS2 没有 cc 别名）；
+- target flags 继续由 `CFLAGS`/`CXXFLAGS` 传入，只进 cross file；
+  `native: true` 生成器用 build machine 的 baseline 编译器；
+- recipe 新增 `for: [cross]` 选择器，只匹配 cross（含 `--force-cross`）；
+  adwaita 的 icon-cache 补丁与 expat 的 `EXPAT_BUILD_TESTS=OFF` 不再按
+  三个精确 cross target 名枚举；
+- target 产物落 `out/msys2-ucrt64-cross`；同架构 `--force-cross` 默认把
+  baseline `out/msys2-ucrt64` 当作 build machine 工具前缀（可用
+  `--native-sysroot` 覆盖）。CI v4 job 先编 `glib-base gdk-pixbuf
+  shared-mime-info shaderc`（23 recipe），再编 v4 全链；
+- `doctor`/`env` 也接受 `--force-cross --native-sysroot`；`export
+  --force-cross` 导出 `out/msys2-ucrt64-cross`；
+- machine file 在 Windows 宿主里用 `C:/...`（Meson/CMake 是原生程序，不认
+  bash 的 `/c/...`）；native pkg-config 的 `PKG_CONFIG_LIBDIR` 用分号；
+- 发布资产名仍是 `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst`。
+
+**验证**：用最小 Meson 工程实测（本机 Linux，cross file hostcc / native
+file buildcc）：`native: true` 目标只调用 buildcc，host 目标才调用 hostcc；
+`CFLAGS=-DPROBE_V4` 只出现在 hostcc 命令行，buildcc 完全没有。`test_cross.py`
+增加 Windows `--force-cross` 的 cross file / native file / triple 断言，
+单测全绿；Windows CI 尚未跑，等首次 job 结果确认。

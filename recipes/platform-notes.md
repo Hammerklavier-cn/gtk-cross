@@ -8,6 +8,9 @@
 约定：**base 只放平台中立项**，平台专属内容一律进 `for: [windows]` /
 `for: [linux]` 家族块；只有"某个 target 与其他同族 target 不同"时才用精确
 target 名（现存唯一例子：msvcrt 的区域名问题只影响 msys2-mingw64）。
+跨构建专属内容用 `for: [cross]`：它匹配所有 cross（含同架构的
+`--force-cross`），原生构建不匹配；本文件里的 adwaita icon cache 补丁与
+expat 的测试开关都走这条。
 
 与 `targets:` 正交的另一件事是**包本身的归属**：`platforms:`（选择器语法同
 `for:`，不写 = 全平台）。当前有 24 个包带这条声明——21 个 X/GL 包

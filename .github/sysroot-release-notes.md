@@ -47,8 +47,10 @@ Linux 运行期同样需要 `$S/share` 与
 这三份是**链接/运行用 sysroot**：库、头文件、`.pc` 与数据文件齐全，但
 cross 构建默认不生成 GIR/typelib、不构建测试程序、不跑 post_install。需要
 introspection 的消费者请使用同 OS/ABI 的原生基线资产，或把基线里的
-`share/gir-1.0` 与 `lib/girepository-1.0` 覆盖进来。Windows 的 UCRT 资产仍由
-Windows 原生 job 产出；`linux-mingw-x64` 是 msvcrt，不替代 `msys2-ucrt64`。
+`share/gir-1.0` 与 `lib/girepository-1.0` 覆盖进来。Windows 的 UCRT 基线与
+v3 由 Windows 原生构建产出；x86-64-v4 由同一 Windows 宿主上的
+`msys2-ucrt64 --force-cross` 产出（构建期不执行 AVX-512 目标码）。
+`linux-mingw-x64` 是 msvcrt，不替代 `msys2-ucrt64`。
 
 导出只重定位 pkg-config 元数据；`lib/cmake/*.cmake` 与 libtool `.la` 中的
 绝对路径不会改写，这个归档的消费面是 pkg-config（meson / cargo）。

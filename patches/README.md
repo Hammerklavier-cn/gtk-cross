@@ -24,11 +24,11 @@
 | `vulkan-loader-0001-static-library-support.patch` | windows | 只改 `loader/CMakeLists.txt` 的 `if(WIN32)` 段、`loader_windows.c` 的 DllMain、`if(WIN32)` 里的 `VULKAN_LIB_SUFFIX`；上游非 Windows 分支是 `add_library(vulkan SHARED)`，不受影响 |
 | `zlib-0001-drop-windows-static-suffix.patch` | windows | 改的是上游 `if(WIN32) set(zlib_static_suffix "s")` 那一行 |
 
-## Cross 专属（1 个，linux-* cross target）
+## Cross 专属（1 个，`for: [cross]`）
 
 | 补丁 | 归属 | 上游分支 / 生效条件 |
 | --- | --- | --- |
-| `adwaita-icon-theme-0001-skip-icon-cache-in-cross.patch` | **linux-mingw-x64 / linux-aarch64 / linux-x64-v4** | 上游 Meson install script 会执行 target `gtk4-update-icon-cache`；补丁在 `meson.is_cross_build()` 时跳过，原生构建保留缓存生成 |
+| `adwaita-icon-theme-0001-skip-icon-cache-in-cross.patch` | **所有 cross（`for: [cross]`）** | 上游 Meson install script 会执行 target `gtk4-update-icon-cache`；补丁在 `meson.is_cross_build()` 时跳过，原生构建保留缓存生成 |
 
 ## 跨平台（3 个，base `patches:`，两平台都打）
 
