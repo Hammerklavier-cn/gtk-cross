@@ -268,7 +268,11 @@ class ForceCross(unittest.TestCase):
 
     def test_windows_force_cross_keeps_generators_baseline(self):
         project = ProjectConfig.load(ROOT)
-        with mock.patch.dict(
+        # MSYS2 UCRT64 是 x86_64 工具链；测试在 CI 的 aarch64 runner 上也要
+        # 验证 Windows 路径，故固定 host_arch，而不是把架构写进生产配置。
+        with mock.patch(
+            "gtkcross.toolchain.host_arch", return_value="x86_64"
+        ), mock.patch.dict(
             os.environ,
             {"CFLAGS": "-march=x86-64-v4", "CXXFLAGS": "-march=x86-64-v4"},
             clear=False,
