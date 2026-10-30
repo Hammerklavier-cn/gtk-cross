@@ -486,7 +486,16 @@ jobs:
       # 逐个包，libadwaita 会起 68 个 Xvfb；前缀在每次 test 调用外只起一个、被
       # 并发测试共用，而且 ctest 那条路径没有 --wrapper。
       # doctor 会检查该命令存在（gtkcross/toolchain.py），缺失时直接报出。
-      GTKCROSS_TEST_WRAPPER: xvfb-run -a
+      # -s 会整体替换 xvfb-run 默认的 server args（即 -screen 0 640x480x24），
+      # screen 规格必须一并写。-noreset：Xvfb 默认在最后一个 client 断开后
+      # reset 重新初始化，meson -j4 下 68 个测试的波次间隙里若有新测试进程
+      # 恰好连入，XOpenDisplay 会瞬时失败，gtk_init() 只 g_warning("Failed
+      # to open display")（gtk/gtkmain.c），而上游测试环境 G_DEBUG=fatal-warnings
+      # + g_test_init 无条件把 warning 设为致命 → abort()（SIGABRT）。
+      # 实测命中一次：PR #3 run 41099243395 的 linux-native x86-64-v3 job，
+      # libadwaita:test-shortcut-label 48/68 ERROR，同 run baseline/aarch64
+      # 与 v3 job 前两轮均全过 —— 环境类瞬时问题，钉环境，不登记 known_failure。
+      GTKCROSS_TEST_WRAPPER: xvfb-run -a -s "-screen 0 640x480x24 -noreset"
 
     steps:
       - name: 检出代码

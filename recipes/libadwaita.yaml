@@ -36,3 +36,15 @@ test:
 # 该问题已在 gtk recipe 侧用 gtk-0001-fallback-to-windows-locale.patch 真正修好
 # （补丁仅对 msvcrt 目标应用），两个 target 现均 68/68 通过，故此处登记已撤除；
 # 完整因果链、实测证据与"为何不是本项目的补丁所致"见 recipes/gtk.yaml。
+#
+# 另有一类与本套测试逻辑无关的瞬时失败（2026-10-31 定性：CI PR #3 run
+# 41099243395 的 linux-native x86-64-v3 job）：test-shortcut-label 48/68
+# SIGABRT，失败块 stderr 仅一行 Gtk-WARNING "Failed to open display"、无任何
+# TAP 输出 —— 测试进程在 gtk_init 阶段连 Xvfb 瞬时失败（Xvfb 默认在 client
+# 全部断开后 reset 重新初始化，恰逢 meson 测试波次间隙的新连接即命中），
+# 与 1.10.0 产物及 -march=x86-64-v3 均无关（同 run baseline/aarch64 全过，
+# v3 job 自身前两轮同套件亦全过）。fatal-warnings 把这条 warning 变成 abort
+# 的机制与上面 mingw64 locale 问题相同。
+# 处置：按惯例钉环境、不登记 known_failure —— ci.yml 的 GTKCROSS_TEST_WRAPPER
+# 已加 -noreset 消灭 reset 竞态。若复发：先核对失败块 stderr 是否仍只有这一行
+# warning，再考虑降本包 test.jobs（glib 先例）。
