@@ -590,10 +590,11 @@ class Builder:
     # ctest 输出行示例:
     #   1/1 Test #1: pngtest .....................   Passed    0.00 sec
     _TEST_LINE = re.compile(
-        r"^\s*(\d+)/(\d+)\s+(?P<name>.+?)\s+(?P<status>OK|FAIL|ERROR|SKIP)\s"
+        r"^\s*(\d+)/(\d+)\s+(?P<name>.+?)\s+"
+        r"(?P<status>OK|FAIL|ERROR|SKIP|TIMEOUT)\s"
     )
     _CTEST_LINE = re.compile(
-        r"^\s*\d+/\d+\s+Test\s+#\d+:\s+(?P<name>[^:]+?)\s+"
+        r"^\s*\d+/\d+\s+Test\s+#\d+:\s+(?P<name>[^:]+?)\s+\.*\s*"
         r"(?P<status>Passed|Failed|\*\*\*Failed|\*\*\*Timeout)"
     )
 
@@ -614,7 +615,7 @@ class Builder:
             # ctest 的状态名归一化到 meson 词汇
             if status == "Passed":
                 status = "OK"
-            elif status in ("Failed", "***Failed", "***Timeout"):
+            elif status in ("Failed", "***Failed", "***Timeout", "TIMEOUT"):
                 status = "ERROR"
             seen = res.setdefault(status, [])
             if short not in seen:
