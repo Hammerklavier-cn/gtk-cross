@@ -27,7 +27,11 @@ tools:
   nm: nm
   strip: strip
   objcopy: objcopy
-  as: as
+  # 与 linux-aarch64 相反，这里**不得**导出 `as`：同架构下宿主 as 就是目标
+  # as，导出是纯冗余；而 libvpx 的 configure 只在 AS 为空/auto 时才探测
+  # nasm/yasm（build/make/configure.sh 的 x86 分支），环境里预设了 AS 会把
+  # 探测静默跳过，随后 GNU as 拿 yasm 的 `-f elf64` 去编 nasm 语法的 .asm
+  # 直接失败（"can't open elf64 for reading"）。不导出即落回 auto 探测。
   ld: ld
   pkg_config: pkg-config
   meson: meson

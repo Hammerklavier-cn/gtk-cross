@@ -156,6 +156,23 @@ class CrossToolchains(unittest.TestCase):
         self.assertNotIn("-march=x86-64-v4", prelude)
         self.assertIn("export PATH=$NATIVE_SYSROOT/bin:$SYSROOT/bin:", prelude)
 
+    def test_prelude_as_export_follows_arch_relation(self):
+        """tools 里的 as 只能在 binutils 架构与宿主不同时导出。
+
+        libvpx 的 configure 只在 AS 为空/auto 时探测 nasm/yasm；同架构
+        cross（linux-x64-v4）若预设 AS=as 会静默跳过探测，GNU as 拿 yasm 的
+        `-f elf64` 去编 nasm 语法的 .asm 直接失败。同架构不得导出，异架构
+        （linux-aarch64）必须导出 target binutils——两头都钉死。
+        """
+        v4 = Builder(self.project, "linux-x64-v4", jobs=1)
+        self.assertNotIn("export AS=", "\n".join(v4.tc.prelude()))
+
+        a = Builder(self.project, "linux-aarch64", jobs=1)
+        self.assertIn(
+            'export AS="${AS:-aarch64-linux-gnu-as}"',
+            "\n".join(a.tc.prelude()),
+        )
+
 
 class CrossEngines(unittest.TestCase):
     def setUp(self):
