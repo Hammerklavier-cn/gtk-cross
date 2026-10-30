@@ -12,6 +12,7 @@ from pathlib import Path
 
 from gtkcross.builder import Builder, _ENGINE_CLS
 from gtkcross.config import ProjectConfig
+from gtkcross.toolchain import posix
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -63,7 +64,7 @@ class CrossToolchains(unittest.TestCase):
                     b.tc.native_pkg_config and b.tc.native_pkg_config.exists()
                 )
                 self.assertIn(
-                    str(b.native_sysroot / "lib/pkgconfig"),
+                    f"{posix(b.native_sysroot)}/lib/pkgconfig",
                     b.tc.native_pkg_config.read_text(encoding="utf-8"),
                 )
                 self.assertTrue(b.tc.cmake_toolchain and b.tc.cmake_toolchain.exists())
@@ -76,15 +77,15 @@ class CrossToolchains(unittest.TestCase):
         self.assertEqual(_unquote(cfg["host_machine"]["cpu_family"]), "x86_64")
         self.assertEqual(cfg["properties"]["needs_exe_wrapper"], "true")
         self.assertIn("x86_64-w64-mingw32-gcc", _unquote(cfg["binaries"]["c"]))
-        self.assertIn(f"-L{b.sysroot}/lib", _unquote(cfg["binaries"]["c"]))
+        self.assertIn(f"-L{posix(b.sysroot)}/lib", _unquote(cfg["binaries"]["c"]))
         self.assertIn(
             "x86_64-w64-mingw32-windres", _unquote(cfg["binaries"]["windres"])
         )
         self.assertIn(
-            f"-L{b.sysroot}/lib", cfg["built-in options"]["c_args"]
+            f"-L{posix(b.sysroot)}/lib", cfg["built-in options"]["c_args"]
         )
         self.assertIn(
-            f"-L{b.sysroot}/lib", cfg["built-in options"]["c_link_args"]
+            f"-L{posix(b.sysroot)}/lib", cfg["built-in options"]["c_link_args"]
         )
 
         a = Builder(self.project, "linux-aarch64", jobs=1)
@@ -95,7 +96,7 @@ class CrossToolchains(unittest.TestCase):
         self.assertIn("aarch64-linux-gnu-gcc", _unquote(cfg["binaries"]["c"]))
         self.assertIn("-fPIC", cfg["built-in options"]["c_args"])
         self.assertIn(
-            "-I" + str(a.sysroot / "include"),
+            "-I" + posix(a.sysroot / "include"),
             cfg["built-in options"]["c_args"],
         )
 
@@ -105,7 +106,7 @@ class CrossToolchains(unittest.TestCase):
         self.assertEqual(_unquote(cfg["host_machine"]["cpu_family"]), "x86_64")
         self.assertIn("-march=x86-64-v4", cfg["built-in options"]["c_args"])
         cmake = v4.tc.cmake_toolchain.read_text(encoding="utf-8")
-        self.assertIn(f'-I{v4.sysroot}/include', cmake)
+        self.assertIn(f'-I{posix(v4.sysroot)}/include', cmake)
         self.assertIn("CMAKE_EXE_LINKER_FLAGS_INIT", cmake)
         self.assertIn("cross-no-run.sh", cmake)
 
