@@ -21,21 +21,22 @@
 # 构建流程会在 install 后自动运行其自带测试并按 known_failures 判定——这是
 # 本项目的既定验收标准，故“编译检查”隐含包含这些测试。
 #
-# 编译参数变体（经环境变量 CFLAGS/CXXFLAGS 透传进构建，见 README「自定义
-# 编译参数」；`--no-test` 见 gtkcross/cli.py）：
+# 编译参数变体（发布需要基线 / x86-64-v3 / x86-64-v4 三份资产）：
 #   * 基线      ：不设 CFLAGS/CXXFLAGS，构建 + 测试照常（矩阵里不带
 #     variant 的条目）。
-#   * x86-64-v3 ：`-march=x86-64-v3`（AVX2/BMI/FMA）。GitHub 托管 runner 的
-#     CPU 全部满足 v3，故构建 + 测试照常。
-#   * x86-64-v4 ：`-march=x86-64-v4`（AVX-512）。托管 runner **不承诺**
-#     AVX-512（社区长期跟踪 actions/runner#1069、community#183550），但
-#     **构建产物照常产出**（发布需要基线/v3/v4 三份资产），只有**测试**
-#     由构建前的探针步骤决定：探针编译并实际运行一个强制 AVX-512 指令的
-#     小程序，能跑 → 测试照常；SIGILL → 构建命令带 `--no-test`，产出
-#     "未跑测试的 v4 sysroot"（v4 测试程序在无 AVX-512 的 CPU 上必然
-#     SIGILL，跑只会得到一片噪音失败）。
-#   变体只挂 x86_64 可跑的 target：Windows 侧 msys2-ucrt64、Linux 侧
-#   linux-native/x86_64；aarch64 没有 x86-64-vN 指令级别概念，不设变体。
+#   * x86-64-v3 ：`-march=x86-64-v3`（AVX2/BMI/FMA）经环境变量
+#     CFLAGS/CXXFLAGS 透传，仍是原生构建；托管 runner 的 CPU 全部满足 v3，
+#     故构建 + 测试照常。
+#   * x86-64-v4 ：不能再走原生构建。`-march=x86-64-v4` 经全局 CFLAGS 会
+#     同时作用于 Meson 的 native: true 生成器（fribidi 的 gen-*-tab、
+#     glib-compile-resources 等），无 AVX-512 的 runner 执行它们会
+#     STATUS_ILLEGAL_INSTRUCTION；`--no-introspection/--no-test-build` 管不到
+#     这类构建期工具。故 Windows v4 复用 msys2-ucrt64 并加 `--force-cross`：
+#     build machine 的生成器来自 baseline 的 out/msys2-ucrt64，target 才带
+#     v4（与 Linux 的 linux-native --force-cross 同一机制）。cross 默认不执行
+#     目标测试，也不需要 AVX-512 探针。
+#   变体只挂 x86_64 可跑的 target：Windows 侧 msys2-ucrt64、
+#   Linux 侧 linux-native/x86_64；aarch64 没有 x86-64-vN 指令级别概念，不设变体。
 #
 # 发布：push `v*` tag（或手动 dispatch 并填 release_tag）时，完整 CI 通过后
 # Windows 与 Linux job 会各自用 `gtkcross export` 把 sysroot 打成可重定位归档
@@ -77,37 +78,43 @@ jobs:
   build:
     name: build (${{ matrix.target }}${{ matrix.variant }})
     runs-on: windows-latest
-    # GitHub 单作业硬上限 360 分钟；全链干净构建在 4 核 runner 上约 1.5–3 h，
-    # 留出余量但确保失败时能及时看到结果
-    timeout-minutes: 330
+    # GitHub 单作业硬上限 360 分钟；全链干净构建在 4 核 runner 上约 1.5–3 h。
+    # v4 cross 需要先编 baseline 的 native 工具前缀（msys2-ucrt64-tools，
+    # 23 recipe），再编 v4 全链；所有 Windows job 统一留到 360 分钟，避免
+    # 变体因额外工具链闭包撞上 330 分钟上限。
+    timeout-minutes: 360
     strategy:
-      # 两个目标互不依赖：一个失败不取消另一个，便于一次看清两边状态
+      # 各 target 互不依赖：一个失败不取消其他，便于一次看清全部状态
       fail-fast: false
       matrix:
         include:
           - target: msys2-ucrt64
             msystem: UCRT64
             mprefix: mingw-w64-ucrt-x86_64
+            asset_name: gtk-cross-msys2-ucrt64
           - target: msys2-mingw64
             msystem: MINGW64
             mprefix: mingw-w64-x86_64
-          # 编译参数变体（见文件头注释）：cflags 经构建步骤的 env 透传进
-          # 框架（README「自定义编译参数」）。ucrt64 挂 v3/v4 两个指令级别：
-          # v3（AVX2）跑测试；v4（AVX-512）构建照跑、测试由探针步骤决定
-          # （无 AVX-512 的 runner 上 v4 测试程序必然 SIGILL，探针不过就跳
-          # 测试）。mingw64 不挂变体：CRT 差异与指令级别正交，v4 产物仍由
-          # ucrt64 验证，避免 CI 时长翻倍。
+            asset_name: gtk-cross-msys2-mingw64
+          # 编译参数变体（见文件头注释）。v3/v4 都复用 msys2-ucrt64：
+          # v3 原生构建；v4 加 `--force-cross`，target 产物落到
+          # out/msys2-ucrt64-cross，baseline 的 out/msys2-ucrt64 作为
+          # build machine 工具前缀。发布资产名仍沿用
+          # gtk-cross-msys2-ucrt64 + 变体后缀，消费者无需改名。
           - target: msys2-ucrt64
             msystem: UCRT64
             mprefix: mingw-w64-ucrt-x86_64
             variant: " [x86-64-v3]"
             cflags: "-march=x86-64-v3"
+            asset_name: gtk-cross-msys2-ucrt64
             asset_suffix: "-x86-64-v3"
           - target: msys2-ucrt64
             msystem: UCRT64
             mprefix: mingw-w64-ucrt-x86_64
             variant: " [x86-64-v4]"
             cflags: "-march=x86-64-v4"
+            cross: true
+            asset_name: gtk-cross-msys2-ucrt64
             asset_suffix: "-x86-64-v4"
 
     env:
@@ -198,11 +205,35 @@ jobs:
           restore-keys: |
             downloads-${{ matrix.target }}-
 
+      # v4 的 build machine 工具前缀：用 baseline ucrt64 编
+      # glib-base/gdk-pixbuf/shared-mime-info/shaderc 的闭包（23 recipe），
+      # 安装到 out/msys2-ucrt64（v4 target 走 out/msys2-ucrt64-cross，不冲突）。
+      # 只提供 glib-compile-resources / gdk-pixbuf-query-loaders /
+      # update-mime-database / glslc；不跑测试，也不进发布资产。
+      - name: 构建 native 工具前缀（x86-64-v4 --force-cross 前置）
+        if: matrix.cross
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          python -m gtkcross build glib-base gdk-pixbuf shared-mime-info shaderc \
+            -t msys2-ucrt64 -j"$(nproc)" --no-test --no-test-build
+          test -x out/msys2-ucrt64/bin/glib-compile-resources.exe
+          test -x out/msys2-ucrt64/bin/gdk-pixbuf-query-loaders.exe
+          test -x out/msys2-ucrt64/bin/update-mime-database.exe
+          test -x out/msys2-ucrt64/bin/glslc.exe
+
       - name: 工具链自检（doctor）
         shell: msys2 {0}
         run: |
+          set -euo pipefail
+          doctor_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            # 默认 build machine 工具前缀就是同 target 的 baseline
+            # out/msys2-ucrt64（前面的工具步骤已编好）。
+            doctor_args=(--force-cross)
+          fi
           python --version
-          python -m gtkcross doctor -t ${{ matrix.target }}
+          python -m gtkcross doctor -t ${{ matrix.target }} "${doctor_args[@]}"
 
       # 计划快照与门控测试。这份 Windows 快照是本仓库在"开发机不是 Windows"时
       # 唯一的 Windows 回归护栏，反过来在 Windows runner 上跑一遍能确认快照
@@ -211,42 +242,12 @@ jobs:
         shell: msys2 {0}
         run: PYTHONPATH=. python -m unittest discover -s tests -v
 
-      # x86-64-v4（AVX-512）变体专用探针：编译并**实际运行**一个强制
-      # AVX-512 指令的小程序。gcc 编码 AVX-512 指令不需要目标 CPU 支持
-      # （-march=x86-64-v4 只影响指令选择），但**运行**这些指令会 SIGILL。
-      # GitHub 托管 runner 不承诺 AVX-512（见文件头注释），故用真实执行
-      # 判定"v4 测试程序能不能跑"——CPU 支持就给完整测试，不支持就把测试
-      # 跳过（构建照常，见下一步），而不是让 300+ 个测试程序各自 SIGILL
-      # 出一片噪音失败。非 v4 变体此步骤被 if 跳过。
-      - name: 探测 AVX-512（x86-64-v4 变体）
-        if: matrix.cflags == '-march=x86-64-v4'
-        id: avx512
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          cat > v4probe.c <<'EOF'
-          #include <immintrin.h>
-          int main(void) {
-            __m512i a = _mm512_set1_epi32(1);
-            __m512i b = _mm512_add_epi32(a, a);
-            return _mm512_cvtsi512_si32(b) == 2 ? 0 : 1;
-          }
-          EOF
-          # MSYS2 的 MINGW64/UCRT64 前缀下没有 cc 别名（只有 gcc），统一用 gcc
-          gcc -march=x86-64-v4 v4probe.c -o v4probe
-          if ./v4probe; then
-            echo "AVX-512 可用：x86-64-v4 测试照常"
-            echo "supported=yes" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::runner CPU 不支持 AVX-512：x86-64-v4 构建照常，测试跳过"
-            echo "supported=no" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: 完整编译全部 recipe
         shell: msys2 {0}
-        # 编译参数变体经环境变量透传进框架（README「自定义编译参数」一节）。
-        # 基线变体的 cflags 为空字符串，与未设置完全等价（环境指纹取
-        # os.environ.get(k, '')、prelude 用 ${CFLAGS:+…}、cmake 注入判
+        # v3 的编译参数经环境变量透传进框架（README「自定义编译参数」）。
+        # v4 的 target flags 在 msys2-ucrt64-v4 工具链里（cross file），
+        # 这里不再设置 CFLAGS；基线与 v4 的空字符串与未设置等价（环境指纹
+        # 取 os.environ.get(k, '')、prelude 用 ${CFLAGS:+…}、cmake 注入判
         # 真值，三者对空串都不敏感）。
         env:
           CFLAGS: ${{ matrix.cflags }}
@@ -262,20 +263,18 @@ jobs:
             exit 1
           fi
           echo "目标      : ${{ matrix.target }}"
-          echo "变体      : ${CFLAGS:-（基线，未设置）}"
+          echo "变体      : ${{ matrix.variant || '(基线)' }}"
           echo "recipe 数 : ${#NAMES[@]}"
           echo "并行度    : $(nproc)"
           echo "磁盘      :"; df -h . | sed 's/^/  /'
-          # v4 变体且探针判定 CPU 无 AVX-512：构建照常（发布仍要资产），
-          # 但必须同时关掉 GIR dumper 与测试程序构建——它们都会执行 v4 目标码。
-          # 其他变体参数为空数组，命令与基线逐字节一致。
+          # v4 加 --force-cross：Builder 默认跳过测试执行、测试程序构建与
+          # GIR；CFLAGS 只进 target 编译，native: true 生成器用 baseline。
           build_args=()
-          if [ "${{ matrix.cflags }}" = "-march=x86-64-v4" ] && \
-             [ "${{ steps.avx512.outputs.supported }}" != "yes" ]; then
-            echo "::warning::CPU 不支持 AVX-512：v4 关闭 GIR/测试构建并跳过测试"
-            build_args=(--no-test --no-introspection --no-test-build)
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            build_args=(--force-cross)
           fi
-          python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} -j"$(nproc)" "${build_args[@]}"
+          python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} \
+            -j"$(nproc)" "${build_args[@]}"
 
       # 产物统计：本项目核心目标是尽量少产 DLL（静态优先），把计数打出来，
       # 便于在 CI 日志里一眼看出静态化是否回退。仅诊断，不参与判定。
@@ -283,8 +282,12 @@ jobs:
         if: always()
         shell: msys2 {0}
         run: |
-          root="out/${{ matrix.target }}"
-          echo "变体      : ${{ matrix.cflags || '(基线)' }}"
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            root="out/${{ matrix.target }}-cross"
+          else
+            root="out/${{ matrix.target }}"
+          fi
+          echo "变体      : ${{ matrix.variant || '(基线)' }}"
           if [ -d "$root" ]; then
             echo "DLL: $(find "$root/bin" -name '*.dll' 2>/dev/null | wc -l)"
             echo ".a : $(find "$root/lib" -name '*.a'  2>/dev/null | wc -l)"
@@ -306,9 +309,15 @@ jobs:
           # 资产名带变体后缀（基线为空串 → 与旧行为逐字节一致）：
           # archive-root 与文件名都带，三份同类资产解包互不覆盖，artifact
           # 名也据此区分（release job 的下载 pattern 是 gtk-cross-sysroot-*）。
-          out="dist/gtk-cross-${{ matrix.target }}${{ matrix.asset_suffix }}-${tag}.tar.zst"
-          python -m gtkcross export -t ${{ matrix.target }} \
-            --archive-root "gtk-cross-${{ matrix.target }}${{ matrix.asset_suffix }}" \
+          # v4 用 --force-cross 导出 out/msys2-ucrt64-cross；消费者可见的归档
+          # 仍叫 gtk-cross-msys2-ucrt64-x86-64-v4。
+          out="dist/${{ matrix.asset_name }}${{ matrix.asset_suffix }}-${tag}.tar.zst"
+          export_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            export_args=(--force-cross)
+          fi
+          python -m gtkcross export -t ${{ matrix.target }} "${export_args[@]}" \
+            --archive-root "${{ matrix.asset_name }}${{ matrix.asset_suffix }}" \
             -o "$out" --zstd-level 15
           ls -lh dist
 
@@ -344,26 +353,32 @@ jobs:
           # `|| true` 兜底。
           set +e
           target="${{ matrix.target }}"
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            build_target="$target-cross"
+            sysroot="out/$target-cross"
+          else
+            build_target="$target"
+            sysroot="out/$target"
+          fi
           out="ci-diagnostics"
           rm -rf "$out"; mkdir -p "$out"
 
           # 1) 框架保存的完整测试输出
-          find "build/$target" -name test-failure.log -type f 2>/dev/null | while read -r f; do
-            name=$(echo "$f" | sed "s|^build/$target/||; s|/|__|g")
+          find "build/$build_target" -name test-failure.log -type f 2>/dev/null | while read -r f; do
+            name=$(echo "$f" | sed "s|^build/$build_target/||; s|/|__|g")
             cp "$f" "$out/$name" && echo "  [diag] 收集 $f"
           done
 
           # 2) meson 的 testlog（含每个测试的 command / env / 断言输出）
-          find "build/$target" -path '*/meson-logs/testlog.txt' -type f 2>/dev/null | while read -r f; do
-            recipe=$(echo "$f" | sed "s|^build/$target/||; s|/.*||")
+          find "build/$build_target" -path '*/meson-logs/testlog.txt' -type f 2>/dev/null | while read -r f; do
+            recipe=$(echo "$f" | sed "s|^build/$build_target/||; s|/.*||")
             cp "$f" "$out/${recipe}__testlog.txt" && echo "  [diag] 收集 $f"
           done
 
-          echo "===== fontconfig / pango 环境事实 ($target) ====="
+          echo "===== fontconfig / pango 环境事实 ($build_target) ====="
           echo "MSYSTEM          : $MSYSTEM"
           echo "FONTCONFIG_FILE  : ${FONTCONFIG_FILE:-<unset>}"
           echo "FONTCONFIG_PATH  : ${FONTCONFIG_PATH:-<unset>}"
-          sysroot="out/$target"
           echo "sysroot/etc/fonts/fonts.conf :"
           ls -la "$sysroot/etc/fonts/fonts.conf" 2>&1 | sed 's/^/    /'
           echo "MSYS2 根 /etc/fonts :"
@@ -913,8 +928,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # 发布：Windows 两个 target 与 Linux 两个架构的 sysroot 都作为资产；四份
-  # 归档齐全才创建 Release。Linux job 同时是同一份 recipe 定义的回归证据。
+  # 发布：Windows（基线 / v3 / v4）与 Linux（native 两架构 + cross）的
+  # sysroot 都作为资产；发布说明里 required 列出的全部归档齐全才创建 Release。
+  # Linux job 同时是同一份 recipe 定义的回归证据。
   release:
     name: publish sysroot release
     needs: [build, linux, linux-tools, linux-cross]
