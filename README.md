@@ -70,16 +70,16 @@ target（构建档案）命名约定 = 工具链标识（`宿主-工具链[-运�
 aarch64 上都成立。真出现交叉工具链时（下表 `linux-mingw-x64` 之类）架构才回到
 名字里，因为那时它属于工具链标识，而不是宿主属性。
 
-| target                                   | 状态    | 说明                                                                       |
-| ---------------------------------------- | ------- | -------------------------------------------------------------------------- |
-| msys2-mingw64（MSYS2 MINGW64 原生）      | ✅ 完成 | 39 个 recipe 全链构建 + 自带测试                                           |
-| msys2-ucrt64（MSYS2 UCRT64 原生）        | ✅ 完成 | 同 recipe 复用；UCRT 运行时，独立 sysroot（全链 39 recipe + 测试已复验）   |
-| msys2-ucrt64 + `--force-cross`（Windows x64 内部 cross） | 🧪 待 CI | 复用 `msys2-ucrt64` 工具链；baseline `out/msys2-ucrt64` 作为 build machine 工具前缀，target 产物落 `out/msys2-ucrt64-cross`。`CFLAGS=-march=x86-64-v4` 只进 target 编译（Meson cross file / CMake toolchain / autotools 前缀），`native: true` 生成器仍用 baseline，构建期不执行 AVX-512 目标码 |
-| linux-native（Linux 原生，x86_64 + aarch64） | ✅ 全链完成 | 同 recipe 复用，工具链 `target_os: linux`；Windows 专属补丁/选项/依赖已门控出本目标，Linux 侧的必需依赖、X11 客户端栈与 Mesa（GL/EGL 实现）**反向**门控/新增。`build libadwaita` 闭包 62 recipe 全绿，含 libadwaita 430 个子用例。CI 在 `ubuntu-latest` 与 `ubuntu-26.04-arm` 两个容器上全量构建 |
-| linux-tools（native 工具前缀） | ✅ 交叉前置 | 以 `glib-base` / `gdk-pixbuf` / `shared-mime-info` / `shaderc` 为入口的工具链闭包（实际 33 recipe，含 g-i/cairo/X11 依赖），给 cross 目标提供构建机可执行的 `glib-compile-resources`、`gdk-pixbuf-query-loaders`、`update-mime-database`、`glslc`。不是发布资产 |
-| linux-mingw-x64（Linux → Windows x64） | 🧪 本地到 gst；待 CI | mingw-w64 交叉 GCC，msvcrt CRT；目标侧依赖自建到 `out/linux-mingw-x64`。本地 Ubuntu 24.04 的 mingw-w64 11 头文件只能跑到 gst-plugins-bad；GTK 需 13+，CI 固定 `ubuntu-26.04`。UCRT 仍由 Windows 原生 `msys2-ucrt64` 提供 |
-| linux-aarch64（Linux x64 → aarch64） | ✅ 本地全链；待 CI | `aarch64-linux-gnu` 交叉 GCC，glibc；目标侧依赖自建到 `out/linux-aarch64`，69 recipe 全链通过（跳过 target g-i/appstream） |
-| linux-native + `--force-cross`（Linux x64 内部 cross，x86-64-v4） | ✅ 本地全链 | 复用 `linux-native` 工具链（无专用 toolchain 文件，与 Windows v4 同一机制）：native 工具来自 `out/linux-tools`，target 产物落 `out/linux-native-cross`，`CFLAGS=-march=x86-64-v4` 只进 target 编译。`needs_exe_wrapper=true`，构建期不执行 AVX-512 目标码——替代原先在无 AVX-512 runner 上必挂的 native v4。`libadwaita` 完整闭包通过（cross 跳过 target g-i） |
+| target                                                            | 状态                 | 说明                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| msys2-mingw64（MSYS2 MINGW64 原生）                               | ✅ 完成              | 39 个 recipe 全链构建 + 自带测试                                                                                                                                                                                                                                                                                                                              |
+| msys2-ucrt64（MSYS2 UCRT64 原生）                                 | ✅ 完成              | 同 recipe 复用；UCRT 运行时，独立 sysroot（全链 39 recipe + 测试已复验）                                                                                                                                                                                                                                                                                      |
+| msys2-ucrt64 + `--force-cross`（Windows x64 内部 cross）          | 🧪 待 CI             | 复用 `msys2-ucrt64` 工具链；baseline `out/msys2-ucrt64` 作为 build machine 工具前缀，target 产物落 `out/msys2-ucrt64-cross`。`CFLAGS=-march=x86-64-v4` 只进 target 编译（Meson cross file / CMake toolchain / autotools 前缀），`native: true` 生成器仍用 baseline，构建期不执行 AVX-512 目标码                                                               |
+| linux-native（Linux 原生，x86_64 + aarch64）                      | ✅ 全链完成          | 同 recipe 复用，工具链 `target_os: linux`；Windows 专属补丁/选项/依赖已门控出本目标，Linux 侧的必需依赖、X11 客户端栈与 Mesa（GL/EGL 实现）**反向**门控/新增。`build libadwaita` 闭包 62 recipe 全绿，含 libadwaita 430 个子用例。CI 在 `ubuntu-latest` 与 `ubuntu-26.04-arm` 两个容器上全量构建                                                              |
+| linux-tools（native 工具前缀）                                    | ✅ 交叉前置          | 以 `glib-base` / `gdk-pixbuf` / `shared-mime-info` / `shaderc` 为入口的工具链闭包（实际 33 recipe，含 g-i/cairo/X11 依赖），给 cross 目标提供构建机可执行的 `glib-compile-resources`、`gdk-pixbuf-query-loaders`、`update-mime-database`、`glslc`。不是发布资产                                                                                               |
+| linux-mingw-x64（Linux → Windows x64）                            | 🧪 本地到 gst；待 CI | mingw-w64 交叉 GCC，msvcrt CRT；目标侧依赖自建到 `out/linux-mingw-x64`。本地 Ubuntu 24.04 的 mingw-w64 11 头文件只能跑到 gst-plugins-bad；GTK 需 13+，CI 固定 `ubuntu-26.04`。UCRT 仍由 Windows 原生 `msys2-ucrt64` 提供                                                                                                                                      |
+| linux-aarch64（Linux x64 → aarch64）                              | ✅ 本地全链；待 CI   | `aarch64-linux-gnu` 交叉 GCC，glibc；目标侧依赖自建到 `out/linux-aarch64`，69 recipe 全链通过（跳过 target g-i/appstream）                                                                                                                                                                                                                                    |
+| linux-native + `--force-cross`（Linux x64 内部 cross，x86-64-v4） | ✅ 本地全链          | 复用 `linux-native` 工具链（无专用 toolchain 文件，与 Windows v4 同一机制）：native 工具来自 `out/linux-tools`，target 产物落 `out/linux-native-cross`，`CFLAGS=-march=x86-64-v4` 只进 target 编译。`needs_exe_wrapper=true`，构建期不执行 AVX-512 目标码——替代原先在无 AVX-512 runner 上必挂的 native v4。`libadwaita` 完整闭包通过（cross 跳过 target g-i） |
 
 > msys2-mingw64 与 msys2-ucrt64 同为 win64 输出平台（x86_64-w64-mingw32 三元组，
 > toolchain 的 `platform: win64` 字段标注），区别在 CRT 运行时（msvcrt.dll vs
@@ -197,18 +197,18 @@ Windows 两个 target 与 Linux 两个架构的 sysroot 都可以直接发布给
 里手动 dispatch 并填写 `release_tag`（构建当前分支 HEAD；若同名 tag 已存在但
 指向别的提交，发布 job 会报错，而不是发出错配的资产）。
 
-| 资产 | 平台 / CRT | 用途 |
-| --- | --- | --- |
-| `gtk-cross-msys2-mingw64-<tag>.tar.zst` | Windows / msvcrt | `x86_64-pc-windows-gnu` |
-| `gtk-cross-msys2-ucrt64-<tag>.tar.zst` | Windows / UCRT | `x86_64-pc-windows-gnullvm` / llvm-mingw |
-| `gtk-cross-msys2-ucrt64-x86-64-v3-<tag>.tar.zst` | Windows / UCRT | 同上，`-march=x86-64-v3`（AVX2/BMI/FMA，2013 年后的 x86-64 CPU 均可跑） |
-| `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst` | Windows / UCRT | 由 `msys2-ucrt64 --force-cross` 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
-| `gtk-cross-linux-native-x86_64-<tag>.tar.zst` | Linux ELF x86_64 | 同架构原生链接/运行 |
-| `gtk-cross-linux-native-x86_64-x86-64-v3-<tag>.tar.zst` | Linux ELF x86_64 | 同上，`-march=x86-64-v3` |
-| `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64 | 由 `linux-native --force-cross` 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
-| `gtk-cross-linux-native-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | 同架构原生链接/运行 |
-| `gtk-cross-linux-mingw-x64-<tag>.tar.zst` | Windows / msvcrt | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
-| `gtk-cross-linux-aarch64-<tag>.tar.zst` | Linux ELF aarch64 | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试 |
+| 资产                                                    | 平台 / CRT        | 用途                                                                          |
+| ------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
+| `gtk-cross-msys2-mingw64-<tag>.tar.zst`                 | Windows / msvcrt  | `x86_64-pc-windows-gnu`                                                       |
+| `gtk-cross-msys2-ucrt64-<tag>.tar.zst`                  | Windows / UCRT    | `x86_64-pc-windows-gnullvm` / llvm-mingw                                      |
+| `gtk-cross-msys2-ucrt64-x86-64-v3-<tag>.tar.zst`        | Windows / UCRT    | 同上，`-march=x86-64-v3`（AVX2/BMI/FMA，2013 年后的 x86-64 CPU 均可跑）       |
+| `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst`        | Windows / UCRT    | 由 `msys2-ucrt64 --force-cross` 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
+| `gtk-cross-linux-native-x86_64-<tag>.tar.zst`           | Linux ELF x86_64  | 同架构原生链接/运行                                                           |
+| `gtk-cross-linux-native-x86_64-x86-64-v3-<tag>.tar.zst` | Linux ELF x86_64  | 同上，`-march=x86-64-v3`                                                      |
+| `gtk-cross-linux-native-x86_64-x86-64-v4-<tag>.tar.zst` | Linux ELF x86_64  | 由 `linux-native --force-cross` 产出；库/头文件完整，无 GIR/typelib、未跑测试 |
+| `gtk-cross-linux-native-aarch64-<tag>.tar.zst`          | Linux ELF aarch64 | 同架构原生链接/运行                                                           |
+| `gtk-cross-linux-mingw-x64-<tag>.tar.zst`               | Windows / msvcrt  | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试                   |
+| `gtk-cross-linux-aarch64-<tag>.tar.zst`                 | Linux ELF aarch64 | Linux 宿主交叉产出；库/头文件完整，无 GIR/typelib、未跑测试                   |
 
 编译参数变体（基线 / x86-64-v3 / x86-64-v4）由 CI 矩阵产出。x86-64-v4
 在 Linux 与 Windows 用同一机制：分别 `-t linux-native --force-cross`
@@ -278,11 +278,11 @@ target 名；一个块用 `for:` 列多个选择器，多个 target 就共用同
 
 ```yaml
 targets:
-  - for: [windows]                  # Windows 族（msys2 原生 + linux-mingw-x64 cross）
+  - for: [windows] # Windows 族（msys2 原生 + linux-mingw-x64 cross）
     deps: [directx-headers]
     meson:
-      options: [-Dc_link_args=-Wl,--undefined=_tls_used]
-  - for: [msys2-mingw64, linux-mingw-x64]  # 同族里的 msvcrt 例外（区域名）
+      options: [-Dc_link_args=-Wl, --undefined=_tls_used]
+  - for: [msys2-mingw64, linux-mingw-x64] # 同族里的 msvcrt 例外（区域名）
     patches: [gtk-0001-fallback-to-windows-locale.patch]
   - for: [linux]
     deps: [libx11]
@@ -303,8 +303,8 @@ target 块后应用。旧的映射写法 `targets: {msys2-mingw64: {...}}` 仍�
 `for:` 相同（OS 家族名或精确 target 名；不写 = 全平台）：
 
 ```yaml
-platforms: [linux]      # recipes/mesa.yaml：X/GL 供给链只在 Linux 侧自建
-platforms: [windows]    # recipes/egl-headers.yaml：Linux 上 EGL 归 Mesa
+platforms: [linux] # recipes/mesa.yaml：X/GL 供给链只在 Linux 侧自建
+platforms: [windows] # recipes/egl-headers.yaml：Linux 上 EGL 归 Mesa
 ```
 
 框架在两处用它：`build` 的入口把不属于本 target 的请求跳过并打印名单
@@ -343,13 +343,13 @@ python -m gtkcross list -t msys2-ucrt64        # recipe 清单
 构建会透传以下环境变量给全部引擎；prelude 以**加性**方式导出它们
 （sysroot 参数在前，调用方值保留在后），不会覆盖你的设置：
 
-| 变量 | 说明 |
-| --- | --- |
-| `CC` / `CXX` | 编译器选择（调用方设置了就用你的值，否则回退 toolchains/*.yaml 默认的 gcc/g++） |
-| `CFLAGS` / `CXXFLAGS` | C/C++ 编译参数（Linux 上框架追加 `-fPIC`；Windows 透传原值） |
-| `CPPFLAGS` | 预处理参数（框架把 `-I$SYSROOT/include` 放最前，你的值追加在后） |
-| `LDFLAGS` | 链接参数（框架把 `-L$SYSROOT/lib` 及 Linux 的 rpath/-lm 放最前，你的值追加在后） |
-| `LIBRARY_PATH` | gcc 内建库搜索路径（sysroot 前置，你的目录追加在后） |
+| 变量                  | 说明                                                                             |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `CC` / `CXX`          | 编译器选择（调用方设置了就用你的值，否则回退 toolchains/*.yaml 默认的 gcc/g++）  |
+| `CFLAGS` / `CXXFLAGS` | C/C++ 编译参数（Linux 上框架追加 `-fPIC`；Windows 透传原值）                     |
+| `CPPFLAGS`            | 预处理参数（框架把 `-I$SYSROOT/include` 放最前，你的值追加在后）                 |
+| `LDFLAGS`             | 链接参数（框架把 `-L$SYSROOT/lib` 及 Linux 的 rpath/-lm 放最前，你的值追加在后） |
+| `LIBRARY_PATH`        | gcc 内建库搜索路径（sysroot 前置，你的目录追加在后）                             |
 
 cross 构建中，`CFLAGS`/`CXXFLAGS` 只注入 **target** 编译（Meson cross file、
 CMake toolchain file、autotools configure 前缀）；native 构建工具来自
@@ -464,23 +464,23 @@ PYTHONPATH=. python3 -m gtkcross build $(python3 -m gtkcross list | tail -n +2 |
 
 与 Windows 目标的结构性差异（为什么 Linux 侧不需要那些补丁，又为什么需要别的）：
 
-| 差异 | 处理位置 |
-| --- | --- |
-| 静态 `.a` 要链进 `.so`，必须 PIC | toolchain prelude 对非 Windows 目标注入 `CFLAGS/CXXFLAGS=-fPIC` |
-| 原生构建不该传 `--host/--build` | `toolchains/linux-native.yaml` 不写 `host_triple`，autotools 走自动探测 |
-| `XDG_DATA_DIRS` 不能独占 sysroot（否则丢 `/usr/share` 的主题） | prelude 按平台分别生成 |
-| 构建/测试期不得读开发机桌面配置 | prelude 对非 Windows 目标设 `XDG_CONFIG_HOME=$SYSROOT/etc/xdg`（宿主 `~/.config/gtk-4.0/settings.ini` 的一行遗留 `gtk-modules` 在 `G_DEBUG=fatal-warnings` 下会让 libadwaita 68 项测试全 abort） |
-| `MSYSTEM` 是 MSYS2 探测信号，Linux 上不能注入 | `Toolchain.run()` 仅在 `host: windows` 时设置 |
-| `.pc` 静态判定要查 `libNAME.so` 而非 `.dll.a` | `Toolchain.shared_suffixes` |
-| 产物要自带搜索路径（ELF 没有"exe 目录天然参与 DLL 搜索"） | Linux `LDFLAGS` 加 `-Wl,-rpath-link` 与 `-Wl,-rpath` |
-| libm 属 C 运行时，不该被 hermetic 的 find-root 挡住 | Linux `LDFLAGS` 加 `-lm` |
-| libtool 的 `multi_os_directory` 在 x86_64 Linux 返回 `../lib64` | libffi 的 `for: [linux]` 加 `--disable-multi-os-directory` |
-| 架构假设不能写进 recipe（同一个 target 要跑两种 arch） | libvpx 的 `--target` 与 `--as=nasm` 只在 windows 家族块给，Linux 交给上游探测（`build/make/configure.sh:749` 的 `${CROSS}as`、1474-1484 的 nasm/yasm auto）；xcb-proto 靠 `AM_PATH_PYTHON` 按 PATH 找宿主 Python，不写 `/usr/lib64/pkgconfig`；`tests/test_platform_gating.py` 的 `ArchNeutralLinuxTarget` 守这条 |
-| 上游"恰好能找到"的隐性依赖在干净 sysroot 里会失败 | Mesa 的 x11 分支无条件 `dependency('xcb')`/`('xcb-randr')`（`src/meson.build:2308-2310`）⇒ deps 补 `libxcb`，并 `-Dxlib-lease=disabled`（那是 `VK_EXT_acquire_xlib_display`，本闭包不建 Vulkan 驱动）；vulkan-loader 的 X11 WSI 三个 REQUIRED 探测 ⇒ linux 块补 `libxcb libx11 libxrandr` |
-| `BUILD_WSI_X11_SUPPORT` 这个选项名上游不存在（整树 grep 0 命中），一直是空转 | 改用真名 `BUILD_WSI_XLIB_SUPPORT` / `BUILD_WSI_XLIB_XRANDR_SUPPORT`（`CMakeLists.txt:115-119` 只在 Linux/BSD 分支里 `option()`，所以 Windows 侧不补这两条，补了只会得到"变量未被使用"的警告） |
-| GNU libiconv / gettext 仍在闭包内（与 Windows 同一 closure 的决定） | 见 [recipes/platform-notes.md](recipes/platform-notes.md) 第 8、9 条 |
-| 上游按 `host_machine.system()` 分叉出的**必需依赖**（Windows 上不进那个分支） | recipe 的 `for: [linux]` 块：gdk-pixbuf 补 `shared-mime-info`、关 `glycin`；libxml2 纠 `Iconv_IS_BUILT_IN`；gst 补 `-Dx11=enabled` |
-| 窗口后端与 GL 实现也必须自建 | 新增 X11 客户端栈 17 个 recipe + `mesa`（GL/EGL 实现，`softpipe` 路线**不需要 LLVM**），EGL 归 Mesa，`egl-headers` 收进 windows 块 |
+| 差异                                                                          | 处理位置                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 静态 `.a` 要链进 `.so`，必须 PIC                                              | toolchain prelude 对非 Windows 目标注入 `CFLAGS/CXXFLAGS=-fPIC`                                                                                                                                                                                                                                                   |
+| 原生构建不该传 `--host/--build`                                               | `toolchains/linux-native.yaml` 不写 `host_triple`，autotools 走自动探测                                                                                                                                                                                                                                           |
+| `XDG_DATA_DIRS` 不能独占 sysroot（否则丢 `/usr/share` 的主题）                | prelude 按平台分别生成                                                                                                                                                                                                                                                                                            |
+| 构建/测试期不得读开发机桌面配置                                               | prelude 对非 Windows 目标设 `XDG_CONFIG_HOME=$SYSROOT/etc/xdg`（宿主 `~/.config/gtk-4.0/settings.ini` 的一行遗留 `gtk-modules` 在 `G_DEBUG=fatal-warnings` 下会让 libadwaita 68 项测试全 abort）                                                                                                                  |
+| `MSYSTEM` 是 MSYS2 探测信号，Linux 上不能注入                                 | `Toolchain.run()` 仅在 `host: windows` 时设置                                                                                                                                                                                                                                                                     |
+| `.pc` 静态判定要查 `libNAME.so` 而非 `.dll.a`                                 | `Toolchain.shared_suffixes`                                                                                                                                                                                                                                                                                       |
+| 产物要自带搜索路径（ELF 没有"exe 目录天然参与 DLL 搜索"）                     | Linux `LDFLAGS` 加 `-Wl,-rpath-link` 与 `-Wl,-rpath`                                                                                                                                                                                                                                                              |
+| libm 属 C 运行时，不该被 hermetic 的 find-root 挡住                           | Linux `LDFLAGS` 加 `-lm`                                                                                                                                                                                                                                                                                          |
+| libtool 的 `multi_os_directory` 在 x86_64 Linux 返回 `../lib64`               | libffi 的 `for: [linux]` 加 `--disable-multi-os-directory`                                                                                                                                                                                                                                                        |
+| 架构假设不能写进 recipe（同一个 target 要跑两种 arch）                        | libvpx 的 `--target` 与 `--as=nasm` 只在 windows 家族块给，Linux 交给上游探测（`build/make/configure.sh:749` 的 `${CROSS}as`、1474-1484 的 nasm/yasm auto）；xcb-proto 靠 `AM_PATH_PYTHON` 按 PATH 找宿主 Python，不写 `/usr/lib64/pkgconfig`；`tests/test_platform_gating.py` 的 `ArchNeutralLinuxTarget` 守这条 |
+| 上游"恰好能找到"的隐性依赖在干净 sysroot 里会失败                             | Mesa 的 x11 分支无条件 `dependency('xcb')`/`('xcb-randr')`（`src/meson.build:2308-2310`）⇒ deps 补 `libxcb`，并 `-Dxlib-lease=disabled`（那是 `VK_EXT_acquire_xlib_display`，本闭包不建 Vulkan 驱动）；vulkan-loader 的 X11 WSI 三个 REQUIRED 探测 ⇒ linux 块补 `libxcb libx11 libxrandr`                         |
+| `BUILD_WSI_X11_SUPPORT` 这个选项名上游不存在（整树 grep 0 命中），一直是空转  | 改用真名 `BUILD_WSI_XLIB_SUPPORT` / `BUILD_WSI_XLIB_XRANDR_SUPPORT`（`CMakeLists.txt:115-119` 只在 Linux/BSD 分支里 `option()`，所以 Windows 侧不补这两条，补了只会得到"变量未被使用"的警告）                                                                                                                     |
+| GNU libiconv / gettext 仍在闭包内（与 Windows 同一 closure 的决定）           | 见 [recipes/platform-notes.md](recipes/platform-notes.md) 第 8、9 条                                                                                                                                                                                                                                              |
+| 上游按 `host_machine.system()` 分叉出的**必需依赖**（Windows 上不进那个分支） | recipe 的 `for: [linux]` 块：gdk-pixbuf 补 `shared-mime-info`、关 `glycin`；libxml2 纠 `Iconv_IS_BUILT_IN`；gst 补 `-Dx11=enabled`                                                                                                                                                                                |
+| 窗口后端与 GL 实现也必须自建                                                  | 新增 X11 客户端栈 17 个 recipe + `mesa`（GL/EGL 实现，`softpipe` 路线**不需要 LLVM**），EGL 归 Mesa，`egl-headers` 收进 windows 块                                                                                                                                                                                |
 
 **当前状态：linux-native 全链已打通（`build libadwaita` 闭包 62 recipe），
 自带测试与端到端冒烟都过；Wayland 仍未开。**
@@ -556,11 +556,11 @@ PYTHONPATH=. python3 -m unittest discover -s tests   # 全部通过即 Windows �
 `.github/workflows/ci.yml` 有三个 job 组合，每个都是"全量枚举 recipe → 构建 →
 跑自带测试"，并且先跑上面那套单测：
 
-| job | runner | target | 说明 |
-| --- | --- | --- | --- |
-| build | windows-latest × {msys2-ucrt64, msys2-mingw64} | Windows | MSYS2 必须落在 `C:\msys64`（`release: false`，理由写在工作流注释里） |
-| linux | ubuntu-latest | linux-native @ x86_64 | 与下一行跑**同一份**配置 |
-| linux | ubuntu-26.04-arm | linux-native @ aarch64 | 这一行是"target 名不带架构"这句话的证据；两个容器任一失败都说明有架构假设漏进了 recipe 或框架 |
+| job   | runner                                         | target                 | 说明                                                                                          |
+| ----- | ---------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
+| build | windows-latest × {msys2-ucrt64, msys2-mingw64} | Windows                | MSYS2 必须落在 `C:\msys64`（`release: false`，理由写在工作流注释里）                          |
+| linux | ubuntu-latest                                  | linux-native @ x86_64  | 与下一行跑**同一份**配置                                                                      |
+| linux | ubuntu-26.04-arm                               | linux-native @ aarch64 | 这一行是"target 名不带架构"这句话的证据；两个容器任一失败都说明有架构假设漏进了 recipe 或框架 |
 
 Linux job 只装宿主构建工具（apt 名单逐项注明给哪个包用），**不装任何
 `lib*-dev`**：target 侧依赖全部自建，装了也不会被 `PKG_CONFIG_LIBDIR` 的隔离看到，
@@ -698,7 +698,7 @@ ELF 侧的等价物是 **RUNPATH**（框架已代劳，见下），`LD_LIBRARY_P
   被宏重写成 `libiconv_open`，于是 `libglib-2.0.so` 的 DT_NEEDED 带着
   `libiconv.so.2`。链接期还需要 `-Wl,-rpath-link,$SYSROOT/lib`（meson 给可执行
   文件加 `-Wl,--no-undefined`，只有 `-L` 会报 `not found (try using -rpath or
-  -rpath-link)`）。
+-rpath-link)`）。
 - **`-lm`**：Linux 目标的 `LDFLAGS` 另带 `-lm`。libm 属 C 运行时（与 Windows 的
   msvcrt/ucrt + mingw libmingwex 同类），不是 target 侧依赖包，因此不该被
   `CMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY` 挡住——实测 libtiff 的
@@ -766,19 +766,19 @@ MSYS2 的 X11 是走 Win32 API 的移植版，不适合作为 Linux 侧版本基
 直接取上游最新发布；sha256 全部已进 `versions.lock.yaml`（这些 recipe 里不写
 内联 sha256，与仓库多数包一致）。
 
-| recipe            | 版本    |     | recipe        | 版本    |
-| ----------------- | ------- | --- | ------------- | ------- |
-| util-macros       | 1.20.2  |     | libxrender    | 0.9.12  |
-| xorgproto         | 2025.1  |     | libxi         | 1.8.3   |
-| xtrans            | 1.6.0   |     | libxrandr     | 1.5.5   |
-| libpthread-stubs  | 0.5     |     | libxcursor    | 1.2.3   |
-| xcb-proto         | 1.17.0  |     | libxdamage    | 1.1.7   |
-| libxau            | 1.0.12  |     | libxinerama   | 1.1.6   |
-| libxcb            | 1.17.0  |     | libxxf86vm    | 1.1.7   |
-| libx11            | 1.8.13  |     | libpciaccess  | 0.19    |
-| libxext           | 1.3.7   |     | libdrm        | 2.4.134 |
-| libxfixes         | 6.0.2   |     | libxshmfence  | 1.3.3   |
-|                   |         |     | **mesa**      | 26.2.3  |
+| recipe           | 版本   |     | recipe       | 版本    |
+| ---------------- | ------ | --- | ------------ | ------- |
+| util-macros      | 1.20.2 |     | libxrender   | 0.9.12  |
+| xorgproto        | 2025.1 |     | libxi        | 1.8.3   |
+| xtrans           | 1.6.0  |     | libxrandr    | 1.5.5   |
+| libpthread-stubs | 0.5    |     | libxcursor   | 1.2.3   |
+| xcb-proto        | 1.17.0 |     | libxdamage   | 1.1.7   |
+| libxau           | 1.0.12 |     | libxinerama  | 1.1.6   |
+| libxcb           | 1.17.0 |     | libxxf86vm   | 1.1.7   |
+| libx11           | 1.8.13 |     | libpciaccess | 0.19    |
+| libxext          | 1.3.7  |     | libdrm       | 2.4.134 |
+| libxfixes        | 6.0.2  |     | libxshmfence | 1.3.3   |
+|                  |        |     | **mesa**     | 26.2.3  |
 
 ## 当前已完成链（msys2-mingw64 / msys2-ucrt64，闭包 42 recipe）
 
@@ -793,7 +793,7 @@ vulkan-loader → libogg → libopus / libvorbis → gstreamer → gl-headers �
 gst-plugins-base → directxmath → gst-plugins-bad → gtk → libadwaita
 ├→ vulkan-headers → vulkan-loader；spirv-headers → spirv-tools → glslang → shaderc
 ├→ 运行期数据包（不参与编译，独立 recipe）：shared-mime-info → share/mime +
-   mime.cache；adwaita-icon-theme → share/icons/Adwaita + icon-theme.cache
+mime.cache；adwaita-icon-theme → share/icons/Adwaita + icon-theme.cache
 └→ 独立（不在 libadwaita 闭包内）：libxml2 → xz(liblzma) → libxmlb → libfyaml →
 curl（schannel）→ appstream
 
@@ -835,4 +835,3 @@ CI 跑的不是这 63 个而是**全量**：`list` 的全部 74 个 recipe 交�
 **70 recipe 构建完成、`exit 0`**（2026-09-29 干净 sysroot 复验）；本轮加了
 TLS 后端，待复验的期望值是 71/74。尚未打通与已知缺口（Wayland、Vulkan 无驱动
 ICD）记录在该文件的末尾两节。
-
