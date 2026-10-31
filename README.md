@@ -1,5 +1,7 @@
 # gtk-cross
 
+[![CI](https://github.com/Hammerklavier-cn/gtk-cross/actions/workflows/ci.yml/badge.svg)](https://github.com/Hammerklavier-cn/gtk-cross/actions/workflows/ci.yml)
+
 从源码构建 GTK4 / libadwaita 及其全部依赖的可复现构建框架。
 
 目标：除交叉编译器与宿主构建工具外，**所有 target 侧依赖库都从源码编译**，产出可复现的
