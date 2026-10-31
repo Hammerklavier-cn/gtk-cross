@@ -1274,17 +1274,25 @@ linux-native 双架构、linux x86-64-v3；x86-64-v4 走 `--force-cross` 不执�
 | `-march=x86-64-v4`                          | v3            | 0/40（AVX-512 带掩码存储，未触发） |
 
 **根因结论**：只有 `-O3` + AVX2 目标 ISA + **循环向量化**的组合会崩；SLP
-向量化与 loop-distribute-patterns 明确无关。肇事方极可能是循环向量化后的
-栈写：GCC 把 `safecat()` 的字节循环（`while (pos < bufsize && ...)
-buffer[pos++] = *cat++;`）内联到 `make_error`/`transform_range_check` 等
-调用点并做 constprop 克隆后，对这段循环给出了
-"writing 32 bytes into a region of size 17" 的 12 条
-`-Wstringop-overflow`—— GCC 自己认定这条向量化路径会越界。警告与崩溃
-**同消同长**（"-fno-tree-vectorize" 下两条一起消失），是两件事同源的直接
-证据。单独把 `safecat()` 摘出来（`noinline` + 栈 canary）则各种优化参数
-下均干净（canary 完好、`pos = 255` 正常收口），说明崩溃只发生在
-**内联 constprop 克隆 + 循环向量化**的组合下，而 oracle 指向这段循环的
-门控版本化没有真正兜住边界。
+向量化、loop-distribute-patterns、FMA 均无关（各自单独禁用后照样崩）。
+肇事者是 pngvalid.c 里**某个**被循环向量化后的循环——不是 `safecat()`：
+单独给 safecat 一家加函数级 `-fno-tree-vectorize`、其余循环保持 v3 向量化
+时，同参数仍 21/80 崩溃；只有全测试单元关掉循环向量化才归零。具体是哪
+一条循环在指令粒度上未被钉死，但两个体检事实是一致的：
+
+- GCC 对这段代码的 `-Wstringop-overflow`（12 条）是"分析层"产物：把
+  safecat/调用点形状单独提到探针里（`noinline` + 栈 canary，可复现到
+  警告），告警声称的 32 字节越界写在运行时**不发生**（canary 完好，
+  `pos = 255` 正常收口），且同样的告警在 `-O2`/`-march=x86-64-v4` 下
+  不出现。警告与崩溃同消同长只是"都由循环向量化开关触发"，不能把警告
+  直接当成肇事写。
+- 崩溃现场（gdb）：ST 的 `pm.this.exception_context`（全局 png_store）
+  的 penv 指针槽在崩溃前的 477 次全部为正常 Try/Catch 流动值
+  （watchpoint 跟踪），故真实的错写发生在**帧内 jmp_buf 内容**或与
+  解栈相关的相邻栈域。签名指向"某条向量化发射的写走到
+  cexcept jmp_buf 所在的栈区"或对 setjmp 作用域变量的错误处理——
+  后者是 GCC 自古以来（bug 66447，"all versions of GCC seem
+  broken"）的家族。
 
 **为什么 Linux 全绿不是侥幸**：pngvalid 的 `longjmp` 在 glibc 下只还原
 寄存器，不经过 Windows 独有的 `RtlUnwind`/异常目录解栈；同样的内存篡改在
@@ -1297,7 +1305,9 @@ Linux 上即使发生也**不可能**在解栈器里崩——而 Windows 侧恰�
 `pngvalid.c` 是 libpng 全树**唯一**使用 cexcept 的测试源（grep 证实）。
 框架的 CFLAGS 管线把 CI 的全局 CFLAGS 喂给 cmake 的 `-DCMAKE_C_FLAGS`，
 这里不碰它：在 libpng 自身 CMakeLists.txt 的测试段（补丁内）加一个
-GNU 判定，只对 `${pngvalid_sources}` 关闭循环向量化：
+GNU 判定，只对 `${pngvalid_sources}` 关闭循环向量化（注意"单元"而非
+单个函数——函数级 `__attribute__((optimize(...)))` 实测不足以根除，
+且 GCC 16 已弃用 per-function 属性这条路）：
 
 - 新补丁：`libpng-0002-pngvalid-drop-loop-vectorization.patch`
 - 接线：`recipes/libpng.yaml`（base `patches:`，两个平台同打）
