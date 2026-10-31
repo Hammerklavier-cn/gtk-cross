@@ -970,7 +970,8 @@
         "known_failures": [],
         "libtype": "static",
         "patches": [
-          "libpng-0001-tests-against-static-library.patch"
+          "libpng-0001-tests-against-static-library.patch",
+          "libpng-0002-pngvalid-drop-loop-vectorization.patch"
         ],
         "platforms": [],
         "post_install": [],
@@ -2772,7 +2773,8 @@
         "known_failures": [],
         "libtype": "static",
         "patches": [
-          "libpng-0001-tests-against-static-library.patch"
+          "libpng-0001-tests-against-static-library.patch",
+          "libpng-0002-pngvalid-drop-loop-vectorization.patch"
         ],
         "platforms": [],
         "post_install": [],

@@ -1211,3 +1211,122 @@ linux-cross 的产物检查步骤断言 `build/linux-native-cross/meson-cross.in
 含 `-march=x86-64-v4`（cross file c_args 与 autotools configure 前缀同源于
 `_target_cflags()`）。`linux-aarch64`/`linux-mingw-x64` 是真交叉（异架构/
 异 OS），受 builder 的同架构守卫约束，专用文件保留。
+
+
+## CI 修复：pngvalid 在 x86-64-v3 变体下随机 SIGSEGV（2026-11-01）
+
+### 现象
+
+`build (msys2-ucrt64 [x86-64-v3])` job（PR feat/flags-support，run 38 =
+41111804771）：libpng 构建与 install 全部成功后，37 项 ctest 里
+`pngvalid-progressive-interlace-standard`（`--standard --progressive-read
+--interlace`）报 `(Failed)`，"97% tests passed, 1 tests failed"。同一个
+run 里凡是真正跑了测试的 job 全绿：基线 msys2-ucrt64、msys2-mingw64、
+linux-native 双架构、linux x86-64-v3；x86-64-v4 走 `--force-cross` 不执行
+测试，没有对照样本。
+
+日志里另一条当时无法定性的线索：pngvalid.c 有 12 条
+`-Wstringop-overflow`（"writing 32 bytes into a region of size 17"，
+`char message[256]`、偏移区间 `[239,256]`）。后文证实它与失败同源。
+
+### 定位
+
+**本机复现**：本机与 CI 同版本 gcc 16.2.0（UCRT64），同一套 cmake configure
+与 defines，同一源码树，`CFLAGS=-march=x86-64-v3` 重编 pngvalid 后：同一
+二进制连跑 60 次有 18 次 SIGSEGV、**零输出**（summary 行都来不及打印），
+其余 42 次 PASS。参数逐字节相同、去掉 `-march` 的基线构建 65/65 全过。
+问题因此收窄到 `-march=x86-64-v3` 进入 **pngvalid 测试程序自身**的代码
+生成，而不是 CI runner 环境或库本体。
+
+**崩溃指纹（gdb）**：
+
+- SIGSEGV 落在 `ntdll!RtlUnwindEx → RtlVirtualUnwind2`，由
+  `ucrtbase!longjmp` 调出；`bt` 溯源到 `make_error.constprop` ← `main`。
+  pngvalid 的错误路径是**故意**触发的（`make_error` 验证 png_error 的
+  行为），其 Try/Catch 用的是 `contrib/visupng/cexcept.h`，jmp_buf 就
+  放在**栈上局部数组** `exception__env` 里。
+- 在 `longjmp` 入口断点收集：通过的几次 `rcx`（jmp_buf 指针）都是栈地址
+  （`0x5fef30`、`0x5fec00`）；崩溃那一次 `rcx = 0x7ffadeae0161` ——是
+  **ntdll 的代码地址**，不是任何曾经初始化过的 jmp_buf。
+- 解栈从当前 rsp 往上走，越过栈区顶端（StackBase ≈ `0x600000`）读取
+  → 无映射 → 段错误。
+- 同一份 jmp_buf 里仍有合法 `.text` 地址（如 `jb[10] = 0x7ff7a4c13ba1`），
+  说明目标是**被篡改过的栈内容**，不是纯野指针。
+
+这些都指向：pngvalid 自己的栈帧内存被写坏，jmp_buf（或异常链指针）被
+覆盖 → longjmp 以非法目标 → NT 解栈越界 → SIGSEGV。非确定性来自"写坏的
+是哪个相邻对象"，它随 ASLR / 栈布局 / 页边界变化——测试本身是固定种子
+（`make_random_bytes` 的静态 seed，不含 `time()`），逻辑是确定性的。
+
+**隔离矩阵**（Release 构建；崩溃数/运行数）：
+
+| 测试程序 flags                              | libpng 静态库 | 崩溃率   |
+| ------------------------------------------- | ------------- | -------- |
+| 基线（无 `-march`）                         | 基线          | 0/40、0/60 |
+| `-march=x86-64-v3`                          | v3            | **18/60** |
+| `-march=x86-64-v3`                          | 基线          | 5/40     |
+| 基线                                        | v3            | 0/40     |
+| `-march=x86-64-v3` `-O2`                    | v3            | 0/40     |
+| `-march=x86-64-v3` `-fno-tree-vectorize`    | v3            | 0/40、**0/60** |
+| `-march=x86-64-v3` `-fno-tree-slp-vectorize`| v3            | 19/60    |
+| `-march=x86-64-v3` `-fno-tree-loop-distribute-patterns` | v3 | 18/60 |
+| `-march=x86-64-v3` `-ffp-contract=off`      | v3            | 12/40（排除 FMA 假说） |
+| `-march=x86-64-v4`                          | v3            | 0/40（AVX-512 带掩码存储，未触发） |
+
+**根因结论**：只有 `-O3` + AVX2 目标 ISA + **循环向量化**的组合会崩；SLP
+向量化与 loop-distribute-patterns 明确无关。肇事方极可能是循环向量化后的
+栈写：GCC 把 `safecat()` 的字节循环（`while (pos < bufsize && ...)
+buffer[pos++] = *cat++;`）内联到 `make_error`/`transform_range_check` 等
+调用点并做 constprop 克隆后，对这段循环给出了
+"writing 32 bytes into a region of size 17" 的 12 条
+`-Wstringop-overflow`—— GCC 自己认定这条向量化路径会越界。警告与崩溃
+**同消同长**（"-fno-tree-vectorize" 下两条一起消失），是两件事同源的直接
+证据。单独把 `safecat()` 摘出来（`noinline` + 栈 canary）则各种优化参数
+下均干净（canary 完好、`pos = 255` 正常收口），说明崩溃只发生在
+**内联 constprop 克隆 + 循环向量化**的组合下，而 oracle 指向这段循环的
+门控版本化没有真正兜住边界。
+
+**为什么 Linux 全绿不是侥幸**：pngvalid 的 `longjmp` 在 glibc 下只还原
+寄存器，不经过 Windows 独有的 `RtlUnwind`/异常目录解栈；同样的内存篡改在
+Linux 上即使发生也**不可能**在解栈器里崩——而 Windows 侧恰恰在解栈路径上
+（上述崩溃现场），所以"签名只在 PE 上可见"。Linux x86-64-v3 job 37/37
+仍然全过，据此不能反推 Windows v3 也该过。
+
+### 修复
+
+`pngvalid.c` 是 libpng 全树**唯一**使用 cexcept 的测试源（grep 证实）。
+框架的 CFLAGS 管线把 CI 的全局 CFLAGS 喂给 cmake 的 `-DCMAKE_C_FLAGS`，
+这里不碰它：在 libpng 自身 CMakeLists.txt 的测试段（补丁内）加一个
+GNU 判定，只对 `${pngvalid_sources}` 关闭循环向量化：
+
+- 新补丁：`libpng-0002-pngvalid-drop-loop-vectorization.patch`
+- 接线：`recipes/libpng.yaml`（base `patches:`，两个平台同打）
+- 归属说明：`patches/README.md`「跨平台」表
+
+MSVC 不经过 GNU 分支，构造不受影响。库的 28 个编译单元与 CI 的 CFLAGS
+逐字节不变（仍 `-march=x86-64-v3 -O3 -DNDEBUG`），其余 6 个测试程序
+同样不动。
+
+### 验证（全新源码树 + CI 等价参数）
+
+- 两个补丁 + `-DCMAKE_C_FLAGS="-march=x86-64-v3"`：崩溃测试连跑
+  **200/200 全过**（修复前同条件 5/40–18/60）；
+- `ctest -j4` 两轮：**37/37**，其余 36 项对 `-fno-tree-vectorize` 无回归；
+- 构建输出 `-Wstringop-overflow` 从 12 条降为 **0**；
+- build.ninja 里 FLAGS 分布：28 个文件保持
+  `-march=x86-64-v3 -O3 -DNDEBUG`，仅 pngvalid 一家多出
+  `-fno-tree-vectorize`。
+
+### 备考
+
+- 不把该测试登记进 `known_failures`：它不是环境瞬时问题，本地同参数必现
+  （崩溃率 30% 量级），基线构建同样零失败，没有豁免的理由。
+- pngvalid.c 自带 GCC bug 66447（setjmp 作用域变量误优化）的
+  `gnu_volatile` 兼容修法——这一族代码对 GCC 的优化间隙天然敏感，回归
+  任一优化点最先在它上面现形。上游（pnggroup/GCC）此次未另行提交；
+  `-fno-tree-vectorize` 只是 scope 很窄的测试侧编译选项，GCC 后续修好
+  或换更稳的 16.3 之后，该补丁最多变成无害冗余。
+- 与本仓库其它"Windows 工具链 + PE/ABI 特有行为"的先例（gcc/bfd 的 TLS
+  callback 家族 bug、cairo_win32_tls_callback 事故）同属一类：在同一份
+  上游代码上，工具链差异足以改变可执行代码的稳定性，修复点必须落在"让
+  目标组合下的代码生成保持确定性"，而不是换环境。

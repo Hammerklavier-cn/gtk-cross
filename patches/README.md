@@ -30,15 +30,16 @@
 | --- | --- | --- |
 | `adwaita-icon-theme-0001-skip-icon-cache-in-cross.patch` | **所有 cross（`for: [cross]`）** | 上游 Meson install script 会执行 target `gtk4-update-icon-cache`；补丁在 `meson.is_cross_build()` 时跳过，原生构建保留缓存生成 |
 
-## 跨平台（3 个，base `patches:`，两平台都打）
+## 跨平台（4 个 patch 文件，base `patches:`，两个平台都打；libpng 两条）
 
 | 补丁 | 动机 |
 | --- | --- |
 | `libpng-0001-tests-against-static-library.patch` | 本框架 `default_library: static` → `PNG_SHARED=OFF`，上游把测试段门控在 `PNG_SHARED` 上会静默跳过 37 项自带测试。与平台无关，与"静态优先"有关 |
+| `libpng-0002-pngvalid-drop-loop-vectorization.patch` | GCC 16 + `-O3` + AVX2 目标（CI 的 x86-64-v3 变体，2026-10-31 实拍）会把 pngvalid 的 cexcept setjmp/longjmp 错误处理编到运行期不稳（同一二进制约 30% 的运行 SIGSEGV）。只对该测试源加 `-fno-tree-vectorize`，库本体与 CI 的 CFLAGS 不动。成因是编译器代码生成而非平台分支，故放 base 两平台同打（Linux 归属见下段） |
 | `spirv-tools-0001-skip-shared-variant.patch` | 静态构建下不产出 `SPIRV-Tools-shared`（上游无条件 `add_library(... SHARED)`） |
 | `shaderc-0001-skip-shared-variant.patch` | 同上：不产出 `shaderc_shared`，并把 `shaderc.pc` 的 `Libs` 改成 `-lshaderc` |
 
-这三条在 Linux 上**同样必需**（2026-09-29 在 linux-native 实测，闭包 62 recipe 全部构建通过）：
+这三条（libpng-0001 + spirv-tools-0001 + shaderc-0001）在 Linux 上**同样必需**（2026-09-29 在 linux-native 实测，闭包 62 recipe 全部构建通过）：
 
 - `libpng-0001`：不打就没有任何自带测试——Linux 上打完实测 **37 项**全过，说明
   `PNG_SHARED=OFF` 那道门控在 ELF 上与 PE 上一样生效。
@@ -46,6 +47,12 @@
   `libSPIRV-Tools*.a` 与 `libshaderc*.a`，**没有** `libSPIRV-Tools-shared.so` 或
   `libshaderc_shared.so`；上游那句 `add_library(... SHARED)` 是无条件的，
   不打补丁就会装出共享变体。
+
+`libpng-0002` 在 Linux 上**不是必需**而是保守同打：成因（GCC 16 在
+x86-64-v3 目标下的循环向量化）同样成立于 ELF 平台，只是 Linux 的 longjmp
+不经过 Windows 的栈解栈（RtlUnwind/异常目录），同构建 37/37 全过。两个
+平台都打保证测试集合与 codegen 行为一致：补丁只影响测试程序（库不参与），
+在 Linux 上的效果仅是 pngvalid 不再向量化，测试结果不变。
 
 ## 未被任何 recipe 引用（1 个）
 
