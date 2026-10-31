@@ -1,0 +1,48 @@
+From: gtk-cross <noreply@example.invalid>
+Subject: [PATCH] build: skip icon cache generation when cross-compiling
+
+adwaita-icon-theme's meson.build always finds gtk4-update-icon-cache and adds
+an install script that runs it against the just-installed theme.  In a cross
+build the target binary cannot run on the build machine:
+
+  Running custom install script
+    '/work/out/linux-aarch64/bin/gtk4-update-icon-cache -qtf ...'
+  FAILED: ... could not be run.
+  error: command failed (exit 127)
+
+The cache is optional (GtkIconTheme scans the directory when it is absent),
+and cross assets already skip the framework's post_install step.  Only register
+the install script when not cross-compiling; native builds are unchanged.
+
+Applied to all cross builds via the recipe's `for: [cross]` selector.
+
+--- a/meson.build
++++ b/meson.build
+@@ -92,14 +92,16 @@
+   endforeach
+ endif
+ 
+-gtk_update_icon_cache = find_program(
+-  'gtk4-update-icon-cache',
+-  'gtk-update-icon-cache',
+-  required : true,
+-)
+-meson.add_install_script(
+-  gtk_update_icon_cache,
+-  '-qtf',
+-  get_option('prefix') / adwaita_dir,
+-  skip_if_destdir: true,
+-)
++if not meson.is_cross_build()
++  gtk_update_icon_cache = find_program(
++    'gtk4-update-icon-cache',
++    'gtk-update-icon-cache',
++    required : true,
++  )
++  meson.add_install_script(
++    gtk_update_icon_cache,
++    '-qtf',
++    get_option('prefix') / adwaita_dir,
++    skip_if_destdir: true,
++  )
++endif

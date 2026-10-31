@@ -1,0 +1,42 @@
+# Linux x86_64 宿主 -> Windows x86_64 交叉工具链（mingw-w64，msvcrt）。
+#
+# 与 msys2-* 的区别：
+#   * host: linux —— 构建命令走发行版 bash，target 是 PE/COFF；
+#   * 编译器/binutils 是 Linux 上的 x86_64-w64-mingw32-* 交叉包；
+#   * 目标侧依赖仍全部自建到 out/linux-mingw-x64；native 构建工具
+#     （glib-compile-resources 等）来自 linux-tools sysroot。
+#
+# Linux 发行版的 mingw-w64 交叉 GCC 默认是 msvcrt（不是 UCRT）。要 UCRT
+# 产物仍走 Windows 原生的 msys2-ucrt64 target，见 README。
+name: linux-mingw-x64
+host: linux
+cross: true
+platform: win64
+target_os: windows
+target_arch: x86_64
+build_arch: x86_64
+description: "Linux x86_64 host -> Windows x86_64 (mingw-w64, msvcrt) cross"
+host_triple: x86_64-w64-mingw32
+build_triple: x86_64-pc-linux-gnu
+tools:
+  cc: x86_64-w64-mingw32-gcc
+  cxx: x86_64-w64-mingw32-g++
+  ar: x86_64-w64-mingw32-ar
+  ranlib: x86_64-w64-mingw32-ranlib
+  nm: x86_64-w64-mingw32-nm
+  strip: x86_64-w64-mingw32-strip
+  objcopy: x86_64-w64-mingw32-objcopy
+  as: x86_64-w64-mingw32-as
+  ld: x86_64-w64-mingw32-ld
+  windres: x86_64-w64-mingw32-windres
+  dlltool: x86_64-w64-mingw32-dlltool
+  # pkg-config/meson/ninja/cmake 是 **build machine** 工具，不是目标工具。
+  pkg_config: pkg-config
+  meson: meson
+  ninja: ninja
+  cmake: cmake
+  make: make
+  perl: perl
+env:
+  PKG_CONFIG_LIBDIR: "$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig"
+  PKG_CONFIG_PATH: ""

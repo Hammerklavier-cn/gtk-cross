@@ -12,3 +12,18 @@ cmake:
     EXPAT_BUILD_TOOLS: "OFF"
 test:
   enabled: true
+# cross 构建不跑测试，但 expat 的 CMake 默认仍会编 tests/benchmark；
+# Windows 交叉链接会因 mingw 没有 arc4random_buf 而失败。cross 选择器
+# 匹配所有 cross（含 --force-cross）；原生 Windows/Linux 保留测试。
+targets:
+  - for: [cross]
+    cmake:
+      defines:
+        EXPAT_BUILD_TESTS: "OFF"
+  # Ubuntu 24.04 的 mingw-w64 11 没有 arc4random_buf；expat 的 AUTO 探测在
+  # 交叉环境下会误判为可用，静态库里仍引用该符号，fontconfig 链接时爆炸。
+  # Windows cross 显式关掉，改用 expat 自带 random_rand_s.c 回退。
+  - for: [linux-mingw-x64]
+    cmake:
+      defines:
+        EXPAT_WITH_ARC4RANDOM_BUF: "OFF"

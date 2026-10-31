@@ -2,7 +2,9 @@
 # 的完整编译检查。
 #
 # 范围：msys2-ucrt64 / msys2-mingw64 在 windows-latest 上；linux-native 在
-# ubuntu-latest（x86_64）与 ubuntu-26.04-arm（aarch64）两个容器上。linux-native
+# ubuntu-24.04（x86_64）与 ubuntu-24.04-arm（aarch64）两个 runner 上。选固定
+# 版本而非 ubuntu-latest：lts 镜像内容可预期，避免 latest 滚动升级悄悄改变
+# 产物基线。linux-native
 # 的名字里不带 arch——同一份 recipe/toolchain 定义服务两种架构，arch 由宿主
 # 编译器决定（toolchains/linux-native.yaml 与 recipes/libvpx.yaml 里记了依据）。
 #
@@ -18,6 +20,23 @@
 # 维护排除名单（那份必然与 recipe 漂移）。9 个 recipe 声明了 test.enabled，
 # 构建流程会在 install 后自动运行其自带测试并按 known_failures 判定——这是
 # 本项目的既定验收标准，故“编译检查”隐含包含这些测试。
+#
+# 编译参数变体（发布需要基线 / x86-64-v3 / x86-64-v4 三份资产）：
+#   * 基线      ：不设 CFLAGS/CXXFLAGS，构建 + 测试照常（矩阵里不带
+#     variant 的条目）。
+#   * x86-64-v3 ：`-march=x86-64-v3`（AVX2/BMI/FMA）经环境变量
+#     CFLAGS/CXXFLAGS 透传，仍是原生构建；托管 runner 的 CPU 全部满足 v3，
+#     故构建 + 测试照常。
+#   * x86-64-v4 ：不能再走原生构建。`-march=x86-64-v4` 经全局 CFLAGS 会
+#     同时作用于 Meson 的 native: true 生成器（fribidi 的 gen-*-tab、
+#     glib-compile-resources 等），无 AVX-512 的 runner 执行它们会
+#     STATUS_ILLEGAL_INSTRUCTION；`--no-introspection/--no-test-build` 管不到
+#     这类构建期工具。故 Windows v4 复用 msys2-ucrt64、Linux v4 复用
+#     linux-native（无专用 toolchain 文件），都加 `--force-cross` 并经
+#     CFLAGS 传 -march：build machine 的生成器用 baseline，target 才带 v4。
+#     cross 默认不执行目标测试，也不需要 AVX-512 探针。
+#   变体只挂 x86_64 可跑的 target：Windows 侧 msys2-ucrt64、
+#   Linux 侧 linux-native/x86_64；aarch64 没有 x86-64-vN 指令级别概念，不设变体。
 #
 # 发布：push `v*` tag（或手动 dispatch 并填 release_tag）时，完整 CI 通过后
 # Windows 与 Linux job 会各自用 `gtkcross export` 把 sysroot 打成可重定位归档
@@ -57,22 +76,46 @@ permissions:
 
 jobs:
   build:
-    name: build (${{ matrix.target }})
+    name: build (${{ matrix.target }}${{ matrix.variant }})
     runs-on: windows-latest
-    # GitHub 单作业硬上限 360 分钟；全链干净构建在 4 核 runner 上约 1.5–3 h，
-    # 留出余量但确保失败时能及时看到结果
-    timeout-minutes: 330
+    # GitHub 单作业硬上限 360 分钟；全链干净构建在 4 核 runner 上约 1.5–3 h。
+    # v4 cross 需要先编 baseline 的 native 工具前缀（msys2-ucrt64-tools，
+    # 23 recipe），再编 v4 全链；所有 Windows job 统一留到 360 分钟，避免
+    # 变体因额外工具链闭包撞上 330 分钟上限。
+    timeout-minutes: 360
     strategy:
-      # 两个目标互不依赖：一个失败不取消另一个，便于一次看清两边状态
+      # 各 target 互不依赖：一个失败不取消其他，便于一次看清全部状态
       fail-fast: false
       matrix:
         include:
           - target: msys2-ucrt64
             msystem: UCRT64
             mprefix: mingw-w64-ucrt-x86_64
+            asset_name: gtk-cross-msys2-ucrt64
           - target: msys2-mingw64
             msystem: MINGW64
             mprefix: mingw-w64-x86_64
+            asset_name: gtk-cross-msys2-mingw64
+          # 编译参数变体（见文件头注释）。v3/v4 都复用 msys2-ucrt64：
+          # v3 原生构建；v4 加 `--force-cross`，target 产物落到
+          # out/msys2-ucrt64-cross，baseline 的 out/msys2-ucrt64 作为
+          # build machine 工具前缀。发布资产名仍沿用
+          # gtk-cross-msys2-ucrt64 + 变体后缀，消费者无需改名。
+          - target: msys2-ucrt64
+            msystem: UCRT64
+            mprefix: mingw-w64-ucrt-x86_64
+            variant: " [x86-64-v3]"
+            cflags: "-march=x86-64-v3"
+            asset_name: gtk-cross-msys2-ucrt64
+            asset_suffix: "-x86-64-v3"
+          - target: msys2-ucrt64
+            msystem: UCRT64
+            mprefix: mingw-w64-ucrt-x86_64
+            variant: " [x86-64-v4]"
+            cflags: "-march=x86-64-v4"
+            cross: true
+            asset_name: gtk-cross-msys2-ucrt64
+            asset_suffix: "-x86-64-v4"
 
     env:
       # 与本项目 toolchain env 一致：Python 子进程强制 UTF-8 I/O。
@@ -162,11 +205,35 @@ jobs:
           restore-keys: |
             downloads-${{ matrix.target }}-
 
+      # v4 的 build machine 工具前缀：用 baseline ucrt64 编
+      # glib-base/gdk-pixbuf/shared-mime-info/shaderc 的闭包（23 recipe），
+      # 安装到 out/msys2-ucrt64（v4 target 走 out/msys2-ucrt64-cross，不冲突）。
+      # 只提供 glib-compile-resources / gdk-pixbuf-query-loaders /
+      # update-mime-database / glslc；不跑测试，也不进发布资产。
+      - name: 构建 native 工具前缀（x86-64-v4 --force-cross 前置）
+        if: matrix.cross
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          python -m gtkcross build glib-base gdk-pixbuf shared-mime-info shaderc \
+            -t msys2-ucrt64 -j"$(nproc)" --no-test --no-test-build
+          test -x out/msys2-ucrt64/bin/glib-compile-resources.exe
+          test -x out/msys2-ucrt64/bin/gdk-pixbuf-query-loaders.exe
+          test -x out/msys2-ucrt64/bin/update-mime-database.exe
+          test -x out/msys2-ucrt64/bin/glslc.exe
+
       - name: 工具链自检（doctor）
         shell: msys2 {0}
         run: |
+          set -euo pipefail
+          doctor_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            # 默认 build machine 工具前缀就是同 target 的 baseline
+            # out/msys2-ucrt64（前面的工具步骤已编好）。
+            doctor_args=(--force-cross)
+          fi
           python --version
-          python -m gtkcross doctor -t ${{ matrix.target }}
+          python -m gtkcross doctor -t ${{ matrix.target }} "${doctor_args[@]}"
 
       # 计划快照与门控测试。这份 Windows 快照是本仓库在"开发机不是 Windows"时
       # 唯一的 Windows 回归护栏，反过来在 Windows runner 上跑一遍能确认快照
@@ -177,6 +244,14 @@ jobs:
 
       - name: 完整编译全部 recipe
         shell: msys2 {0}
+        # v3 的编译参数经环境变量透传进框架（README「自定义编译参数」）。
+        # v4 的 target flags 在 msys2-ucrt64-v4 工具链里（cross file），
+        # 这里不再设置 CFLAGS；基线与 v4 的空字符串与未设置等价（环境指纹
+        # 取 os.environ.get(k, '')、prelude 用 ${CFLAGS:+…}、cmake 注入判
+        # 真值，三者对空串都不敏感）。
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+          CXXFLAGS: ${{ matrix.cflags }}
         run: |
           set -euo pipefail
           # 从 `list` 动态枚举全部 recipe（输出首行是表头，跳过）。
@@ -188,10 +263,18 @@ jobs:
             exit 1
           fi
           echo "目标      : ${{ matrix.target }}"
+          echo "变体      : ${{ matrix.variant || '(基线)' }}"
           echo "recipe 数 : ${#NAMES[@]}"
           echo "并行度    : $(nproc)"
           echo "磁盘      :"; df -h . | sed 's/^/  /'
-          python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} -j"$(nproc)"
+          # v4 加 --force-cross：Builder 默认跳过测试执行、测试程序构建与
+          # GIR；CFLAGS 只进 target 编译，native: true 生成器用 baseline。
+          build_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            build_args=(--force-cross)
+          fi
+          python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} \
+            -j"$(nproc)" "${build_args[@]}"
 
       # 产物统计：本项目核心目标是尽量少产 DLL（静态优先），把计数打出来，
       # 便于在 CI 日志里一眼看出静态化是否回退。仅诊断，不参与判定。
@@ -199,7 +282,12 @@ jobs:
         if: always()
         shell: msys2 {0}
         run: |
-          root="out/${{ matrix.target }}"
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            root="out/${{ matrix.target }}-cross"
+          else
+            root="out/${{ matrix.target }}"
+          fi
+          echo "变体      : ${{ matrix.variant || '(基线)' }}"
           if [ -d "$root" ]; then
             echo "DLL: $(find "$root/bin" -name '*.dll' 2>/dev/null | wc -l)"
             echo ".a : $(find "$root/lib" -name '*.a'  2>/dev/null | wc -l)"
@@ -218,15 +306,26 @@ jobs:
           set -euo pipefail
           tag="${RELEASE_TAG//\//-}"
           mkdir -p dist
-          out="dist/gtk-cross-${{ matrix.target }}-${tag}.tar.zst"
-          python -m gtkcross export -t ${{ matrix.target }} -o "$out" --zstd-level 15
+          # 资产名带变体后缀（基线为空串 → 与旧行为逐字节一致）：
+          # archive-root 与文件名都带，三份同类资产解包互不覆盖，artifact
+          # 名也据此区分（release job 的下载 pattern 是 gtk-cross-sysroot-*）。
+          # v4 用 --force-cross 导出 out/msys2-ucrt64-cross；消费者可见的归档
+          # 仍叫 gtk-cross-msys2-ucrt64-x86-64-v4。
+          out="dist/${{ matrix.asset_name }}${{ matrix.asset_suffix }}-${tag}.tar.zst"
+          export_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            export_args=(--force-cross)
+          fi
+          python -m gtkcross export -t ${{ matrix.target }} "${export_args[@]}" \
+            --archive-root "${{ matrix.asset_name }}${{ matrix.asset_suffix }}" \
+            -o "$out" --zstd-level 15
           ls -lh dist
 
       - name: 上传 sysroot 归档
         if: success() && env.RELEASE_TAG != ''
         uses: actions/upload-artifact@v4
         with:
-          name: gtk-cross-sysroot-${{ matrix.target }}
+          name: gtk-cross-sysroot-${{ matrix.target }}${{ matrix.asset_suffix }}
           path: dist/*.tar.zst
           if-no-files-found: error
           # 归档本身已是 zstd；artifact 再压一遍只浪费时间
@@ -254,26 +353,32 @@ jobs:
           # `|| true` 兜底。
           set +e
           target="${{ matrix.target }}"
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            build_target="$target-cross"
+            sysroot="out/$target-cross"
+          else
+            build_target="$target"
+            sysroot="out/$target"
+          fi
           out="ci-diagnostics"
           rm -rf "$out"; mkdir -p "$out"
 
           # 1) 框架保存的完整测试输出
-          find "build/$target" -name test-failure.log -type f 2>/dev/null | while read -r f; do
-            name=$(echo "$f" | sed "s|^build/$target/||; s|/|__|g")
+          find "build/$build_target" -name test-failure.log -type f 2>/dev/null | while read -r f; do
+            name=$(echo "$f" | sed "s|^build/$build_target/||; s|/|__|g")
             cp "$f" "$out/$name" && echo "  [diag] 收集 $f"
           done
 
           # 2) meson 的 testlog（含每个测试的 command / env / 断言输出）
-          find "build/$target" -path '*/meson-logs/testlog.txt' -type f 2>/dev/null | while read -r f; do
-            recipe=$(echo "$f" | sed "s|^build/$target/||; s|/.*||")
+          find "build/$build_target" -path '*/meson-logs/testlog.txt' -type f 2>/dev/null | while read -r f; do
+            recipe=$(echo "$f" | sed "s|^build/$build_target/||; s|/.*||")
             cp "$f" "$out/${recipe}__testlog.txt" && echo "  [diag] 收集 $f"
           done
 
-          echo "===== fontconfig / pango 环境事实 ($target) ====="
+          echo "===== fontconfig / pango 环境事实 ($build_target) ====="
           echo "MSYSTEM          : $MSYSTEM"
           echo "FONTCONFIG_FILE  : ${FONTCONFIG_FILE:-<unset>}"
           echo "FONTCONFIG_PATH  : ${FONTCONFIG_PATH:-<unset>}"
-          sysroot="out/$target"
           echo "sysroot/etc/fonts/fonts.conf :"
           ls -la "$sysroot/etc/fonts/fonts.conf" 2>&1 | sed 's/^/    /'
           echo "MSYS2 根 /etc/fonts :"
@@ -346,7 +451,7 @@ jobs:
   # target 名里不写 arch，所以这两个容器就是"架构无关"这句话的唯一证据；
   # 任一架构上的失败都说明有 arch 假设漏进了 recipe 或框架。
   linux:
-    name: build (linux-native, ${{ matrix.arch }})
+    name: build (linux-native, ${{ matrix.arch }}${{ matrix.variant }})
     runs-on: ${{ matrix.runs_on }}
     # 干净构建全部 recipe（含 Mesa 与 gst-plugins-bad 两个大头）。比 Windows 的
     # 330 分钟短：原生编译没有跨 CRT/导入库的额外阶段，但源码下载与 Mesa 编译
@@ -358,9 +463,21 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-24.04
           - arch: aarch64
-            runs_on: ubuntu-26.04-arm
+            runs_on: ubuntu-24.04-arm
+          # 编译参数变体（见文件头注释）。只挂 x86_64：x86-64-vN 是 x86
+          # 指令级别，aarch64 的 gcc 不认这个 -march；aarch64 分支保持基线。
+          # Linux 宿主有 cc，探针编译不依赖 MSYS2。
+          - arch: x86_64
+            runs_on: ubuntu-24.04
+            variant: " [x86-64-v3]"
+            cflags: "-march=x86-64-v3"
+            asset_suffix: "-x86-64-v3"
+          # x86-64-v4 不再在本 job 做 native 构建：GIR 生成会在构建期执行
+          # AVX-512 dumper，托管 runner 的 CPU 不保证支持。改由下面的
+          # linux-cross 矩阵用 linux-native --force-cross + CFLAGS 产出同名
+          # 资产（与 Windows v4 同一机制）。
 
     env:
       # 无头容器没有 X。框架把 GTKCROSS_TEST_WRAPPER 作为整条测试命令的前缀
@@ -369,7 +486,16 @@ jobs:
       # 逐个包，libadwaita 会起 68 个 Xvfb；前缀在每次 test 调用外只起一个、被
       # 并发测试共用，而且 ctest 那条路径没有 --wrapper。
       # doctor 会检查该命令存在（gtkcross/toolchain.py），缺失时直接报出。
-      GTKCROSS_TEST_WRAPPER: xvfb-run -a
+      # -s 会整体替换 xvfb-run 默认的 server args（即 -screen 0 640x480x24），
+      # screen 规格必须一并写。-noreset：Xvfb 默认在最后一个 client 断开后
+      # reset 重新初始化，meson -j4 下 68 个测试的波次间隙里若有新测试进程
+      # 恰好连入，XOpenDisplay 会瞬时失败，gtk_init() 只 g_warning("Failed
+      # to open display")（gtk/gtkmain.c），而上游测试环境 G_DEBUG=fatal-warnings
+      # + g_test_init 无条件把 warning 设为致命 → abort()（SIGABRT）。
+      # 实测命中一次：PR #3 run 41099243395 的 linux-native x86-64-v3 job，
+      # libadwaita:test-shortcut-label 48/68 ERROR，同 run baseline/aarch64
+      # 与 v3 job 前两轮均全过 —— 环境类瞬时问题，钉环境，不登记 known_failure。
+      GTKCROSS_TEST_WRAPPER: xvfb-run -a -s "-screen 0 640x480x24 -noreset"
 
     steps:
       - name: 检出代码
@@ -447,6 +573,7 @@ jobs:
             perl \
             nasm \
             gperf \
+            bison flex \
             gettext itstool \
             python3 python3-dev python3-yaml \
             python3-mako python3-markdown python3-packaging \
@@ -455,12 +582,10 @@ jobs:
             xvfb \
             fonts-cantarell \
             fonts-noto-core
-          # apt 的 meson 在 ubuntu-latest 上是 1.3.2，而 glib 2.90.0 要求
+          # apt 的 meson 在 ubuntu-24.04 上是 1.3.2，而 glib 2.90.0 要求
           # meson_version >= 1.4.0（glib-base 的 meson setup 直接 ERROR）。pipx
           # 装的是 PyPI 最新版；~/.local/bin 在 runner 的默认 PATH 里。
           # 注意不能与 apt 共装 meson：apt 的同版本号包会遮蔽 pipx 的入口。
-          #
-          # ubuntu-26.04 上是 1.10，fontconfig 要求 >= 1.11
           pipx install meson
           echo "meson       : $(meson --version)"
           echo "uname -m    : $(uname -m)"
@@ -487,6 +612,9 @@ jobs:
           PYTHONPATH=. python3 -m gtkcross doctor -t linux-native
 
       - name: 完整编译全部 recipe
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+          CXXFLAGS: ${{ matrix.cflags }}
         run: |
           set -euo pipefail
           # 与 Windows job 一样全量枚举：只属于 Windows 的包由框架按 recipe 的
@@ -498,8 +626,10 @@ jobs:
           fi
           echo "目标      : linux-native"
           echo "架构      : ${{ matrix.arch }}（uname -m = $(uname -m)）"
+          echo "变体      : ${CFLAGS:-（基线，未设置）}"
           echo "recipe 数 : ${#NAMES[@]}"
           echo "磁盘      :"; df -h . | sed 's/^/  /'
+          # x86-64-v4 不再在这条 native job 里构建（见 linux-cross）。
           PYTHONPATH=. python3 -m gtkcross build "${NAMES[@]}" -t linux-native -j"$(nproc)"
 
       # 产物统计 + 架构一致性。静态优先与"sysroot 只有一个 lib 目录"是本项目
@@ -533,9 +663,9 @@ jobs:
           set -euo pipefail
           tag="${RELEASE_TAG//\//-}"
           mkdir -p dist
-          out="dist/gtk-cross-linux-native-${{ matrix.arch }}-${tag}.tar.zst"
+          out="dist/gtk-cross-linux-native-${{ matrix.arch }}${{ matrix.asset_suffix }}-${tag}.tar.zst"
           PYTHONPATH=. python3 -m gtkcross export -t linux-native \
-            --archive-root "gtk-cross-linux-native-${{ matrix.arch }}" \
+            --archive-root "gtk-cross-linux-native-${{ matrix.arch }}${{ matrix.asset_suffix }}" \
             -o "$out" --zstd-level 15
           ls -lh dist
 
@@ -543,7 +673,7 @@ jobs:
         if: success() && env.RELEASE_TAG != ''
         uses: actions/upload-artifact@v4
         with:
-          name: gtk-cross-sysroot-linux-native-${{ matrix.arch }}
+          name: gtk-cross-sysroot-linux-native-${{ matrix.arch }}${{ matrix.asset_suffix }}
           path: dist/*.tar.zst
           if-no-files-found: error
           compression-level: 0
@@ -591,11 +721,274 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # 发布：Windows 两个 target 与 Linux 两个架构的 sysroot 都作为资产；四份
-  # 归档齐全才创建 Release。Linux job 同时是同一份 recipe 定义的回归证据。
+  # cross 构建的 native 工具前缀。不是发布资产，只给下面的 cross job 用。
+  # 只编工具链闭包（glib/gdk-pixbuf/shared-mime-info/shaderc），不跑测试。
+  linux-tools:
+    name: build native tools (linux x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装宿主构建工具
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git pkg-config ninja-build cmake make \
+            autoconf automake libtool perl nasm gperf bison flex gettext itstool \
+            python3 python3-dev python3-yaml python3-mako python3-packaging \
+            xz-utils zstd
+          pipx install meson
+          echo "meson    : $(meson --version)"
+          echo "nproc    : $(nproc)"
+
+      - name: 缓存下载的源码包
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: downloads-linux-tools-${{ hashFiles('versions.lock.yaml') }}
+          restore-keys: |
+            downloads-linux-tools-
+
+      - name: 单元与交叉计划测试
+        run: PYTHONPATH=. python3 -m unittest discover -s tests -v
+
+      - name: 构建 native 工具 sysroot
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m gtkcross build \
+            glib-base gdk-pixbuf shared-mime-info shaderc \
+            -t linux-tools -j"$(nproc)" --no-test --no-test-build
+          test -x out/linux-tools/bin/glib-compile-resources
+          test -x out/linux-tools/bin/gdk-pixbuf-query-loaders
+          test -x out/linux-tools/bin/update-mime-database
+          test -x out/linux-tools/bin/glslc
+          echo "native tools:"
+          ls -1 out/linux-tools/bin | sed 's/^/  /'
+
+      - name: 打包 native tools
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -C out -cf - linux-tools | zstd -T0 -15 -f -o dist/linux-tools.tar.zst
+          ls -lh dist/linux-tools.tar.zst
+
+      - name: 上传 native tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-cross-tools-linux-x86_64
+          path: dist/linux-tools.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  # Linux 宿主的三个 cross 目标。共同点：
+  #   * native 工具来自 linux-tools；
+  #   * Builder 默认关 GIR 与测试程序（cross 下目标码不能在构建机执行）；
+  #   * 目标侧依赖仍全部自建，CMake/Meson/autotools 都走 cross 路径。
+  linux-cross:
+    name: cross (${{ matrix.label }})
+    needs: linux-tools
+    # mingw-w64 11 (Ubuntu 24.04) 缺 WinRT 头与 d2d1_3.h；26.04 的 13 才够
+    # gst-plugins-bad d3d12 / GTK WinRT 探测。aarch64 target 也统一用这里。
+    runs-on: ubuntu-26.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-mingw-x64
+            label: linux-x64 -> windows-x64 (mingw64)
+            apt: gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 binutils-mingw-w64-x86-64
+            asset: gtk-cross-linux-mingw-x64
+            archive_root: gtk-cross-linux-mingw-x64
+          - target: linux-aarch64
+            label: linux-x64 -> linux-aarch64
+            apt: gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross
+            asset: gtk-cross-linux-aarch64
+            archive_root: gtk-cross-linux-aarch64
+          # 与 Windows v4 同一机制：复用 linux-native，--force-cross 把它
+          # 提升为同架构 cross（产物/中间态落 out/linux-native-cross，
+          # native 工具来自 linux-tools），-march 只经 CFLAGS 进 target 编译。
+          # 归档顶层仍是 gtk-cross-linux-native-x86_64-x86-64-v4：保持旧 v4
+          # 资产名，消费者不需要改。
+          - target: linux-native
+            label: linux-x64 -> linux-x64-v4 (forced cross)
+            variant: " [x86-64-v4]"
+            cflags: "-march=x86-64-v4"
+            cross: true
+            apt: ""
+            asset: gtk-cross-linux-native-x86_64-x86-64-v4
+            archive_root: gtk-cross-linux-native-x86_64-x86-64-v4
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装宿主构建工具与交叉编译器
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git pkg-config ninja-build cmake make \
+            autoconf automake libtool perl nasm gperf bison flex gettext itstool \
+            python3 python3-dev python3-yaml python3-mako python3-packaging \
+            python3-markdown xz-utils zstd \
+            ${{ matrix.apt }}
+          pipx install meson
+          echo "meson    : $(meson --version)"
+          echo "uname -m : $(uname -m)"
+          echo "target   : ${{ matrix.target }}"
+
+      - name: 缓存下载的源码包
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: downloads-cross-${{ matrix.target }}-${{ hashFiles('versions.lock.yaml') }}
+          restore-keys: |
+            downloads-cross-${{ matrix.target }}-
+
+      - name: 下载 native tools
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-cross-tools-linux-x86_64
+          path: dist
+
+      - name: 解包 native tools
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          tar -C out -xf dist/linux-tools.tar.zst
+          test -x out/linux-tools/bin/glib-compile-resources
+
+      - name: 工具链自检（doctor）
+        run: |
+          set -euo pipefail
+          # v4 条目加 --force-cross：doctor 看到的须是构建时同一个合成后
+          # cross 工具链（同架构守卫、目标侧 -march 落地检查才有意义）。
+          doctor_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            doctor_args=(--force-cross)
+          fi
+          PYTHONPATH=. python3 -m gtkcross doctor -t ${{ matrix.target }} \
+            "${doctor_args[@]}"
+
+      - name: 完整交叉编译全部 recipe
+        # v4 的编译参数经环境变量透传（与 Windows job 同一约定）：空串与
+        # 未设置等价（环境指纹取 os.environ.get(k, '')、prelude 用
+        # ${CFLAGS:+…}、cmake 注入判真值，三者对空串都不敏感）。
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+          CXXFLAGS: ${{ matrix.cflags }}
+        run: |
+          set -euo pipefail
+          mapfile -t NAMES < <(python3 -m gtkcross list | tail -n +2 | awk '{print $1}' | sort -u)
+          if [ "${#NAMES[@]}" -eq 0 ]; then
+            echo "::error::recipe 枚举为空，gtkcross list 可能失败或输出格式已变"
+            exit 1
+          fi
+          echo "目标      : ${{ matrix.target }}"
+          echo "变体      : ${{ matrix.variant || '(基线)' }}"
+          echo "recipe 数 : ${#NAMES[@]}"
+          echo "磁盘      :"; df -h . | sed 's/^/  /'
+          # v4 加 --force-cross：Builder 默认跳过测试执行、测试程序构建与
+          # GIR；CFLAGS 只进 target 编译，cross prelude 不导出全局 CFLAGS，
+          # 构建期生成器（native: true）不受影响。
+          build_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            build_args=(--force-cross)
+          fi
+          PYTHONPATH=. python3 -m gtkcross build "${NAMES[@]}" \
+            -t ${{ matrix.target }} -j"$(nproc)" "${build_args[@]}"
+
+      - name: 产物格式与架构检查
+        if: always()
+        run: |
+          set +e
+          # v4（cross）产物在 out/linux-native-cross，与 Windows job 同判据。
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            root="out/${{ matrix.target }}-cross"
+          else
+            root="out/${{ matrix.target }}"
+          fi
+          [ -d "$root" ] || { echo "sysroot 未生成：$root"; exit 0; }
+          echo ".a   : $(find "$root/lib" -name '*.a' | wc -l)"
+          echo ".so  : $(find "$root/lib" -name '*.so*' -type f | wc -l)"
+          echo ".dll* : $(find "$root" -name '*.dll' -o -name '*.dll.a' | wc -l)"
+          echo ".pc  : $(find "$root" -name '*.pc' | wc -l)"
+          echo "bin  : $(find "$root/bin" -type f | wc -l)"
+          # 判别键：mingw/aarch64 按 target 名，v4 条目 target 已复用
+          # linux-native，靠拼接 variant 区分。
+          case "${{ matrix.target }}${{ matrix.variant }}" in
+            linux-mingw-x64|linux-aarch64|*"x86-64-v4"*)
+              f=$(find "$root/lib" -name 'libglib-2.0.so*' -type f | head -1)
+              [ -n "$f" ] && readelf -h "$f" | sed -n 's/^  Machine: */&/p'
+              ;;
+          esac
+          # v4 的 -march 唯一来源是本 job 的 CFLAGS env（与 Windows 相同）。
+          # 漏设不会报错、只会静默产出 baseline ISA，这里断言它确实进了
+          # target 编译参数——meson cross file 的 c_args 与 autotools
+          # configure 前缀同源于 toolchain._target_cflags()。本步骤 set +e，
+          # 失败必须显式 exit 1。
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            if grep -Fq -- "-march=x86-64-v4" build/linux-native-cross/meson-cross.ini; then
+              echo "-march 已进 target 编译参数（meson-cross.ini c_args）"
+            else
+              echo "::error::build/linux-native-cross/meson-cross.ini 未含 -march=x86-64-v4：CFLAGS 漏设，产物将退化为 baseline ISA"
+              exit 1
+            fi
+          fi
+
+      - name: 导出可重定位 sysroot（仅发布 tag）
+        if: success() && env.RELEASE_TAG != ''
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG//\//-}"
+          mkdir -p dist
+          # dist/ 里还有下载下来的 linux-tools.tar.zst；不要把它带进发布资产。
+          rm -f dist/linux-tools.tar.zst
+          out="dist/${{ matrix.asset }}-${tag}.tar.zst"
+          # v4 必须带 --force-cross 导出 out/linux-native-cross；不带旗标会
+          # 找 out/linux-native（本 job 不构建该目录）直接报错。
+          export_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            export_args=(--force-cross)
+          fi
+          PYTHONPATH=. python3 -m gtkcross export -t ${{ matrix.target }} \
+            "${export_args[@]}" \
+            --archive-root "${{ matrix.archive_root }}" \
+            -o "$out" --zstd-level 15
+          ls -lh dist
+
+      - name: 上传 sysroot 归档
+        if: success() && env.RELEASE_TAG != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-cross-sysroot-${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}-*.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: 收集交叉构建诊断（仅失败时）
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtkcross-diagnostics-cross-${{ matrix.target }}
+          path: |
+            gtkcross-events.log
+            gtkcross-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # 发布：Windows（基线 / v3 / v4）与 Linux（native 两架构 + cross）的
+  # sysroot 都作为资产；发布说明里 required 列出的全部归档齐全才创建 Release。
+  # Linux job 同时是同一份 recipe 定义的回归证据。
   release:
     name: publish sysroot release
-    needs: [build, linux]
+    needs: [build, linux, linux-tools, linux-cross]
     if: success() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != ''))
     runs-on: ubuntu-latest
     permissions:
@@ -640,20 +1033,32 @@ jobs:
           TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
-          # 四个 target/架构都必须有归档；少一个就说明矩阵/上传有缺口，
-          # 不要让残缺的 Release 通过。
-          for target in msys2-mingw64 msys2-ucrt64; do
-            if ! compgen -G "dist/gtk-cross-${target}-*.tar.zst" >/dev/null; then
-              echo "::error::缺少 ${target} 的 sysroot 归档"
+          # 资产清单随矩阵变体扩张（基线 / x86-64-v3 / x86-64-v4），完整性
+          # 检查必须**逐份精确**验证：通配符会因"基线名是变体名的前缀"而漏检
+          # （gtk-cross-msys2-ucrt64-* 匹配到 v3 就通过，基线缺失仍会被放过）。
+          # tag 中的 '/' 在构建 job 导出时替换为 '-'（RELEASE_TAG//\//-），
+          # 这里用同一规则构造精确文件名。mingw64 / aarch64 无指令级变体，
+          # 只要求基线一份。
+          tag="${TAG//\//-}"
+          required=(
+            "gtk-cross-msys2-mingw64-${tag}.tar.zst"
+            "gtk-cross-msys2-ucrt64-${tag}.tar.zst"
+            "gtk-cross-msys2-ucrt64-x86-64-v3-${tag}.tar.zst"
+            "gtk-cross-msys2-ucrt64-x86-64-v4-${tag}.tar.zst"
+            "gtk-cross-linux-native-x86_64-${tag}.tar.zst"
+            "gtk-cross-linux-native-x86_64-x86-64-v3-${tag}.tar.zst"
+            "gtk-cross-linux-native-x86_64-x86-64-v4-${tag}.tar.zst"
+            "gtk-cross-linux-native-aarch64-${tag}.tar.zst"
+            "gtk-cross-linux-mingw-x64-${tag}.tar.zst"
+            "gtk-cross-linux-aarch64-${tag}.tar.zst"
+          )
+          for f in "${required[@]}"; do
+            if [ ! -f "dist/$f" ]; then
+              echo "::error::缺少 sysroot 归档：dist/$f"
               exit 1
             fi
           done
-          for arch in x86_64 aarch64; do
-            if ! compgen -G "dist/gtk-cross-linux-native-${arch}-*.tar.zst" >/dev/null; then
-              echo "::error::缺少 linux-native/${arch} 的 sysroot 归档"
-              exit 1
-            fi
-          done
+          echo "归档齐全：${#required[@]} 份（含基线 / x86-64-v3 / x86-64-v4 变体）"
           cp versions.lock.yaml dist/versions.lock.yaml
           (
             cd dist

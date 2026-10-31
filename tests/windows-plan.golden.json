@@ -135,20 +135,20 @@
     },
     "prelude": [
       "export PATH=$SYSROOT/bin:/c/msys64/mingw64/bin:/c/msys64/usr/bin",
-      "export CC='gcc'",
-      "export CXX='g++'",
-      "export PKG_CONFIG='pkg-config'",
-      "export MESON='meson'",
-      "export NINJA='ninja'",
-      "export CMAKE='cmake'",
-      "export MAKE='make'",
-      "export PERL='perl'",
+      "export CC=\"${CC:-gcc}\"",
+      "export CXX=\"${CXX:-g++}\"",
+      "export PKG_CONFIG=\"${PKG_CONFIG:-pkg-config}\"",
+      "export MESON=\"${MESON:-meson}\"",
+      "export NINJA=\"${NINJA:-ninja}\"",
+      "export CMAKE=\"${CMAKE:-cmake}\"",
+      "export MAKE=\"${MAKE:-make}\"",
+      "export PERL=\"${PERL:-perl}\"",
       "export PKG_CONFIG_LIBDIR=\"$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig\"",
       "export PKG_CONFIG_PATH=\"\"",
       "export PYTHONUTF8=\"1\"",
-      "export CPPFLAGS=\"-I$SYSROOT/include\"",
-      "export LDFLAGS=\"-L$SYSROOT/lib\"",
-      "export LIBRARY_PATH=\"$SYSROOT/lib\"",
+      "export CPPFLAGS=\"-I$SYSROOT/include${CPPFLAGS:+ $CPPFLAGS}\"",
+      "export LDFLAGS=\"-L$SYSROOT/lib${LDFLAGS:+ $LDFLAGS}\"",
+      "export LIBRARY_PATH=\"$SYSROOT/lib${LIBRARY_PATH:+:$LIBRARY_PATH}\"",
       "export XDG_DATA_DIRS=\"$SYSROOT/share\""
     ],
     "recipes": {
@@ -970,7 +970,8 @@
         "known_failures": [],
         "libtype": "static",
         "patches": [
-          "libpng-0001-tests-against-static-library.patch"
+          "libpng-0001-tests-against-static-library.patch",
+          "libpng-0002-pngvalid-drop-loop-vectorization.patch"
         ],
         "platforms": [],
         "post_install": [],
@@ -1939,20 +1940,20 @@
     },
     "prelude": [
       "export PATH=$SYSROOT/bin:/c/msys64/ucrt64/bin:/c/msys64/usr/bin",
-      "export CC='gcc'",
-      "export CXX='g++'",
-      "export PKG_CONFIG='pkg-config'",
-      "export MESON='meson'",
-      "export NINJA='ninja'",
-      "export CMAKE='cmake'",
-      "export MAKE='make'",
-      "export PERL='perl'",
+      "export CC=\"${CC:-gcc}\"",
+      "export CXX=\"${CXX:-g++}\"",
+      "export PKG_CONFIG=\"${PKG_CONFIG:-pkg-config}\"",
+      "export MESON=\"${MESON:-meson}\"",
+      "export NINJA=\"${NINJA:-ninja}\"",
+      "export CMAKE=\"${CMAKE:-cmake}\"",
+      "export MAKE=\"${MAKE:-make}\"",
+      "export PERL=\"${PERL:-perl}\"",
       "export PKG_CONFIG_LIBDIR=\"$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig\"",
       "export PKG_CONFIG_PATH=\"\"",
       "export PYTHONUTF8=\"1\"",
-      "export CPPFLAGS=\"-I$SYSROOT/include\"",
-      "export LDFLAGS=\"-L$SYSROOT/lib\"",
-      "export LIBRARY_PATH=\"$SYSROOT/lib\"",
+      "export CPPFLAGS=\"-I$SYSROOT/include${CPPFLAGS:+ $CPPFLAGS}\"",
+      "export LDFLAGS=\"-L$SYSROOT/lib${LDFLAGS:+ $LDFLAGS}\"",
+      "export LIBRARY_PATH=\"$SYSROOT/lib${LIBRARY_PATH:+:$LIBRARY_PATH}\"",
       "export XDG_DATA_DIRS=\"$SYSROOT/share\""
     ],
     "recipes": {
@@ -2772,7 +2773,8 @@
         "known_failures": [],
         "libtype": "static",
         "patches": [
-          "libpng-0001-tests-against-static-library.patch"
+          "libpng-0001-tests-against-static-library.patch",
+          "libpng-0002-pngvalid-drop-loop-vectorization.patch"
         ],
         "platforms": [],
         "post_install": [],

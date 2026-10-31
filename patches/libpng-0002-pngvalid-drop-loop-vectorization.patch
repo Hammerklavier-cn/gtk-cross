@@ -1,0 +1,60 @@
+From: gtk-cross <noreply@localhost>
+Subject: [PATCH] pngvalid: build without the loop vectorizer under GCC 16 + AVX2
+
+GCC 16.2.0（mingw-w64-ucrt64）在 -O3 且目标 ISA 含 AVX2（CI 的
+-march=x86-64-v3 一类）时，会把 pngvalid 的 cexcept.h setjmp/longjmp 错误
+处理编到运行期不稳：同一二进制约 30% 的运行（18/60）在
+ntdll!RtlUnwindEx -> RtlVirtualUnwind2 里 SIGSEGV（longjmp 的 jmp_buf
+目标已被写坏），同批运行的其余则 PASS。pngvalid 的随机种子是静态常量、
+不含 time()，逻辑本身确定，崩不崩取决于内存布局——纯代码生成问题。
+
+2026-10-31 CI 实拍：run 38 的 msys2-ucrt64 [x86-64-v3] job 报
+pngvalid-progressive-interlace-standard "(Failed)"，其余 job 全绿。同
+日志的 12 条 -Wstringop-overflow（"writing 32 bytes into a region of
+size 17"，全部落在 safecat() 的有界拷贝循环上）与崩溃同消同长：仅禁循环
+向量化（-fno-tree-vectorize）时两项一起消失；-fno-tree-slp-vectorize、
+-fno-tree-loop-distribute-patterns、-ffp-contract=off 均无效；同构建
+-O2 或 -march=x86-64-v4 均 0/40。库本体与其余 36 项测试不受影响，故只
+对该测试源关闭循环向量化，不改全局 CFLAGS、不给库降优化等级。
+
+GCC 16.2 之外未求证；pngvalid.c 本就带着 GCC bug 66447（setjmp 作用域
+变量误优化）的 gnu_volatile 兼容写法，这一族代码对 GCC 的优化间隙天然
+敏感。MSVC 不进 GNU 分支，构造不受影响。
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -769,6 +769,34 @@
+   else()
+     set(PNG_TEST_LIBRARY png_framework)
+   endif()
++
++  # GCC 16 (mingw-w64-ucrt64) + -O3 + an AVX2-capable -march such as
++  # -march=x86-64-v3 miscompiles this test program's cexcept.h
++  # setjmp/longjmp machinery.  Measured signature (gcc 16.2.0, MSYS2 UCRT64,
++  # CMAKE_BUILD_TYPE=Release):
++  #   * pngvalid --standard --progressive-read --interlace crashes in ~30% of
++  #     runs (18/60) with no output and a SIGSEGV deep inside
++  #     ntdll!RtlUnwindEx -> RtlVirtualUnwind2, walked from a ucrtbase
++  #     longjmp whose jmp_buf target is bogus; the same binary passes or
++  #     crashes run to run (the test is seeded, not time-based, so this is
++  #     codegen-layout dependent, not logic).
++  #   * The identical build is stable 40/40 with loop vectorization disabled
++  #     (-fno-tree-vectorize), and 0/40 at -O2 or -march=x86-64-v4;
++  #     -fno-tree-slp-vectorize / -fno-tree-loop-distribute-patterns do not
++  #     help.  Only turning off the loop vectorizer does, and with it the
++  #     12 -Wstringop-overflow warnings on safecat()'s bounded copy loop
++  #     ("writing 32 bytes into a region of size 17") vanish as well.
++  #   * The library and the other 36 tests are unaffected: the defect is
++  #     confined to this test's own code.  pngvalid deliberately drives its
++  #     error paths here (make_error et al) and cexcept keeps the jmp_buf in
++  #     a stack frame of the enclosing function.
++  # Keep this TU's loops scalar; test sources only -- the library keeps the
++  # caller's optimization flags.
++  if(CMAKE_C_COMPILER_ID MATCHES "GNU")
++    set_source_files_properties(${pngvalid_sources}
++                                PROPERTIES COMPILE_OPTIONS
++                                           "-fno-tree-vectorize")
++  endif()
+   enable_testing()
+
+   # Include the internal module PNGTest.cmake

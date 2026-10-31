@@ -956,3 +956,387 @@ OpenSSL 并进 curl 之后的链接都还没跑** —— 本轮按约定停在�
 归因于 CI 首跑的 20 项失败）、`configure_cmd` / `prelude` / `bash_argv` / `plans`
 零变化。
 
+## 环境变量透传与指纹失效（2026-10-28）
+
+**需求**：`CC/CXX/CFLAGS/CXXFLAGS/CPPFLAGS/LDFLAGS` 等要能**有效**作用于
+cmake 与 meson 的构建过程（原来"只设置"不生效，逐层原因见下）。配套文档：
+README「自定义编译参数」一节；单测 `tests/test_env_flags.py`（16 项）。
+
+**改前失效的三个层次**（每层都独立地让用户设置落空）：
+
+1. **prelude 覆盖**：`export CC='gcc'` 等把调用方的 CC/CXX 整体盖掉；
+   `export CPPFLAGS="-I$SYSROOT/include"`、`LDFLAGS=...`、`LIBRARY_PATH=...`
+   也是覆盖式——用户加的参数全被丢弃（只是"传进了构建环境"而已，值已被换）。
+2. **cmake 不读 CPPFLAGS**：CMake 从环境只取 CFLAGS/CXXFLAGS/LDFLAGS（且只在
+   首次 configure 落缓存），CPPFLAGS 完全不看——用户放 CPPFLAGS 里的参数对
+   cmake 包无效（libxml2 FindIconv 探测不对称同根，见 platform-notes 第 9 条）。
+3. **configure 后固化 + stamp 跳过**：meson 只在**首次 setup** 读环境
+   （`_set_default_options_from_env` 的 `if self.first_invocation:`，之后
+   reconfigure 也忽略 env 变化），参数固化进 build 目录；而框架的
+   `done/*.stamp` 让已配好的包直接跳过 configure——改了环境变量重跑 build，
+   既不会重配也不会用新参数。
+
+**改法**（都在框架层，recipe 零改动）：
+
+1. **prelude 加性导出**（toolchain.py）：tools 循环改 `${VAR:-默认}`（只有未设置
+   才落默认值）；CPPFLAGS/LDFLAGS/LIBRARY_PATH 改 `${VAR:+ $VAR}` 追加，sysroot
+   参数保持在最前（hermetic 优先，用户的 -I/-L 排后）。
+2. **cmake 显式注入**（engines.py CmakeEngine）：调用方设置了任一相关变量时，
+   在 configure 命令里注入 `-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS"`、
+   `-DCMAKE_CXX_FLAGS="$CXXFLAGS $CPPFLAGS"`、EXE/SHARED/MODULE 三个
+   `LINKER_FLAGS="$LDFLAGS"`（bash 内展开，含 prelude 合并进的 sysroot 参数）。
+   **未设置任何变量时注入为空，命令与旧版逐字节相同**（这点由 golden 守住）。
+3. **环境指纹失效**（builder.py）：`_ENV_TRACKED` 11 个变量算 sha256 指纹，
+   存 `done/env-fp.stamp`；每次 build_recipe 先比对，变了就删 `build/` 目录
+   （meson 的 coredata / cmake 的 CMakeCache 必须连目录删，光删 stamp 无效——
+   记忆里反复踩过的坑）与全部阶段 stamp，autotools 另删 src 里
+   `config.cache/config.status/config.log`（configure 带 -C，缓存会复用旧探测）。
+   旧框架建的无指纹 workspace 首次构建也强制重配（保守：不知道当时用的什么参数）。
+   data 引擎跳过（纯拷贝无编译参数）。
+
+meson 侧**不需要**引擎改动：meson 首配本来就读环境变量（CFLAGS/CXXFLAGS/
+CPPFLAGS → c_args、LDFLAGS → link_args），指纹失效保证 env 变化后 setup 会重跑，
+就把这条链路补完整了。
+
+**连带修的一个快照问题**：`capture_plan` 原来不清 `_ENV_FLAG_VARS`，宿主残留的
+CFLAGS 会让 golden 失配；另外 `bash_argv` 里的 msys2 bash 路径 `str(Path(...))`
+在 Windows 宿主生成反斜杠、Linux 生成正斜杠，golden 随生成平台漂移——`_rel()`
+现在把 `\` 归一为 `/`。重新生成后 golden 差异**只有** prelude 22 行
+（11 行 × 2 个 Windows 目标），configure_cmd/plans/bash_argv 零变化（环境未设置
+时的命令逐字节保持——这正是"默认行为不变"的证明）。
+
+**验证**：单测 77 → 93（`test_env_flags.py` 16 项：指纹稳定性/变化、prelude 加性、
+cmake 注入三态、指纹失效四态含 data 跳过与 autotools 缓存清理）。
+
+**真机冒烟（msys2-ucrt64，zlib 1.3.2，cmake 引擎）**，正好踩中"旧框架构建的
+无指纹 workspace"迁移路径：
+1. 旧 workspace（有 configure/compile/install stamp、无 env-fp.stamp）带上
+   `CFLAGS="-O2 -march=x86-64-v2"` 首跑 → 报 `[env] zlib: 编译参数环境变化，
+   废弃缓存重新 configure`，重新 configure/install；
+2. `CMakeCache.txt` 里 `CMAKE_C_FLAGS=-O2 -march=x86-64-v2
+   -I…/out/msys2-ucrt64/include` —— 用户参数与合并进来的 sysroot -I 都进了
+   CMake 缓存，非仅打印；
+3. 同环境重跑 → configure/compile/install 全部 `[skip]`（指纹匹配，幂等）；
+4. 撤销 CFLAGS 重跑 → 再次 `[env]` 触发重配，`CMAKE_C_FLAGS` 恢复为空
+   （回到默认），sysroot 不残留自定义参数。
+
+## CI 编译参数变体与 --no-test（2026-10-28）
+
+**需求**：发布时想给外部消费者**基线 / x86-64-v3 / x86-64-v4 三份** sysroot
+资产，同时 CI 不能因 runner CPU 缺指令级而跳过 v4 的**构建**。
+
+**关键事实**（决定设计的依据）：
+- `-march=x86-64-v4` 含 **AVX-512**；gcc **编码**这些指令不需要目标 CPU 支持
+  （-march 只影响指令选择），但**运行** v4 编译的程序会 SIGILL。
+- GitHub 托管 runner **不承诺** AVX-512（actions/runner#1069 官方口径
+  "DS2V2 Azure VM doesn't support AVX512"；community#183550 长期跟踪）。
+  x86-64-v3（AVX2/BMI/FMA）则全线满足——社区甚至专门维护了
+  "GitHub-Actions-X86-64-v3" 这类仓库证明 v3 可用。
+- 本项目的"编译检查"隐含跑自带测试（configure 后自动 meson test/ctest），
+  而 v4 测试程序在无 AVX-512 的 CPU 上必然 SIGILL——所以**测试**不能硬跑。
+
+**设计**（`.github/workflows/ci.yml`）：
+> 2026-10-30 更新：Windows 的 v4 已改为 `msys2-ucrt64 --force-cross`。
+> 探针方案只处理测试执行，管不到 Meson `native: true` 的构建期生成器；
+> 以下 Windows 原生 v4 部分保留为历史记录，现行设计见下一节。
+
+- 矩阵变体：基线（无 CFLAGS/CXXFLAGS）+ v3 + v4，只挂 x86_64 可跑的
+  target（Windows 侧 msys2-ucrt64、Linux 侧 linux-native/x86_64；mingw64 与
+  aarch64 保持基线——CRT 差异/架构与指令级别正交，避免 CI 时长翻倍）。
+  cflags 经构建步骤的 `env: CFLAGS/CXXFLAGS` 透传，基线空串与未设置等价。
+- **AVX-512 探针步骤**（仅 v4 变体，`if: matrix.cflags == '-march=x86-64-v4'`）：
+  编译并**实际运行**一个强制 AVX-512 指令的小程序，`supported=yes/no` 写
+  `$GITHUB_OUTPUT`。用真实执行而不是读 /proc/cpuinfo：探针程序本身就是
+  "v4 测试程序能不能跑"的最小复现，判定与测试同构。
+- **构建照常、测试条件化**：v4 且探针 no → 构建命令追加 `--no-test`（资产
+  照常导出发布，"未跑测试的 v4 sysroot"）；v4 且探针 yes / v3 / 基线 →
+  完整构建 + 测试。探针不过时打 `::warning` 明示，不把环境差异伪装成失败。
+- 发布资产带变体后缀：文件名与 `--archive-root` 都带（基线空串 → 与旧行为
+  逐字节一致），三份同类资产解包互不覆盖；release job 的完整性检查从"通配
+  符匹配任意一份"改为**逐份精确**验证 8 个文件（基线名是变体名的前缀，通配
+  会漏检基线缺失）。
+
+**框架新增 `--no-test`**（`gtkcross/cli.py` + `builder.py`）：
+`Builder(skip_tests=True)` 时 `_apply_test` 直接返回，configure/compile/install
+照常。与既有 `--ignore-test-failures` 的区别：后者**仍执行**测试命令只是失败
+不中断（无 AVX-512 的机器上会得到满屏 SIGILL 噪音，且耗时）；前者连命令都不
+发。单测 93 → 96（`tests/test_no_test.py`）。
+
+**验证**：YAML 解析通过（矩阵 4+5+release 条目齐全）；96 项单测全绿（golden
+不受影响：capture 本就走清空环境变量的路径）；真机 zlib 冒烟 `--no-test`：
+configure/compile/install 照常 `[skip]` + `[skip] test（--no-test）`。
+
+## 2026-10-28 交叉编译支持
+
+新增 `linux-mingw-x64`、`linux-aarch64`、`linux-x64-v4` 三个 cross 目标，以及
+仅给 cross 提供构建工具的 `linux-tools`；`linux-native` 增加
+`--force-cross`（同架构强制 cross 语义，产物落 `out/linux-native-cross`）。
+
+**机制**：
+- Builder 生成 Meson cross-file 与 CMake toolchain file；autotools 用
+  `--host/--build` 不同三元组。target flags 只进 target 编译，native 工具
+  来自 `out/linux-tools`。
+- Meson cross **不读环境 CPPFLAGS**：必须把 `-I<target-sysroot>/include`
+  写进 cross-file `c_args/cpp_args`；CMake 同理。首次 smoke 的失败签名正是
+  glib 的 `undefined reference to libiconv_open`（探测命中了宿主
+  `/usr/include/iconv.h`）。
+- 只给 cross-file 不够：GTK 用 `dependency('gio-2.0', native: true)` 取
+  glib-compile-resources / glib-mkenums，native pkg-config 默认仍命中 target
+  sysroot，于是解析到 target 二进制。现在额外生成 Meson native-file，把
+  native pkg-config 指向 `linux-tools` 的 `.pc`；GTK/libadwaita/pango/
+  gstreamer/gdk-pixbuf 的构建日志已复查为 `out/linux-tools/bin/...`。
+- Meson 的 `cc.has_function()` / `cc.find_library()` 链接检查**既不用**
+  `c_link_args`，也会过滤 `c_args` 里的 `-L`；Windows glib 的 intl 探测因此
+  报 `cannot find -liconv`，最终触发 `libintl.type_name() == 'internal'`
+  assert。修复是把 `-L<target-sysroot>/lib` 放进 cross-file 的 `c`/`cpp`
+  编译器 argv（`c = ['x86_64-w64-mingw32-gcc', '-L…']`），这样 checker 的
+  每条编译/链接命令都带搜索路径。
+- cross 默认关 GIR/typelib、测试程序构建和 post_install；需要这些的消费者
+  用同 OS/ABI 的基线资产，或提供能执行目标二进制的 exe_wrapper。
+- target 侧 `gobject-introspection` 在 cross 中整体跳过：上游无条件用目标
+  编译器编 `_giscanner` Python 扩展，却拿宿主 `Python.h`，aarch64/Windows
+  必然失败（同 arch 的 v4 只是碰巧 pyconfig 路径存在）。cross 资产本来不含
+  GIR，native tools 前缀仍有原生 g-i，故直接 `_CROSS_SKIP_RECIPES` 剔除。
+- `shared-mime-info -Dupdate-mimedb=true` 会执行目标 `update-mime-database`；
+  cross 下改成 false，并在 install 后用 native tools 里的同名工具生成
+  `mime.cache`（数据与架构无关）。
+- `adwaita-icon-theme` 的 Meson install script 也会执行 target
+  `gtk4-update-icon-cache`（框架的 post_install 跳过管不到它）；cross-only
+  补丁在 `meson.is_cross_build()` 时跳过缓存生成，GTK 运行期自行扫目录。
+- `appstream` 只是全量枚举带进来的独立包（libadwaita 1.10 已 vendored
+  ministream），cross setup 要求 native appstream；cross 资产没有消费者，
+  放进 `_CROSS_SKIP_RECIPES` 跳过。
+- CMake cross 的 `try_run` 用固定失败的 `cross-no-run.sh` 作为
+  `CMAKE_CROSSCOMPILING_EMULATOR`，避免 configure 直接 exec 目标码。
+
+**Linux v4 资产改由 cross 产出**：native v4 的 `g-ir-scanner` dumper 会在
+无 AVX-512 的 runner 上 SIGILL；`linux-x64-v4` 用 `needs_exe_wrapper=true`
+的 cross 构建，构建期不执行 v4。Windows UCRT v4 起初仍走原生 job；该路线
+在 fribidi 构建期生成器上失败，已于 2026-10-30 改为
+`msys2-ucrt64 --force-cross`（见下一节）。
+
+**宿主工具缺口**：`linux-tools` 的 native `gobject-introspection` 在容器里
+首次失败于 `Program 'flex win_flex' not found`；CI 的 Linux / linux-tools /
+linux-cross 宿主清单已显式补 `bison flex`，不再依赖 runner 镜像的隐式包。
+
+**本地验证**：`linux-tools` 33 recipe 通过；`linux-x64-v4` 的 `glib-base`
+（6 recipe）与 `gobject-introspection` 闭包（23 recipe）通过，产出 ELF
+x86-64 且编译命令带 `-march=x86-64-v4`；完整 `libadwaita` 闭包通过，并
+复查所有 Meson 日志不再解析 target 的 glib tools。g-i 的 target 侧在
+cross 中已整体跳过。
+
+`linux-aarch64` 在 Ubuntu 24.04 容器里 **69 recipe 全链通过**（跳过 target
+g-i/appstream），`libgtk-4.so` 实测 `ELF64 AArch64`，`libvpx.a`/`libssl.a`
+也由 target 编译。`linux-mingw-x64` 在同一容器跑到 `gst-plugins-bad` 通过；
+GTK 阶段被 mingw-w64 11 的 `rpcndr.h`/DirectX-Headers 版本不匹配挡住，
+不是代码问题：CI cross job 已固定 `ubuntu-26.04`（mingw-w64 13），并给
+`doctor` 加了 `d2d1_3.h` 预检，旧头文件会直接报可操作错误。
+
+
+## 2026-10-30 Windows x86-64-v4 用 `--force-cross`（修正 10-28 的设计）
+
+**失败现象**：CI `build (msys2-ucrt64 [x86-64-v4])` 在 fribidi 1.0.16 的
+`gen-bidi-type-tab.exe` / `gen-joining-type-tab.exe` 上 exit 3221225501
+（`0xC000001D` STATUS_ILLEGAL_INSTRUCTION）。`--no-test --no-introspection
+--no-test-build` 只关测试执行、测试程序构建与 GIR，管不到 Meson
+`native: true` 的构建期生成器；原生 Windows 构建的 CFLAGS 是全局的，
+`-march=x86-64-v4` 也编进了这些生成器，无 AVX-512 的 runner 一运行就 SIGILL。
+
+**修复**：复用 `msys2-ucrt64`，把 `--force-cross` 扩展到 Windows 宿主：
+
+- `Builder` 去掉 Linux-only 限制；Windows 上仍要求 target/build 同 arch；
+- `host_triple` 用工具链已有的 `x86_64-w64-mingw32`，`build_triple`
+  内部补 `x86_64-pc-msys`（不暴露 triple/arch 配置）；
+- Meson native file 显式写 `c = gcc` / `cpp = g++`（MSYS2 没有 cc 别名）；
+- target flags 继续由 `CFLAGS`/`CXXFLAGS` 传入，只进 cross file；
+  `native: true` 生成器用 build machine 的 baseline 编译器；
+- recipe 新增 `for: [cross]` 选择器，只匹配 cross（含 `--force-cross`）；
+  adwaita 的 icon-cache 补丁与 expat 的 `EXPAT_BUILD_TESTS=OFF` 不再按
+  三个精确 cross target 名枚举；
+- target 产物落 `out/msys2-ucrt64-cross`；同架构 `--force-cross` 默认把
+  baseline `out/msys2-ucrt64` 当作 build machine 工具前缀（可用
+  `--native-sysroot` 覆盖）。CI v4 job 先编 `glib-base gdk-pixbuf
+  shared-mime-info shaderc`（23 recipe），再编 v4 全链；
+- `doctor`/`env` 也接受 `--force-cross --native-sysroot`；`export
+  --force-cross` 导出 `out/msys2-ucrt64-cross`；
+- machine file 在 Windows 宿主里用 `C:/...`（Meson/CMake 是原生程序，不认
+  bash 的 `/c/...`）；native pkg-config 的 `PKG_CONFIG_LIBDIR` 用分号；
+- 发布资产名仍是 `gtk-cross-msys2-ucrt64-x86-64-v4-<tag>.tar.zst`。
+
+**验证**：用最小 Meson 工程实测（本机 Linux，cross file hostcc / native
+file buildcc）：`native: true` 目标只调用 buildcc，host 目标才调用 hostcc；
+`CFLAGS=-DPROBE_V4` 只出现在 hostcc 命令行，buildcc 完全没有。`test_cross.py`
+增加 Windows `--force-cross` 的 cross file / native file / triple 断言，
+单测全绿；Windows CI 尚未跑，等首次 job 结果确认。
+
+## 2026-10-31 libvpx 汇编事故与 Linux v4 统一到 `--force-cross`
+
+**事故**：CI `cross (linux-x64 -> linux-x64-v4 (forced cross))` 构建 libvpx
+1.17.0 失败：`vpx_ports/emms_mmx.asm.o` 报 `elf64: can't open elf64 for
+reading` + 一串 `no such instruction`。签名即答案——实际执行的汇编命令是
+`as -f elf64 …`：GNU as 把 `-f` 当自己的 fast 选项，`elf64` 成了输入文件名。
+
+**根因**：`toolchains/linux-x64-v4.yaml` 的 `tools:` 声明了 `as: as`，prelude
+把每个 tools 键大写导出（toolchain.py），即每条命令前都有
+`export AS="${AS:-as}"`。libvpx 的手工 configure 只在 `AS` 为空/`auto` 时才
+探测 nasm→yasm（build/make/configure.sh 的 x86 分支），环境里已有 `AS` 就
+直接采用并跳过探测；Linux 分支随后 `add_asflags -f elf64`，于是 GNU as 拿
+yasm 的参数格式去编 nasm 语法的 .asm。三个条件同时成立才炸：x86 目标 +
+Linux 侧未传 `--as` + 环境预设了 `AS`——linux-native（不导出 AS → auto 选
+nasm）、linux-aarch64（`--target=arm64-linux-gcc` 走 ARM gas 分支）、
+windows 家族（recipe 钉死 `--as=nasm`）都不满足。CI 其实装了 nasm
+（ci.yml 安装清单）。
+
+**修复**：从 linux-x64-v4 的 tools 删除 `as: as`——同架构下宿主 as 即目标
+as，导出纯冗余，删除即恢复 auto 探测；单测
+`test_prelude_as_export_follows_arch_relation` 把"同架构不导出 / 异架构必须
+导出 target binutils"两头钉死。
+
+**统一**：事故的深层原因是 `linux-x64-v4.yaml` 整份 tools/env 是
+linux-native 的复制品——复制品就会漂移。逐项比对确认 `linux-native
+--force-cross` 在 x86_64 宿主上与专用 target 等价：合成的
+`x86_64-unknown-linux-gnu`/`x86_64-pc-linux-gnu` 与静态值逐字节相同、native
+前缀同为 `out/linux-tools`（gtk-cross.yaml 的 `cross_prefix`/`native_target`
+早已备好）、`_CROSS_SKIP_RECIPES` 与 recipe 选择器归属一致、CFLAGS 在环境
+指纹里（builder._ENV_TRACKED）。故删除专用 toolchain 文件与 target 注册，
+Linux v4 与 Windows v4 统一为 `--force-cross` + CFLAGS 机制：CI linux-cross
+矩阵条目改 `target: linux-native` + `cflags: "-march=x86-64-v4"` +
+`cross: true`，doctor/build/export 三步都带条件 `--force-cross`（export
+不带会去找不存在的 `out/linux-native` 直接报错），产物落
+`out/linux-native-cross`；归档顶层与资产名不变，release 校验零改动。
+
+**取舍**：专用 target 的好处是不带环境变量也能编出 v4；统一后 `-march`
+完全依赖 CFLAGS，漏设会**静默**产出 baseline ISA（指纹不会报错）。兜底：
+linux-cross 的产物检查步骤断言 `build/linux-native-cross/meson-cross.ini`
+含 `-march=x86-64-v4`（cross file c_args 与 autotools configure 前缀同源于
+`_target_cflags()`）。`linux-aarch64`/`linux-mingw-x64` 是真交叉（异架构/
+异 OS），受 builder 的同架构守卫约束，专用文件保留。
+
+
+## CI 修复：pngvalid 在 x86-64-v3 变体下随机 SIGSEGV（2026-11-01）
+
+### 现象
+
+`build (msys2-ucrt64 [x86-64-v3])` job（PR feat/flags-support，run 38 =
+41111804771）：libpng 构建与 install 全部成功后，37 项 ctest 里
+`pngvalid-progressive-interlace-standard`（`--standard --progressive-read
+--interlace`）报 `(Failed)`，"97% tests passed, 1 tests failed"。同一个
+run 里凡是真正跑了测试的 job 全绿：基线 msys2-ucrt64、msys2-mingw64、
+linux-native 双架构、linux x86-64-v3；x86-64-v4 走 `--force-cross` 不执行
+测试，没有对照样本。
+
+日志里另一条当时无法定性的线索：pngvalid.c 有 12 条
+`-Wstringop-overflow`（"writing 32 bytes into a region of size 17"，
+`char message[256]`、偏移区间 `[239,256]`）。后文证实它与失败同源。
+
+### 定位
+
+**本机复现**：本机与 CI 同版本 gcc 16.2.0（UCRT64），同一套 cmake configure
+与 defines，同一源码树，`CFLAGS=-march=x86-64-v3` 重编 pngvalid 后：同一
+二进制连跑 60 次有 18 次 SIGSEGV、**零输出**（summary 行都来不及打印），
+其余 42 次 PASS。参数逐字节相同、去掉 `-march` 的基线构建 65/65 全过。
+问题因此收窄到 `-march=x86-64-v3` 进入 **pngvalid 测试程序自身**的代码
+生成，而不是 CI runner 环境或库本体。
+
+**崩溃指纹（gdb）**：
+
+- SIGSEGV 落在 `ntdll!RtlUnwindEx → RtlVirtualUnwind2`，由
+  `ucrtbase!longjmp` 调出；`bt` 溯源到 `make_error.constprop` ← `main`。
+  pngvalid 的错误路径是**故意**触发的（`make_error` 验证 png_error 的
+  行为），其 Try/Catch 用的是 `contrib/visupng/cexcept.h`，jmp_buf 就
+  放在**栈上局部数组** `exception__env` 里。
+- 在 `longjmp` 入口断点收集：通过的几次 `rcx`（jmp_buf 指针）都是栈地址
+  （`0x5fef30`、`0x5fec00`）；崩溃那一次 `rcx = 0x7ffadeae0161` ——是
+  **ntdll 的代码地址**，不是任何曾经初始化过的 jmp_buf。
+- 解栈从当前 rsp 往上走，越过栈区顶端（StackBase ≈ `0x600000`）读取
+  → 无映射 → 段错误。
+- 同一份 jmp_buf 里仍有合法 `.text` 地址（如 `jb[10] = 0x7ff7a4c13ba1`），
+  说明目标是**被篡改过的栈内容**，不是纯野指针。
+
+这些都指向：pngvalid 自己的栈帧内存被写坏，jmp_buf（或异常链指针）被
+覆盖 → longjmp 以非法目标 → NT 解栈越界 → SIGSEGV。非确定性来自"写坏的
+是哪个相邻对象"，它随 ASLR / 栈布局 / 页边界变化——测试本身是固定种子
+（`make_random_bytes` 的静态 seed，不含 `time()`），逻辑是确定性的。
+
+**隔离矩阵**（Release 构建；崩溃数/运行数）：
+
+| 测试程序 flags                              | libpng 静态库 | 崩溃率   |
+| ------------------------------------------- | ------------- | -------- |
+| 基线（无 `-march`）                         | 基线          | 0/40、0/60 |
+| `-march=x86-64-v3`                          | v3            | **18/60** |
+| `-march=x86-64-v3`                          | 基线          | 5/40     |
+| 基线                                        | v3            | 0/40     |
+| `-march=x86-64-v3` `-O2`                    | v3            | 0/40     |
+| `-march=x86-64-v3` `-fno-tree-vectorize`    | v3            | 0/40、**0/60** |
+| `-march=x86-64-v3` `-fno-tree-slp-vectorize`| v3            | 19/60    |
+| `-march=x86-64-v3` `-fno-tree-loop-distribute-patterns` | v3 | 18/60 |
+| `-march=x86-64-v3` `-ffp-contract=off`      | v3            | 12/40（排除 FMA 假说） |
+| `-march=x86-64-v4`                          | v3            | 0/40（AVX-512 带掩码存储，未触发） |
+
+**根因结论**：只有 `-O3` + AVX2 目标 ISA + **循环向量化**的组合会崩；SLP
+向量化、loop-distribute-patterns、FMA 均无关（各自单独禁用后照样崩）。
+肇事者是 pngvalid.c 里**某个**被循环向量化后的循环——不是 `safecat()`：
+单独给 safecat 一家加函数级 `-fno-tree-vectorize`、其余循环保持 v3 向量化
+时，同参数仍 21/80 崩溃；只有全测试单元关掉循环向量化才归零。具体是哪
+一条循环在指令粒度上未被钉死，但两个体检事实是一致的：
+
+- GCC 对这段代码的 `-Wstringop-overflow`（12 条）是"分析层"产物：把
+  safecat/调用点形状单独提到探针里（`noinline` + 栈 canary，可复现到
+  警告），告警声称的 32 字节越界写在运行时**不发生**（canary 完好，
+  `pos = 255` 正常收口），且同样的告警在 `-O2`/`-march=x86-64-v4` 下
+  不出现。警告与崩溃同消同长只是"都由循环向量化开关触发"，不能把警告
+  直接当成肇事写。
+- 崩溃现场（gdb）：ST 的 `pm.this.exception_context`（全局 png_store）
+  的 penv 指针槽在崩溃前的 477 次全部为正常 Try/Catch 流动值
+  （watchpoint 跟踪），故真实的错写发生在**帧内 jmp_buf 内容**或与
+  解栈相关的相邻栈域。签名指向"某条向量化发射的写走到
+  cexcept jmp_buf 所在的栈区"或对 setjmp 作用域变量的错误处理——
+  后者是 GCC 自古以来（bug 66447，"all versions of GCC seem
+  broken"）的家族。
+
+**为什么 Linux 全绿不是侥幸**：pngvalid 的 `longjmp` 在 glibc 下只还原
+寄存器，不经过 Windows 独有的 `RtlUnwind`/异常目录解栈；同样的内存篡改在
+Linux 上即使发生也**不可能**在解栈器里崩——而 Windows 侧恰恰在解栈路径上
+（上述崩溃现场），所以"签名只在 PE 上可见"。Linux x86-64-v3 job 37/37
+仍然全过，据此不能反推 Windows v3 也该过。
+
+### 修复
+
+`pngvalid.c` 是 libpng 全树**唯一**使用 cexcept 的测试源（grep 证实）。
+框架的 CFLAGS 管线把 CI 的全局 CFLAGS 喂给 cmake 的 `-DCMAKE_C_FLAGS`，
+这里不碰它：在 libpng 自身 CMakeLists.txt 的测试段（补丁内）加一个
+GNU 判定，只对 `${pngvalid_sources}` 关闭循环向量化（注意"单元"而非
+单个函数——函数级 `__attribute__((optimize(...)))` 实测不足以根除，
+且 GCC 16 已弃用 per-function 属性这条路）：
+
+- 新补丁：`libpng-0002-pngvalid-drop-loop-vectorization.patch`
+- 接线：`recipes/libpng.yaml`（base `patches:`，两个平台同打）
+- 归属说明：`patches/README.md`「跨平台」表
+
+MSVC 不经过 GNU 分支，构造不受影响。库的 28 个编译单元与 CI 的 CFLAGS
+逐字节不变（仍 `-march=x86-64-v3 -O3 -DNDEBUG`），其余 6 个测试程序
+同样不动。
+
+### 验证（全新源码树 + CI 等价参数）
+
+- 两个补丁 + `-DCMAKE_C_FLAGS="-march=x86-64-v3"`：崩溃测试连跑
+  **200/200 全过**（修复前同条件 5/40–18/60）；
+- `ctest -j4` 两轮：**37/37**，其余 36 项对 `-fno-tree-vectorize` 无回归；
+- 构建输出 `-Wstringop-overflow` 从 12 条降为 **0**；
+- build.ninja 里 FLAGS 分布：28 个文件保持
+  `-march=x86-64-v3 -O3 -DNDEBUG`，仅 pngvalid 一家多出
+  `-fno-tree-vectorize`。
+
+### 备考
+
+- 不把该测试登记进 `known_failures`：它不是环境瞬时问题，本地同参数必现
+  （崩溃率 30% 量级），基线构建同样零失败，没有豁免的理由。
+- pngvalid.c 自带 GCC bug 66447（setjmp 作用域变量误优化）的
+  `gnu_volatile` 兼容修法——这一族代码对 GCC 的优化间隙天然敏感，回归
+  任一优化点最先在它上面现形。上游（pnggroup/GCC）此次未另行提交；
+  `-fno-tree-vectorize` 只是 scope 很窄的测试侧编译选项，GCC 后续修好
+  或换更稳的 16.3 之后，该补丁最多变成无害冗余。
+- 与本仓库其它"Windows 工具链 + PE/ABI 特有行为"的先例（gcc/bfd 的 TLS
+  callback 家族 bug、cairo_win32_tls_callback 事故）同属一类：在同一份
+  上游代码上，工具链差异足以改变可执行代码的稳定性，修复点必须落在"让
+  目标组合下的代码生成保持确定性"，而不是换环境。

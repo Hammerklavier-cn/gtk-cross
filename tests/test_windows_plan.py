@@ -36,9 +36,23 @@ ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = Path(__file__).resolve().parent / "windows-plan.golden.json"
 WINDOWS_TARGETS = ("msys2-mingw64", "msys2-ucrt64")
 
+# 与 gtkcross/builder.py 的 _ENV_TRACKED 保持一致：这些变量会改变
+# configure 命令行（cmake 的 -DCMAKE_C_FLAGS 注入、prelude 的加性导出），
+# 捕获期间必须清空，否则宿主环境（CI/开发机）里残留的 CFLAGS 等会让快照漂移。
+_ENV_FLAG_VARS = (
+    "CC", "CXX", "AR", "RANLIB", "NM", "STRIP",
+    "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LIBRARY_PATH",
+)
+
 
 def _rel(text: str) -> str:
-    """把项目根目录归一化掉，使快照在不同检出路径下可比。"""
+    """把项目根目录归一化掉，使快照在不同检出路径下可比。
+
+    反斜杠统一转正斜杠：bash_argv 里的 msys2 bash 路径由 `str(Path(...))`
+    生成，Windows 宿主上是反斜杠、Linux 宿主上是正斜杠——不归一化的话同
+    一份代码在两个平台生成的 golden 逐字节不同（CI 上必失配）。
+    """
+    text = text.replace("\\", "/")
     return text.replace(posix(ROOT), "@ROOT@").replace(str(ROOT), "@ROOT@")
 
 
@@ -51,15 +65,22 @@ def capture_plan(target: str) -> dict:
         断言语义；
       * GTKCROSS_TEST_WRAPPER：linux job 用它给测试命令加 xvfb 前缀，而快照校验
         的是"命令串与目标定义一致"，不该随宿主环境变化 → 捕获期间清空。
+    另外清空编译参数环境变量（_ENV_FLAG_VARS）：这些变量参与 configure 命令
+    的生成（prelude 加性导出 / cmake 显式注入），宿主环境残留会让快照失配，
+    也会让本机生成的 golden 与 CI 生成的 golden 不一致。
     """
     project = ProjectConfig.load(ROOT)
     builder = Builder(project, target, jobs=1)
     saved_wrapper = os.environ.pop("GTKCROSS_TEST_WRAPPER", None)
+    saved_flags = {k: os.environ.pop(k, None) for k in _ENV_FLAG_VARS}
     try:
         return _capture_plan(project, builder, target)
     finally:
         if saved_wrapper is not None:
             os.environ["GTKCROSS_TEST_WRAPPER"] = saved_wrapper
+        for k, v in saved_flags.items():
+            if v is not None:
+                os.environ[k] = v
 
 
 def _capture_plan(project, builder, target: str) -> dict:

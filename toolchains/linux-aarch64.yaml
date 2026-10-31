@@ -1,0 +1,39 @@
+# Linux x86_64 宿主 -> Linux aarch64 (glibc) 交叉工具链。
+#
+# 与 linux-native 的区别：host 与 target 的 OS 族相同（linux），但 arch
+# 不同；autotools 必须收到不同的 --host/--build 才会进入 cross 模式，
+# Meson 走 cross-file，CMake 走 toolchain file。
+#
+# 目标侧依赖全部自建到 out/linux-aarch64；native 构建工具来自 linux-tools。
+# 目标 glibc/CRT 由交叉工具链包提供（对应 Windows 的 mingw-w64 CRT）。
+name: linux-aarch64
+host: linux
+cross: true
+platform: linux
+target_os: linux
+target_arch: aarch64
+build_arch: x86_64
+description: "Linux x86_64 host -> Linux aarch64 (glibc) cross"
+host_triple: aarch64-linux-gnu
+build_triple: x86_64-pc-linux-gnu
+tools:
+  cc: aarch64-linux-gnu-gcc
+  cxx: aarch64-linux-gnu-g++
+  ar: aarch64-linux-gnu-ar
+  ranlib: aarch64-linux-gnu-ranlib
+  nm: aarch64-linux-gnu-nm
+  strip: aarch64-linux-gnu-strip
+  objcopy: aarch64-linux-gnu-objcopy
+  # libvpx 的 setup_gnu_toolchain 用 ${CROSS}as / ${CROSS}ld；CROSS 为空时
+  # 会落到宿主 as/ld。显式导出 target binutils。
+  as: aarch64-linux-gnu-as
+  ld: aarch64-linux-gnu-ld
+  pkg_config: pkg-config
+  meson: meson
+  ninja: ninja
+  cmake: cmake
+  make: make
+  perl: perl
+env:
+  PKG_CONFIG_LIBDIR: "$SYSROOT/lib/pkgconfig:$SYSROOT/share/pkgconfig"
+  PKG_CONFIG_PATH: ""
