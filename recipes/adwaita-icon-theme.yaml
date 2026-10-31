@@ -1,7 +1,7 @@
 name: adwaita-icon-theme
-version: 49.0
+version: 51.0
 source:
-  url: https://download.gnome.org/sources/adwaita-icon-theme/49/adwaita-icon-theme-49.0.tar.xz
+  url: https://download.gnome.org/sources/adwaita-icon-theme/51/adwaita-icon-theme-51.0.tar.xz
 build: meson
 deps:
   # 只为 post_install 的图标缓存工具 gtk4-update-icon-cache；主题本身不链接

@@ -1,7 +1,7 @@
 name: libxmlb
-version: 0.3.28
+version: 0.3.29
 source:
-  url: https://github.com/hughsie/libxmlb/releases/download/0.3.28/libxmlb-0.3.28.tar.xz
+  url: https://github.com/hughsie/libxmlb/releases/download/0.3.29/libxmlb-0.3.29.tar.xz
 build: meson
 deps:
   - glib

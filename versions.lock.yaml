@@ -1,71 +1,71 @@
 adwaita-icon-theme:
-  sha256: 65166461d1b278aa942f59aa8d0fccf1108d71c65f372c6266e172449791755c
-  url: https://download.gnome.org/sources/adwaita-icon-theme/49/adwaita-icon-theme-49.0.tar.xz
-  version: '49.0'
+  sha256: ba561cf3c96305a47179fa5605856ad695c9238ea07f7093aebd9ba80c4e323b
+  url: https://download.gnome.org/sources/adwaita-icon-theme/51/adwaita-icon-theme-51.0.tar.xz
+  version: '51.0'
 appstream:
-  sha256: f9b79193d2620474bb48d0cd32abd76e002939fce3daa991a1b60642eecbb67f
-  url: https://github.com/ximion/appstream/archive/refs/tags/v1.1.6.tar.gz
-  version: 1.1.6
+  sha256: 6b554b90c2139aceef65e1aebe811cfe398af4ea749eb5ffa0b7286053ff9e50
+  url: https://github.com/ximion/appstream/archive/refs/tags/v1.2.2.tar.gz
+  version: 1.2.2
 cairo:
-  sha256: 445ed8208a6e4823de1226a74ca319d3600e83f6369f99b14265006599c32ccb
-  url: https://deb.debian.org/debian/pool/main/c/cairo/cairo_1.18.4.orig.tar.xz
-  version: 1.18.4
+  sha256: 1c767308174337a74694da0f3ec069c271452163a1ef4540964c50c301f157d4
+  url: https://cairographics.org/releases/cairo-1.18.6.tar.xz
+  version: 1.18.6
 curl:
-  sha256: d9b327997999045a24cda50f3983e69e51c516bd8be6ef9842fc7f99135e33bb
-  url: https://github.com/curl/curl/releases/download/curl-8_21_0/curl-8.21.0.tar.gz
-  version: 8.21.0
+  sha256: e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
+  url: https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz
+  version: 8.23.0
 directx-headers:
-  sha256: edb8b52b1379f841df5d0d5e11dde08e0c3912508179fb3711f163382e88865c
-  url: https://codeload.github.com/microsoft/DirectX-Headers/tar.gz/refs/tags/v1.611.0
-  version: 1.611.0
+  sha256: b736c311057f2b426eb465d4e7867da4eb4e76d69be27f45bfa359189f97c0b0
+  url: https://codeload.github.com/microsoft/DirectX-Headers/tar.gz/refs/tags/v1.721.2
+  version: 1.721.2
 directxmath:
-  sha256: 8ac7f060d7fcc971d77c5a9f3ff98548ecf119c144a7c2dd9d21f4b66ba94cd4
-  url: https://github.com/microsoft/DirectXMath/archive/apr2025/directxmath-apr2025.tar.gz
-  version: apr2025
+  sha256: cb46002679b16a25fd11d0a2a13f6a7c7bf9c51bf04258fb5485e5b839da8474
+  url: https://github.com/microsoft/DirectXMath/archive/jun2026/directxmath-jun2026.tar.gz
+  version: jun2026
 egl-headers:
   sha256: 00f6d5656d8a075ee72ec2ccbe9b803d29bb56695b05622ac4cde95d760a1528
   url: https://github.com/KhronosGroup/EGL-Registry/archive/3ae2b7c48690d2ce13cc6db3db02dfc0572be65e.tar.gz
   version: '1.5'
 expat:
-  sha256: f6256df90c906773d344da084402b7d3e4f22ed41b1a59c989098a83d3ea0c85
-  url: https://github.com/libexpat/libexpat/releases/download/R_2_8_3/expat-2.8.3.tar.xz
-  version: 2.8.3
+  sha256: 1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051
+  url: https://github.com/libexpat/libexpat/releases/download/R_2_9_0/expat-2.9.0.tar.xz
+  version: 2.9.0
 fontconfig:
   sha256: 9ae01e1d53acdef56010c5451cd34aa41d325b2faccd8606448d8fa01b2496b3
   url: https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/2.18.3/fontconfig-2.18.3.tar.gz
   version: 2.18.3
 freetype:
-  sha256: 36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f
-  url: https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz
-  version: 2.14.3
+  sha256: 93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5
+  url: https://download.savannah.gnu.org/releases/freetype/freetype-2.15.0.tar.xz
+  version: 2.15.0
 fribidi:
-  sha256: 1b1cde5b235d40479e91be2f0e88a309e3214c8ab470ec8a2744d82a5a9ea05c
-  url: https://github.com/fribidi/fribidi/releases/download/v1.0.16/fribidi-1.0.16.tar.xz
-  version: 1.0.16
+  sha256: 1de5e8073d035388b71d0b2d452b1da1f8caeea8a7702997b401fe1b6250727f
+  url: https://github.com/fribidi/fribidi/releases/download/v1.0.18/fribidi-1.0.18.tar.xz
+  version: 1.0.18
 gdk-pixbuf:
-  sha256: 172f80e3626ec31520a970400f1a3694e04718f6c2cd2885f75250fb5a6995a4
-  url: https://download.gnome.org/sources/gdk-pixbuf/2.44/gdk-pixbuf-2.44.7.tar.xz
-  version: 2.44.7
+  sha256: 919f529512961a12e81cd4b4b466a48c3933469e7f9a310c6513cd4fb252ba3c
+  url: https://download.gnome.org/sources/gdk-pixbuf/2.44/gdk-pixbuf-2.44.8.tar.xz
+  version: 2.44.8
 gettext:
-  sha256: c918503d593d70daf4844d175a13d816afacb667c06fba1ec9dcd5002c1518b7
-  url: https://ftp.gnu.org/pub/gnu/gettext/gettext-0.24.tar.gz
-  version: '0.24'
+  sha256: 85d99b79c981a404874c02e0342176cf75c7698e2b51fe41031cf6526d974f1a
+  url: https://ftp.gnu.org/pub/gnu/gettext/gettext-1.0.tar.gz
+  version: '1.0'
 gl-headers:
   sha256: f2df9787d67ffbf238c7ff4d9104a7c9a84728d036870521d616d3f048893407
   url: https://gitlab.freedesktop.org/gstreamer/meson-ports/gl-headers/-/archive/1d237e348de930f9f561620d2e6a31d94019525f/gl-headers-1d237e348de930f9f561620d2e6a31d94019525f.tar.gz
   version: 1d237e34
 glib:
-  sha256: 17d15cac2af80a33271127408e0abc2748eb297c595c2a26409e81e14e7d1b8f
-  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.0.tar.xz
-  version: 2.90.0
+  sha256: 93c941aa17d5eb1d53fe838365f29a8b4e539c222a256d974ec8f30fc413e396
+  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.1.tar.xz
+  version: 2.90.1
 glib-base:
-  sha256: 17d15cac2af80a33271127408e0abc2748eb297c595c2a26409e81e14e7d1b8f
-  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.0.tar.xz
-  version: 2.90.0
+  sha256: 93c941aa17d5eb1d53fe838365f29a8b4e539c222a256d974ec8f30fc413e396
+  url: https://download.gnome.org/sources/glib/2.90/glib-2.90.1.tar.xz
+  version: 2.90.1
 glslang:
-  sha256: 81038794e20494556edbcc0fc70fa984d71d1b440f9c49adf2cbaaa60a519757
-  url: https://github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
-  version: 1.4.357.0
+  sha256: cda24ec765e6d2845d106b7caa593f34127195a88524cf87821ff0088fb6edec
+  url: https://github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz
+  version: 1.4.363.0
 gobject-introspection:
   sha256: 920d1a3fcedeadc32acff95c2e203b319039dd4b4a08dd1a2dfd283d19c0b9ae
   url: https://download.gnome.org/sources/gobject-introspection/1.86/gobject-introspection-1.86.0.tar.xz
@@ -75,33 +75,33 @@ graphene:
   url: https://download.gnome.org/sources/graphene/1.10/graphene-1.10.8.tar.xz
   version: 1.10.8
 gst-plugins-bad:
-  sha256: dc525383c18b2c265bbe6a43d498656cd918aaa130aa4e3abeabcdaa741c3ffe
-  url: https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-1.28.7.tar.xz
-  version: 1.28.7
+  sha256: 670d888bde8242579b0d8e91f60cf337aa7be20ca7c315ebfbdd6e5a9218d104
+  url: https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-1.28.8.tar.xz
+  version: 1.28.8
 gst-plugins-base:
-  sha256: ed6e5410f496d171818763af2265e7977154bc7f9b827e98acf8c5bed21dd5a7
-  url: https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-1.28.7.tar.xz
-  version: 1.28.7
+  sha256: ade70e3381fcbb024f1f20aa9ede9b5654aeed39d5bd70b1a98f53015e501117
+  url: https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-1.28.8.tar.xz
+  version: 1.28.8
 gst-plugins-good:
-  sha256: 87256969c82cf3bc8574301f3e7044a90de0ac500a5a27d8ba38c4dde894dd8b
-  url: https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-1.28.7.tar.xz
-  version: 1.28.7
+  sha256: a7670ed900d3d03be744d25c1873b239896e9a82ce6d17f8febc6fffbaee9521
+  url: https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-1.28.8.tar.xz
+  version: 1.28.8
 gstreamer:
-  sha256: 787329b2c5758e228a71d926a6dcf960bceaacca3cadd63874ba665dfcda013e
-  url: https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.28.7.tar.xz
-  version: 1.28.7
+  sha256: baa8e86985ad6417cc0ad6e7b79ff2884c6779c8b1c7a6240e7121822c86e524
+  url: https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.28.8.tar.xz
+  version: 1.28.8
 gtk:
-  sha256: 28ba4ac1c04f86eac09b79a163cb163a4c2b54442d9f7eccc04679062a581044
-  url: https://download.gnome.org/sources/gtk/4.24/gtk-4.24.0.tar.xz
-  version: 4.24.0
+  sha256: e98abe720e16129c8c0f50761dee0a2e9ae2478055e31018f6cf977fcf6513e9
+  url: https://download.gnome.org/sources/gtk/4.24/gtk-4.24.1.tar.xz
+  version: 4.24.1
 harfbuzz:
-  sha256: 9dae9538aae2ffdf70cec31f2c27bf68e2aaeeae3112688467697d5faf6194f7
-  url: https://github.com/harfbuzz/harfbuzz/releases/download/14.3.1/harfbuzz-14.3.1.tar.xz
-  version: 14.3.1
+  sha256: 968536e9abd782f07f7954044c0c4020199fcdd39b41d221ec42d2a3be4a44df
+  url: https://github.com/harfbuzz/harfbuzz/releases/download/15.0.0/harfbuzz-15.0.0.tar.xz
+  version: 15.0.0
 harfbuzz-base:
-  sha256: 9dae9538aae2ffdf70cec31f2c27bf68e2aaeeae3112688467697d5faf6194f7
-  url: https://github.com/harfbuzz/harfbuzz/releases/download/14.3.1/harfbuzz-14.3.1.tar.xz
-  version: 14.3.1
+  sha256: 968536e9abd782f07f7954044c0c4020199fcdd39b41d221ec42d2a3be4a44df
+  url: https://github.com/harfbuzz/harfbuzz/releases/download/15.0.0/harfbuzz-15.0.0.tar.xz
+  version: 15.0.0
 json-glib:
   sha256: 55c5c141a564245b8f8fbe7698663c87a45a7333c2a2c56f06f811ab73b212dd
   url: https://download.gnome.org/sources/json-glib/1.10/json-glib-1.10.8.tar.xz
@@ -123,17 +123,17 @@ libffi:
   url: https://github.com/libffi/libffi/releases/download/v3.8.0/libffi-3.8.0.tar.gz
   version: 3.8.0
 libfyaml:
-  sha256: 9acbc9737808b2833a51be0d4b361987ab6bbbb19cbda7c0c5c83148c8addd8a
-  url: https://github.com/pantoniou/libfyaml/releases/download/v0.9.5/libfyaml-0.9.5.tar.gz
-  version: 0.9.5
+  sha256: f891584e396ee17b520fc2f486f4848edd4315d2cc6d38aad4c5569aec113ec5
+  url: https://github.com/pantoniou/libfyaml/releases/download/v1.0.0-beta2/libfyaml-1.0.0-beta2.tar.gz
+  version: 1.0.0-beta2
 libiconv:
-  sha256: 88dd96a8c0464eca144fc791ae60cd31cd8ee78321e67397e25fc095c4a19aa6
-  url: https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.19.tar.gz
-  version: '1.19'
+  sha256: 9a06844846d664d7122161700c10a64480d7c7bcead3091925a785b38c91edab
+  url: https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.19.1.tar.gz
+  version: 1.19.1
 libjpeg-turbo:
-  sha256: 6f30092cef9fb839779646608f4ee14ae3cbac989c47fa05e841b0841f09878e
-  url: https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.0/libjpeg-turbo-3.2.0.tar.gz
-  version: 3.2.0
+  sha256: c27ad72a68da151177929aa969ae773a2da5ac2af9ce946079314fdac8cece7f
+  url: https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.1/libjpeg-turbo-3.2.1.tar.gz
+  version: 3.2.1
 libogg:
   sha256: 5c8253428e181840cd20d41f3ca16557a9cc04bad4a3d04cce84808677fa1061
   url: https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.xz
@@ -147,9 +147,9 @@ libpciaccess:
   url: https://www.x.org/releases/individual/lib/libpciaccess-0.19.tar.xz
   version: '0.19'
 libpng:
-  sha256: 28eb403f51f0f7405249132cecfe82ea5c0ef97f1b32c5a65828814ae0d34775
-  url: https://download.sourceforge.net/libpng/libpng-1.6.58.tar.xz
-  version: 1.6.58
+  sha256: d80dd2a38a37f803cb9b6ac7b14bd6e74ddc3b654780a8380bdf93523fdb4389
+  url: https://download.sourceforge.net/libpng/libpng-1.6.59.tar.xz
+  version: 1.6.59
 libpthread-stubs:
   sha256: 59da566decceba7c2a7970a4a03b48d9905f1262ff94410a649224e33d2442bc
   url: https://www.x.org/releases/individual/lib/libpthread-stubs-0.5.tar.xz
@@ -167,9 +167,9 @@ libvpx:
   url: https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz
   version: 1.17.0
 libx11:
-  sha256: 69606f485c2c07c14ef64f75b7bb326d48587af33795d9ab3e607c0b5f94f11c
-  url: https://www.x.org/releases/individual/lib/libX11-1.8.13.tar.xz
-  version: 1.8.13
+  sha256: bbc78c46217174655c2b32b138ad119f3ac15f50808b4d0b3a2677a4b1afc950
+  url: https://www.x.org/releases/individual/lib/libX11-1.8.14.tar.xz
+  version: 1.8.14
 libxau:
   sha256: 74d0e4dfa3d39ad8939e99bda37f5967aba528211076828464d2777d477fc0fb
   url: https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz
@@ -195,29 +195,29 @@ libxfixes:
   url: https://www.x.org/releases/individual/lib/libXfixes-6.0.2.tar.xz
   version: 6.0.2
 libxi:
-  sha256: 7ad60056f01af4f786cfe93b3a7707447711626fc8da2637bec71a90409babe5
-  url: https://www.x.org/releases/individual/lib/libXi-1.8.3.tar.xz
-  version: 1.8.3
+  sha256: ddd6057b89a91903bc2f884d55c8467440906945e482c36547260dff28661afc
+  url: https://www.x.org/releases/individual/lib/libXi-1.8.4.tar.xz
+  version: 1.8.4
 libxinerama:
   sha256: d00fc1599c303dc5cbc122b8068bdc7405d6fcb19060f4597fc51bd3a8be51d7
   url: https://www.x.org/releases/individual/lib/libXinerama-1.1.6.tar.xz
   version: 1.1.6
 libxml2:
-  sha256: 78262a6e7ac170d6528ebfe2efccdf220191a5af6a6cd61ea4a9a9a5042c7a07
-  url: https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz
-  version: 2.15.3
+  sha256: 98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821
+  url: https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz
+  version: 2.15.4
 libxmlb:
-  sha256: 5982b4fe344deb36e57b40d7582f594ecd9414f86fb8258bb56f8b1a38e1d527
-  url: https://github.com/hughsie/libxmlb/releases/download/0.3.28/libxmlb-0.3.28.tar.xz
-  version: 0.3.28
+  sha256: 448294be33bfae62f00fa66e506f1cae80237ce71b7ab6530aefa75005eeb08a
+  url: https://github.com/hughsie/libxmlb/releases/download/0.3.29/libxmlb-0.3.29.tar.xz
+  version: 0.3.29
 libxrandr:
   sha256: 72b922c2e765434e9e9f0960148070bd4504b288263e2868a4ccce1b7cf2767a
   url: https://www.x.org/releases/individual/lib/libXrandr-1.5.5.tar.xz
   version: 1.5.5
 libxrender:
-  sha256: b832128da48b39c8d608224481743403ad1691bf4e554e4be9c174df171d1b97
-  url: https://www.x.org/releases/individual/lib/libXrender-0.9.12.tar.xz
-  version: 0.9.12
+  sha256: 3fe88c609df6782e1e7af2e4de36b2563d70cd70ff7dcb1cda561ad64912bb64
+  url: https://www.x.org/releases/individual/lib/libXrender-0.9.13.tar.xz
+  version: 0.9.13
 libxshmfence:
   sha256: d4a4df096aba96fea02c029ee3a44e11a47eb7f7213c1a729be83e85ec3fde10
   url: https://www.x.org/releases/individual/lib/libxshmfence-1.3.3.tar.xz
@@ -239,57 +239,57 @@ pango:
   url: https://download.gnome.org/sources/pango/1.58/pango-1.58.2.tar.xz
   version: 1.58.2
 pcre2:
-  sha256: c08ae2388ef333e8403e670ad70c0a11f1eed021fd88308d7e02f596fcd9dc16
-  url: https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.tar.gz
-  version: '10.47'
+  sha256: 929f0b20e62879252a15886b06c89f1edef61a363cbd5826fb041080a5e557ae
+  url: https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.49/pcre2-10.49.tar.gz
+  version: '10.49'
 pixman:
   sha256: d09c44ebc3bd5bee7021c79f922fe8fb2fb57f7320f55e97ff9914d2346a591c
   url: https://deb.debian.org/debian/pool/main/p/pixman/pixman_0.46.4.orig.tar.gz
   version: 0.46.4
 shaderc:
-  sha256: ee493ccf1b3038b4ef2fe024664c5eb2dc4bcc1f6b05b33e3909de0e19c81024
-  url: https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz
-  version: '2026.3'
+  sha256: f06ce5bcca94e5df7f34e115743597d0ad2e13c5fe9213c67dc8c76031241947
+  url: https://github.com/google/shaderc/archive/refs/tags/v2026.4.tar.gz
+  version: '2026.4'
 shared-mime-info:
-  sha256: 531291d0387eb94e16e775d7e73788d06d2b2fdd8cd2ac6b6b15287593b6a2de
-  url: https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/2.4/shared-mime-info-2.4.tar.gz
-  version: '2.4'
+  sha256: ea248ea157b7fa0165f4fe282c84919fa84c3f175553642f229c8f1ab7539128
+  url: https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/2.5.1/shared-mime-info-2.5.1.tar.gz
+  version: 2.5.1
 spirv-headers:
-  sha256: 4d703067a7e06331ccb37bdfed3f9b7879cc61969a2689ae95c95db34a47ff07
-  url: https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
-  version: 1.4.357.0
+  sha256: 5b3a0d099f5c7649e29c0938476c462e71d66ad89a0bde42fa1ba3eb476956c9
+  url: https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz
+  version: 1.4.363.0
 spirv-tools:
-  sha256: d31e7109b6ef3559067e53e520870eafed7c9534d00db9728814b6df03fa4a5e
-  url: https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
-  version: 1.4.357.0
+  sha256: e6c83a215538fbfd265ccf398d3877985055df1273dbed73912bd05307664688
+  url: https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz
+  version: 1.4.363.0
 util-macros:
   sha256: 9ac269eba24f672d7d7b3574e4be5f333d13f04a7712303b1821b2a51ac82e8e
   url: https://www.x.org/releases/individual/util/util-macros-1.20.2.tar.xz
   version: 1.20.2
 vulkan-headers:
-  sha256: e87dce08116151f6b6d7de6b6faf41498e87e6cf848ff16fa3bd5402190ad4a3
-  url: https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
-  version: 1.4.357.0
+  sha256: 4a078be12bef21cfebc09d878b77a63cff9d68f899254a0b00d0e37ef73e7f7e
+  url: https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz
+  version: 1.4.363.0
 vulkan-loader:
-  sha256: 54f2537df22313768da0317dda2abdaaab7711b4081c48c869a79db343d0ae70
-  url: https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/vulkan-sdk-1.4.357.0.tar.gz
-  version: 1.4.357.0
+  sha256: 941eff558fc74f248745fb7df367640cf89a8457f216dae498a74ae14b6ba6f7
+  url: https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz
+  version: 1.4.363.0
 xcb-proto:
   sha256: 2c1bacd2110f4799f74de6ebb714b94cf6f80fb112316b1219480fd22562148c
   url: https://www.x.org/releases/individual/proto/xcb-proto-1.17.0.tar.xz
   version: 1.17.0
 xorgproto:
-  sha256: 56898c716c0578df8a2d828c9c3e5c528277705c0484381a81960fe1a67668e8
-  url: https://www.x.org/releases/individual/proto/xorgproto-2025.1.tar.xz
-  version: '2025.1'
+  sha256: f9bfe4a9ed8c8ab9d2a3b0d49797f046052dadd06b7a8b45dbffaffb137e8290
+  url: https://www.x.org/releases/individual/proto/xorgproto-2026.1.tar.xz
+  version: '2026.1'
 xtrans:
   sha256: faafea166bf2451a173d9d593352940ec6404145c5d1da5c213423ce4d359e92
   url: https://www.x.org/releases/individual/lib/xtrans-1.6.0.tar.xz
   version: 1.6.0
 xz:
-  sha256: bdbc23fbf9098843357e71e49685724fda2c320c29cb1b25fd90505f14bb0b3d
-  url: https://codeload.github.com/tukaani-project/xz/tar.gz/refs/tags/v5.8.1
-  version: 5.8.1
+  sha256: b6b34c52e672e810d339db14e0c10b5b6f5f67a30d8d05cdac5d8cb4d82f78d5
+  url: https://codeload.github.com/tukaani-project/xz/tar.gz/refs/tags/v5.8.4
+  version: 5.8.4
 zlib:
   sha256: bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16
   url: https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz

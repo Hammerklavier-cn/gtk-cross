@@ -1,13 +1,11 @@
 name: xz
-version: 5.8.1
+version: 5.8.4
 source:
   # 官方 tukaani.org 与 github release 会 302 跳转，codeload 直取更稳；
   # repo 归档自带 CMakeLists.txt（无需 autoreconf）。
-  url: https://codeload.github.com/tukaani-project/xz/tar.gz/refs/tags/v5.8.1
-  sha256: bdbc23fbf9098843357e71e49685724fda2c320c29cb1b25fd90505f14bb0b3d
+  url: https://codeload.github.com/tukaani-project/xz/tar.gz/refs/tags/v5.8.4
   mirrors:
-    - url: https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.gz
-      sha256: 507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543
+    - url: https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5.8.4.tar.gz
 build: cmake
 # 静态：供 libxmlb 的 -Dlzma（AppStream catalog 解压）使用。
 # 此前 libxmlb 链到 MSYS2 系统 liblzma.dll.a，导致 libadwaita-1-0.dll 在运行期

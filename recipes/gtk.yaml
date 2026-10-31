@@ -1,8 +1,7 @@
 name: gtk
-version: 4.24.0
+version: 4.24.1
 source:
-  url: https://download.gnome.org/sources/gtk/4.24/gtk-4.24.0.tar.xz
-  sha256: 28ba4ac1c04f86eac09b79a163cb163a4c2b54442d9f7eccc04679062a581044
+  url: https://download.gnome.org/sources/gtk/4.24/gtk-4.24.1.tar.xz
 build: meson
 # 动态：introspection 链（Gdk/Gsk/Gtk/后端 gir；上游 libgtk-4 本就是
 # shared_library，静态化无意义）
@@ -120,7 +119,7 @@ targets:
       - gtk-0001-fallback-to-windows-locale.patch
   - for: [linux]
     deps:
-      # x11 后端的硬依赖清单取自实测源码（gtk-4.24.0/meson.build）：
+      # x11 后端的硬依赖清单取自实测源码（gtk-4.24.1/meson.build）：
       #   :599-608  xrandr(>=1.2.99) x11 xrender xi xext xcursor xdamage xfixes fontconfig
       #   :610      x11_pkgs = [fontconfig x11 xext xi xrandr xcursor xdamage
       #                          xfixes xinerama]

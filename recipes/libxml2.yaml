@@ -1,7 +1,7 @@
 name: libxml2
-version: 2.15.3
+version: 2.15.4
 source:
-  url: https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz
+  url: https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz
 build: cmake
 deps:
   - zlib
