@@ -1,7 +1,7 @@
 name: gst-plugins-good
-version: 1.28.7
+version: 1.28.8
 source:
-  url: https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-1.28.7.tar.xz
+  url: https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-1.28.8.tar.xz
 build: meson
 # 同 gstreamer：插件是运行期加载的 DLL，库必须动态
 default_library: shared

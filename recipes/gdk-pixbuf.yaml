@@ -1,7 +1,7 @@
 name: gdk-pixbuf
-version: 2.44.7
+version: 2.44.8
 source:
-  url: https://download.gnome.org/sources/gdk-pixbuf/2.44/gdk-pixbuf-2.44.7.tar.xz
+  url: https://download.gnome.org/sources/gdk-pixbuf/2.44/gdk-pixbuf-2.44.8.tar.xz
 build: meson
 # 动态：introspection 链（GdkPixbuf/GdkPixdata gir）
 default_library: shared

@@ -1,7 +1,7 @@
 name: gstreamer
-version: 1.28.7
+version: 1.28.8
 source:
-  url: https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.28.7.tar.xz
+  url: https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.28.8.tar.xz
 build: meson
 # 动态，且这是"静态优先"的一个明确例外（与 introspection 链同级）：
 # GStreamer 的插件是运行期由 registry 扫描、g_module_open() 加载的独立 DLL，

@@ -1,7 +1,7 @@
 name: libpng
-version: 1.6.58
+version: 1.6.59
 source:
-  url: https://download.sourceforge.net/libpng/libpng-1.6.58.tar.xz
+  url: https://download.sourceforge.net/libpng/libpng-1.6.59.tar.xz
 build: cmake
 patches:
   # 上游测试段门控在 PNG_SHARED 上、测试程序硬链 png_shared；纯静态构建会

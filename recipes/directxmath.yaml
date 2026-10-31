@@ -1,7 +1,7 @@
 name: directxmath
 # 上游仓库按月份 tag（apr2025）；CMakeLists.txt 里自己的版本号是 3.20.b。
 # 用 tag 名作 version，便于与上游 release 对应。
-version: apr2025
+version: jun2026
 source:
   # gst-plugins-bad 的 d3d11 与 d3d12 两个 gst-libs 都做
   #   dependency('DirectXMath', 'directxmath', required: true)
@@ -10,7 +10,7 @@ source:
   # 项目媒体链的必需依赖，不能靠 MSYS2 的 mingw-w64-directxmath 包。
   # 上游 CMakeLists 同时装 CMake config（DirectXMath-config.cmake + 导出目标）
   # 与 pkg-config 文件（DirectXMath.pc），meson 两种探测方式都能命中。
-  url: https://github.com/microsoft/DirectXMath/archive/apr2025/directxmath-apr2025.tar.gz
+  url: https://github.com/microsoft/DirectXMath/archive/jun2026/directxmath-jun2026.tar.gz
 build: cmake
 # 只属于 Windows：directx-headers 的数学库伴包，Linux 侧无人引用。
 platforms: [windows]

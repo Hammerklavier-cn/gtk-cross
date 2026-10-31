@@ -1,7 +1,7 @@
 name: libx11
-version: 1.8.13
+version: 1.8.14
 source:
-  url: https://www.x.org/releases/individual/lib/libX11-1.8.13.tar.xz
+  url: https://www.x.org/releases/individual/lib/libX11-1.8.14.tar.xz
 build: autotools
 platforms: [linux]
 # Xlib。实测本包根目录只有 configure（无 meson.build）。

@@ -1,8 +1,8 @@
 name: appstream
-version: 1.1.6
+version: 1.2.2
 source:
   # GitHub releases 资产名不可用，用 Debian pool 原味 orig 包
-  url: https://github.com/ximion/appstream/archive/refs/tags/v1.1.6.tar.gz
+  url: https://github.com/ximion/appstream/archive/refs/tags/v1.2.2.tar.gz
 build: meson
 deps:
   - glib

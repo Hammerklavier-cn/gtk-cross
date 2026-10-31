@@ -1,13 +1,11 @@
 name: freetype
-version: 2.14.3
+version: 2.15.0
 source:
-  url: https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz
-  sha256: 36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f
+  url: https://download.savannah.gnu.org/releases/freetype/freetype-2.15.0.tar.xz
   mirrors:
     # savannah 官方站长期过载（502 常见）；Debian 的 +dfsg 官方重打包仅移除
     # 少量非自由文档，目录名与构建等价，由 deb.debian.org CDN 提供回退
-    - url: https://deb.debian.org/debian/pool/main/f/freetype/freetype_2.14.3+dfsg.orig.tar.xz
-      sha256: dc1bec263a6fffa436029efe6428f601d6b1a0b800837508ee3e49bbab8f1006
+    - url: https://deb.debian.org/debian/pool/main/f/freetype/freetype_2.15.0+dfsg.orig.tar.xz
 build: cmake
 # 动态：cairo 与 pango 都链接 freetype，静态化会让两者各持一份拷贝，
 # 而 FT_Face 会跨二者边界传递（pango 建 face → cairo-ft 使用）。

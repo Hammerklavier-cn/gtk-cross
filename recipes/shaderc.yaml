@@ -1,7 +1,7 @@
 name: shaderc
-version: 2026.3
+version: 2026.4
 source:
-  url: https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz
+  url: https://github.com/google/shaderc/archive/refs/tags/v2026.4.tar.gz
 build: cmake
 deps:
   - glslang
