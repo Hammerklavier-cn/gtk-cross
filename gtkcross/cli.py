@@ -129,6 +129,17 @@ def cmd_export(args) -> int:
     archive_root = args.archive_root
     if archive_root is None and args.force_cross:
         archive_root = f"gtk-cross-{args.target}-cross"
+    if (
+        args.target.startswith("msys2-")
+        and (sysroot / "bin").is_dir()
+        and not (sysroot / "bin" / "libstdc++-6.dll").is_file()
+    ):
+        print(
+            f"warning: {sysroot}/bin 缺少 libstdc++-6.dll；先运行 "
+            f"`gtkcross runtime -t {args.target}`，否则消费者可能拿到与 "
+            "sysroot 不匹配的 C++ 运行库（入口点错误）",
+            file=sys.stderr,
+        )
     try:
         result = export_sysroot(
             sysroot,
@@ -150,6 +161,75 @@ def cmd_export(args) -> int:
     for warning in result.warnings:
         print(f"  warning: {warning}")
     return 0
+
+
+def cmd_runtime(args) -> int:
+    """Collect the toolchain's MinGW runtime DLLs into the Windows sysroot.
+
+    The sysroot only contains the DLLs produced by the recipes.  The C/C++
+    runtime (libstdc++-6.dll, libgcc_s_seh-1.dll, libwinpthread-1.dll,
+    libdl.dll) is supplied by the compiler toolchain, so consumers had to copy
+    it by hand -- and picking it from a different compiler produces
+    "procedure entry point not found" failures.  dep-pack walks the imports of
+    every DLL in the sysroot; this command copies only the dependencies that
+    resolve into the toolchain prefix (never into the sysroot) back into
+    ``<sysroot>/bin``.
+    """
+    from .runtime import collect_runtime, find_dep_pack
+
+    b = _builder(args)
+    if b.tc.host != "windows":
+        # The dep-pack based collection is only correct on the host that
+        # produced the sysroot.  Linux hosts have no MSYS2 prefix, and their
+        # mingw-w64 runtime already matches the compiler used to build
+        # linux-mingw-x64, so there is nothing to repair here.
+        print(
+            "error: runtime 只支持 Windows 宿主（MSYS2 sysroot）；"
+            "Linux 宿主的交叉 sysroot 由同一套 mingw-w64 编译/链接，不需要此步骤",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        dep_pack = find_dep_pack(args.dep_pack)
+        result = collect_runtime(
+            b.sysroot, b.tc, dep_pack, dry_run=args.dry_run
+        )
+    except (ValueError, RuntimeError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"sysroot: {b.sysroot}")
+    for root in result.runtime_roots:
+        print(f"runtime: {root}")
+    if result.copied:
+        verb = "would copy" if args.dry_run else "copied"
+        print(f"{verb} {len(result.copied)} runtime DLL(s) into bin/:")
+        for name in result.copied:
+            print(f"  + {name}")
+    if result.updated:
+        verb = "would update" if args.dry_run else "updated"
+        print(f"{verb} {len(result.updated)} stale runtime DLL(s) in bin/:")
+        for name in result.updated:
+            print(f"  ~ {name}")
+    if not result.copied and not result.updated:
+        print("no external runtime DLLs to copy (sysroot already self-contained)")
+    if result.already_present:
+        print(f"already in sysroot: {len(result.already_present)} DLL(s)")
+    if result.foreign:
+        print(
+            "warning: dependencies outside sysroot/toolchain (not copied):",
+            file=sys.stderr,
+        )
+        for name in result.foreign:
+            print(f"  ? {name}", file=sys.stderr)
+    if result.external_unresolved:
+        print("error: unresolved non-system dependencies:", file=sys.stderr)
+        for name in result.external_unresolved:
+            print(f"  - {name}", file=sys.stderr)
+        return 1
+    # A foreign dependency means the exported tree would be incomplete: fail
+    # rather than silently shipping an archive that cannot run.
+    return 1 if result.foreign else 0
 
 
 def cmd_lock(args) -> int:
@@ -267,6 +347,22 @@ def main(argv=None) -> int:
     sp.add_argument("--zstd-level", type=int, default=15,
                     help=".tar.zst 的 zstd 压缩级别（默认 15）")
     sp.set_defaults(fn=cmd_export)
+
+    sp = sub.add_parser(
+        "runtime",
+        help="用 dep-pack 把工具链的 MinGW 运行库收集进 Windows sysroot 的 bin/",
+    )
+    add_target(sp)
+    add_cross_options(sp)
+    sp.add_argument(
+        "--dep-pack", default=None,
+        help="dep-pack 可执行文件（默认 $DEP_PACK 或 PATH）",
+    )
+    sp.add_argument(
+        "--dry-run", action="store_true",
+        help="只分析依赖并打印将要复制的 DLL，不写入 sysroot",
+    )
+    sp.set_defaults(fn=cmd_runtime)
 
     sp = sub.add_parser("lock", help="下载源码并锁定 sha256（不构建）")
     add_target(sp)

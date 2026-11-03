@@ -276,6 +276,45 @@ jobs:
           python -m gtkcross build "${NAMES[@]}" -t ${{ matrix.target }} \
             -j"$(nproc)" "${build_args[@]}"
 
+      # 运行期 DLL：sysroot 里只有 recipe 产出的 DLL；libstdc++ / libgcc /
+      # libwinpthread（MSYS2 还有 libdl）属于编译器工具链，不会由任何 recipe
+      # 安装。dep-pack 从 sysroot 每个 DLL 的 PE 导入表递归解析，把解析到
+      # MSYS2 前缀（C:/msys64/<msystem>/bin）的依赖复制进 <sysroot>/bin。
+      # 这样发布归档自带与编译 sysroot 的同一套 MSYS2 GCC 运行库，不会再出现
+      # “无法定位程序输入点 _ZSt15__get_once_callv 于 libgstd3d12-1.0-0.dll”
+      # 这类 C++ ABI 错配（pick-up 的旧 bundle.sh 从 Linux 交叉链接器取
+      # libstdc++，版本比 MSYS2 GCC 16 旧）。
+      #
+      # 必须在 **Windows job** 里跑：解析结果才是构建 sysroot 的那套 MSYS2。
+      # 放到 Linux cross job 会拿到 Linux 链接器的运行库，反而重新引入错配。
+      - name: 收集 MinGW 运行库依赖（dep-pack）
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          tools=build/dep-pack
+          mkdir -p "$tools"
+          url=$(python -c 'from gtkcross.runtime import DEP_PACK_URL; print(DEP_PACK_URL)')
+          sha=$(python -c 'from gtkcross.runtime import DEP_PACK_SHA256; print(DEP_PACK_SHA256)')
+          curl -L --fail --retry 3 --connect-timeout 30 \
+            -o "$tools/dep-pack.tar.xz" "$url"
+          echo "$sha  $tools/dep-pack.tar.xz" | sha256sum -c -
+          tar -xf "$tools/dep-pack.tar.xz" -C "$tools"
+          runtime_args=()
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            runtime_args=(--force-cross)
+          fi
+          python -m gtkcross runtime -t ${{ matrix.target }} \
+            --dep-pack "$tools/dep-pack_x86_64-pc-windows-gnu/dep-pack.exe" \
+            "${runtime_args[@]}"
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            root="out/${{ matrix.target }}-cross"
+          else
+            root="out/${{ matrix.target }}"
+          fi
+          # C++ DLL（GStreamer d3d12/d3dshader）一定需要它；缺失说明 dep-pack
+          # 或搜索路径出了问题，直接失败，避免发布不可运行的归档。
+          test -f "$root/bin/libstdc++-6.dll"
+
       # 产物统计：本项目核心目标是尽量少产 DLL（静态优先），把计数打出来，
       # 便于在 CI 日志里一眼看出静态化是否回退。仅诊断，不参与判定。
       - name: sysroot 产物统计

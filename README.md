@@ -257,9 +257,24 @@ Windows 运行期还需要 GTK 的数据文件：`$S/bin/*.dll`、`$S/share`（�
 链接到 sysroot `.so` 的程序需要 `LD_LIBRARY_PATH="$S/lib"`（或在应用链接时写
 `-Wl,-rpath,$S/lib`）。
 
+Windows 归档的 `bin/` 里有两类 DLL：recipe 产出的库，以及 `gtkcross runtime`
+用 [dep-pack](https://gitcode.com/hammerklavier/dep-pack) 从**编译该 sysroot 的
+MSYS2 工具链**递归收集的运行库（`libstdc++-6.dll`、`libgcc_s_seh-1.dll`、
+`libwinpthread-1.dll`，MSYS2 上还有 `libdl.dll` 等）。消费方直接
+`cp $S/bin/*.dll` 即可；**不要**再从自己的交叉链接器目录补运行库：Linux 侧
+mingw-w64 的 GCC 通常比 MSYS2 构建 sysroot 的 GCC 旧，混用会在加载
+`libgstd3d12-1.0-0.dll` 这类 C++ DLL 时报
+`_ZSt15__get_once_callv` 入口点找不到。`gtkcross runtime` 只在 Windows 宿主
+（MSYS2 sysroot 的提供者）上运行；它把解析到 MSYS2 前缀的依赖复制进
+`<sysroot>/bin`，遇到找不到的非系统依赖或 sysroot/工具链之外的依赖直接失败，
+可作为发布前的闭包校验。Linux 宿主的 `linux-mingw-x64` 产物由同一套
+mingw-w64 编译和链接，运行库天然一致，不需要这一步。
+
 本地也可以生成同样的归档（不发布）：
 
 ```bash
+python -m gtkcross runtime -t msys2-mingw64 \
+    --dep-pack /path/to/dep-pack.exe
 python -m gtkcross export -t msys2-mingw64 \
     -o dist/gtk-cross-msys2-mingw64.tar.zst
 
@@ -333,6 +348,8 @@ python -m gtkcross build gtk -t msys2-ucrt64   # 构建单包（自动拉取依�
 python -m gtkcross build libadwaita -t msys2-ucrt64 -j8   # 全链（幂等，stamp 续跑）
 python -m gtkcross graph -t msys2-ucrt64       # 依赖图
 python -m gtkcross list -t msys2-ucrt64        # recipe 清单
+python -m gtkcross runtime -t msys2-ucrt64 \
+    --dep-pack /path/to/dep-pack.exe           # 把 MSYS2 运行库收进 bin/（发布前）
 # 不带 -t 时回退到 gtk-cross.yaml 的 default_target（当前 msys2-mingw64）
 # msys2-mingw64：以上命令把 -t 换成 -t msys2-mingw64（需 mingw64 工具链包）
 ```
