@@ -21,6 +21,17 @@ cargo build --target x86_64-pc-windows-gnu
 运行期还需要 `bin/*.dll` 与 `share/`（glib schemas、icons、locale）、
 `lib/gdk-pixbuf-2.0/2.10.0/loaders.cache`；它们必须随 exe 一起分发。
 
+Windows 归档的 `bin/` 已包含 `gtkcross runtime`（CI 用 dep-pack 递归解析）从
+**编译本 sysroot 的同一套 MSYS2 工具链**收集的运行库：`libstdc++-6.dll`、
+`libgcc_s_seh-1.dll`、`libwinpthread-1.dll`、`libdl.dll` 等。直接拷贝
+`bin/*.dll` 即可，**不要**再从 Linux 交叉链接器或其他 GCC 目录补运行库；版本
+不一致会在加载 `libgstd3d12-1.0-0.dll` 等 C++ DLL 时报
+`_ZSt15__get_once_callv` 入口点找不到。
+
+`linux-mingw-x64` 资产由 Linux 侧的 mingw-w64 编译，其 `bin/` 不含这套运行库；
+消费时应使用构建它时的同一发行版/同一版本的交叉工具链，并从该工具链取
+`libstdc++-6.dll` 等运行库。
+
 ### Linux 原生
 
 按宿主机架构选择 `gtk-cross-linux-native-x86_64-<tag>.tar.zst` 或

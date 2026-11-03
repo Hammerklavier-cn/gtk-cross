@@ -480,6 +480,34 @@ MinGW 下探测转为 NO（头不存在）、MSVC 下仍为 YES（SDK 带该头�
 完成，产物 `libgstd3d11.dll` / `libgstd3d12.dll` 与 `gstreamer-d3d12-1.0.pc`
 （GTK media-gstreamer 的硬依赖）到位，日志中不再出现 dxinterop 报错。
 
+## Windows 运行库收集（2026-11-03，dep-pack）
+
+pick-up 在 Windows 上启动时报「无法定位程序输入点
+`_ZSt15__get_once_callv` 于动态链接库 `libgstd3d12-1.0-0.dll` 上」。
+这不是缺文件，而是 C++ 运行库版本错配：`libgstd3d12` / `libgstd3dshader`
+由 MSYS2 GCC 16.2 编译，导入 `libstdc++-6.dll` 的 `_ZSt15__get_once_callv`；
+消费者从 Linux 交叉链接器（较旧的 GCC）取 `libstdc++-6.dll`，导出表里没有
+这个符号。Windows 弹框显示的是**正在加载、导入解析失败的那个 DLL**（实测
+用最小 PE 复现：`bar.dll` 从 `foo.dll` 导入不存在的符号，弹框写 `bar.dll`），
+所以它指向 libgstd3d12 而不是 libstdc++。
+
+- 新增 `gtkcross runtime`：在 Windows CI 里用 dep-pack 对 sysroot 内全部
+  DLL（含 `lib/gstreamer-1.0` 插件与 gdk-pixbuf loader）做递归 PE 导入分析。
+  dry-run 日志会给出每个依赖的真实解析路径；只把落在 MSYS2 前缀
+  `C:/msys64/<msystem>/bin` 的依赖复制进 `<sysroot>/bin`。CI 在 `export`
+  前执行，基线 / v3 / v4 三个 Windows 资产都自带同一套运行库。
+- **不能按文件名匹配**：MSYS2 前缀里同时有 pacman 版 `libglib` / `libgtk` /
+  `libharfbuzz`，按名字复制会把 recipe 产物覆盖掉（实测过一次，15 个项目
+  DLL 被换成 pacman 版本）。实现按 dep-pack 报出的真实路径判断；只有
+  `libstdc++` / `libgcc_` / `libwinpthread` / `libssp` / `libgomp` /
+  `libquadmath` / `libatomic` / `libdl` 这类编译器运行库允许替换 sysroot
+  里的陈旧副本。
+- 本机首跑还发现 `libharfbuzz-0.dll` 实际导入 MSYS2 的
+  `libfreetype-6.dll` / `libgraphite2.dll`（进而 pcre2/png/zlib/bz2/brotli），
+  说明 harfbuzz 的 freetype 依赖没有完全 hermetic。dep-pack 会把这 8 个
+  DLL 一并收进 `bin/`，运行可用；构建链本身应另开一项修掉（让 harfbuzz
+  链接 sysroot 的 `libfreetype.dll`）。
+
 ## 运行期数据包（2026-09-27 新增）
 
 - **shared-mime-info 2.4**：`-Dupdate-mimedb=true` 在安装后生成
